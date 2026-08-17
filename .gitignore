@@ -1,0 +1,12 @@
+node_modules/
+config/config.json
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+.wwebjs_auth/
+.wwebjs_cache/
+src/engine/session/
+*.log
+dist/
+.env

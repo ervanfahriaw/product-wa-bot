@@ -1,0 +1,192 @@
+<%- include('../partials/header') %>
+
+<div class="flex flex-col md:flex-row bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[600px]"
+     x-data="productManager()">
+  <!-- Sidebar -->
+  <%- include('../partials/sidebar', { activeMenu: 'products', config }) %>
+
+  <!-- Main Content Area -->
+  <div class="flex-1 p-6 md:p-8 bg-gray-50 space-y-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900">Katalog Produk</h2>
+        <p class="text-sm text-gray-500 mt-1">Kelola data nama, harga, stok ketersediaan, dan gambar produk yang dapat dicek oleh pembeli via WhatsApp.</p>
+      </div>
+      <button @click="openCreateModal()" type="button"
+              class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-colors flex items-center space-x-2">
+        <span>➕</span>
+        <span>Tambah Produk</span>
+      </button>
+    </div>
+
+    <!-- Product Table Card -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-gray-600">
+          <thead class="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase">
+            <tr>
+              <th class="px-5 py-3.5">Nama Produk</th>
+              <th class="px-5 py-3.5">Harga</th>
+              <th class="px-5 py-3.5">Stok</th>
+              <th class="px-5 py-3.5">Deskripsi</th>
+              <th class="px-5 py-3.5 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <% if (products && products.length > 0) { %>
+              <% products.forEach(function(product) { %>
+                <tr class="hover:bg-gray-50/80 transition-colors">
+                  <td class="px-5 py-4 font-bold text-gray-900">
+                    <%= product.name %>
+                  </td>
+                  <td class="px-5 py-4 font-medium text-gray-800">
+                    Rp<%= Number(product.price).toLocaleString('id-ID') %>
+                  </td>
+                  <td class="px-5 py-4">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+                      <%= product.stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' %>">
+                      <%= product.stock %> unit
+                    </span>
+                  </td>
+                  <td class="px-5 py-4 text-xs text-gray-500 max-w-xs truncate">
+                    <%= product.description || '-' %>
+                  </td>
+                  <td class="px-5 py-4 text-right space-x-2">
+                    <button @click="openEditModal(<%= JSON.stringify(product) %>)" 
+                            class="text-xs text-blue-600 hover:text-blue-800 font-semibold">
+                      Edit
+                    </button>
+                    <button @click="openDeleteModal(<%= product.id %>, '<%= product.name %>')" 
+                            class="text-xs text-red-600 hover:text-red-800 font-semibold">
+                      Hapus
+                    </button>
+                  </td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="5" class="px-5 py-8 text-center text-gray-400 text-sm">
+                  Belum ada produk. Klik tombol "Tambah Produk" di atas untuk menambahkan produk pertama Anda.
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Tambah / Edit Produk -->
+  <div x-show="showFormModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4" @click.away="showFormModal = false">
+      <div class="flex justify-between items-center pb-2 border-b border-gray-100">
+        <h3 class="text-lg font-bold text-gray-900" x-text="isEdit ? 'Edit Produk' : 'Tambah Produk Baru'"></h3>
+        <button @click="showFormModal = false" class="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <form :action="isEdit ? '/dashboard/products/' + formData.id + '/edit' : '/dashboard/products'" method="POST" class="space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nama Produk *</label>
+          <input type="text" name="name" required x-model="formData.name" placeholder="Contoh: Kopi Susu Gula Aren"
+                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Harga (Rp) *</label>
+            <input type="number" name="price" required min="0" x-model="formData.price" placeholder="18000"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Jumlah Stok *</label>
+            <input type="number" name="stock" required min="0" x-model="formData.stock" placeholder="50"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Deskripsi Singkat</label>
+          <textarea name="description" rows="2" x-model="formData.description" placeholder="Keterangan rasa, varian, atau ukuran..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Path Gambar Produk (Opsional)</label>
+          <input type="text" name="image_path" x-model="formData.image_path" placeholder="assets/products/kopi.jpg"
+                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          <p class="text-[11px] text-gray-400 mt-1">Path gambar lokal yang akan dikirim bot via WhatsApp saat pelanggan meminta foto.</p>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-gray-100">
+          <button @click="showFormModal = false" type="button" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+            Batal
+          </button>
+          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-lg shadow-sm">
+            Simpan Produk
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Konfirmasi Hapus Produk -->
+  <div x-show="showDeleteModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4" @click.away="showDeleteModal = false">
+      <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl font-bold">
+        ⚠️
+      </div>
+      <div class="text-center">
+        <h3 class="text-base font-bold text-gray-900">Konfirmasi Hapus Produk</h3>
+        <p class="text-xs text-gray-500 mt-1">Apakah Anda yakin ingin menghapus produk <span class="font-bold text-gray-800" x-text="deleteName"></span>? Tindakan ini tidak dapat dibatalkan.</p>
+      </div>
+      <form :action="'/dashboard/products/' + deleteId + '/delete'" method="POST" class="flex justify-center space-x-3 pt-2">
+        <button @click="showDeleteModal = false" type="button" class="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">
+          Batal
+        </button>
+        <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg shadow-sm">
+          Ya, Hapus Sekarang
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  function productManager() {
+    return {
+      showFormModal: false,
+      showDeleteModal: false,
+      isEdit: false,
+      deleteId: null,
+      deleteName: '',
+      formData: {
+        id: null,
+        name: '',
+        price: '',
+        stock: '',
+        description: '',
+        image_path: ''
+      },
+
+      openCreateModal() {
+        this.isEdit = false;
+        this.formData = { id: null, name: '', price: '', stock: '', description: '', image_path: '' };
+        this.showFormModal = true;
+      },
+
+      openEditModal(product) {
+        this.isEdit = true;
+        this.formData = { ...product };
+        this.showFormModal = true;
+      },
+
+      openDeleteModal(id, name) {
+        this.deleteId = id;
+        this.deleteName = name;
+        this.showDeleteModal = true;
+      }
+    }
+  }
+</script>
+
+<%- include('../partials/footer') %>

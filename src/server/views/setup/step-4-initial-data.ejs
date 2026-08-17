@@ -1,0 +1,85 @@
+<%- include('../partials/header') %>
+
+<%- include('../partials/wizard-stepper') %>
+
+<div class="bg-white rounded-xl shadow-md border border-gray-200 p-8 max-w-2xl mx-auto">
+  <div class="text-center mb-8">
+    <h2 class="text-2xl font-bold text-gray-900">
+      <%= config.mode === 'bisnis' ? 'Masukkan Produk Pertama Anda' : 'Catat Pengeluaran Pertama' %>
+    </h2>
+    <p class="text-sm text-gray-500 mt-2">
+      <%= config.mode === 'bisnis' 
+          ? 'Tambahkan satu contoh produk ke katalog agar bot bisa langsung dites untuk mengecek stok.' 
+          : 'Tambahkan satu contoh pengeluaran agar Anda dapat langsung menguji rekap keuangan bot.' %>
+    </p>
+  </div>
+
+  <% if (error) { %>
+    <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded text-sm text-red-700">
+      <%= error %>
+    </div>
+  <% } %>
+
+  <form action="/setup/step-4" method="POST" class="space-y-5">
+    <% if (config.mode === 'bisnis') { %>
+      <!-- Mode Bisnis: Produk Pertama -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Produk</label>
+        <input type="text" name="product_name" placeholder="Contoh: Kopi Susu Aren"
+               class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Harga (Rp)</label>
+          <input type="number" name="product_price" placeholder="Contoh: 18000" min="0"
+                 class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Jumlah Stok</label>
+          <input type="number" name="product_stock" placeholder="Contoh: 50" min="0"
+                 class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Deskripsi Singkat</label>
+        <textarea name="product_description" rows="3" placeholder="Contoh: Kopi espresso blend robusta & arabika dengan gula aren murni."
+                  class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+      </div>
+
+    <% } else { %>
+      <!-- Mode Personal: Pengeluaran Pertama -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Kategori Pengeluaran</label>
+        <input type="text" name="expense_category" placeholder="Contoh: Makan & Minum"
+               class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Nominal / Jumlah (Rp)</label>
+        <input type="number" name="expense_amount" placeholder="Contoh: 25000" min="0"
+               class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Catatan Keterangan</label>
+        <input type="text" name="expense_note" placeholder="Contoh: Makan siang nasi padang"
+               class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+    <% } %>
+
+    <div class="flex flex-col sm:flex-row justify-between items-center pt-6 border-t border-gray-100 gap-3">
+      <button type="submit" formaction="/setup/step-4/skip" formmethod="POST"
+              class="w-full sm:w-auto px-5 py-2.5 text-gray-500 hover:text-gray-700 font-medium text-sm transition-colors text-center">
+        Lewati Langkah Ini &rarr;
+      </button>
+      <button type="submit"
+              class="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-colors text-center">
+        Simpan & Masuk ke Dashboard 🎉
+      </button>
+    </div>
+  </form>
+</div>
+
+<%- include('../partials/footer') %>

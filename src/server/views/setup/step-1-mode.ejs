@@ -1,0 +1,75 @@
+<%- include('../partials/header') %>
+
+<%- include('../partials/wizard-stepper') %>
+
+<div class="bg-white rounded-xl shadow-md border border-gray-200 p-8 max-w-2xl mx-auto" x-data="{ selectedMode: '<%= config.mode || "bisnis" %>' }">
+  <div class="text-center mb-8">
+    <h2 class="text-2xl font-bold text-gray-900">Pilih Mode Penggunaan Bot</h2>
+    <p class="text-sm text-gray-500 mt-2">Tentukan bagaimana WhatsApp Bot akan membantu aktivitas harian atau usaha Anda.</p>
+  </div>
+
+  <% if (error) { %>
+    <div class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded text-sm text-red-700">
+      <%= error %>
+    </div>
+  <% } %>
+
+  <form action="/setup/step-1" method="POST" class="space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- Option 1: Mode Bisnis -->
+      <label class="cursor-pointer border-2 rounded-xl p-5 flex flex-col justify-between transition-all"
+             :class="selectedMode === 'bisnis' ? 'border-blue-600 bg-blue-50/50 shadow-sm' : 'border-gray-200 hover:border-gray-300 bg-white'">
+        <div class="flex items-start space-x-3">
+          <input type="radio" name="mode" value="bisnis" x-model="selectedMode" class="mt-1 text-blue-600 focus:ring-blue-500">
+          <div>
+            <span class="block font-bold text-gray-900 text-base">🏪 Mode Bisnis</span>
+            <p class="text-xs text-gray-500 mt-1">Untuk toko online & UMKM: cek stok otomatis, kirim foto katalog, rekomendasi barang, dan alihkan chat ke pemilik jika bot ragu.</p>
+          </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-gray-200/60 text-xs text-blue-700 font-medium">
+          Fitur: Cek Stok & Katalog Produk
+        </div>
+      </label>
+
+      <!-- Option 2: Mode Personal -->
+      <label class="cursor-pointer border-2 rounded-xl p-5 flex flex-col justify-between transition-all"
+             :class="selectedMode === 'personal' ? 'border-blue-600 bg-blue-50/50 shadow-sm' : 'border-gray-200 hover:border-gray-300 bg-white'">
+        <div class="flex items-start space-x-3">
+          <input type="radio" name="mode" value="personal" x-model="selectedMode" class="mt-1 text-blue-600 focus:ring-blue-500">
+          <div>
+            <span class="block font-bold text-gray-900 text-base">👤 Mode Personal</span>
+            <p class="text-xs text-gray-500 mt-1">Untuk asisten pribadi harian: catat pengeluaran dari kalimat santai, rekap bulanan on-demand, dan buat pengingat terjadwal.</p>
+          </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-gray-200/60 text-xs text-blue-700 font-medium">
+          Fitur: Pencatat Keuangan & Pengingat
+        </div>
+      </label>
+    </div>
+
+    <!-- Additional Fields -->
+    <div class="space-y-4 pt-4 border-t border-gray-100" x-show="selectedMode === 'bisnis'" x-transition>
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Bisnis / Toko (Opsional)</label>
+        <input type="text" name="business_name" value="<%= config.business_name || '' %>"
+               placeholder="Contoh: Toko Kopi Segar"
+               class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Nomor WhatsApp Pemilik (Opsional)</label>
+        <input type="text" name="owner_phone" value="<%= config.owner_phone || '' %>"
+               placeholder="Contoh: 628123456789 (format 62...)"
+               class="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <p class="text-xs text-gray-400 mt-1">Digunakan untuk menerima notifikasi pengalihan chat (human handover) saat pelanggan butuh bantuan langsung.</p>
+      </div>
+    </div>
+
+    <div class="flex justify-end pt-4">
+      <button type="submit" class="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-colors">
+        Simpan & Lanjut ke Scan QR &rarr;
+      </button>
+    </div>
+  </form>
+</div>
+
+<%- include('../partials/footer') %>

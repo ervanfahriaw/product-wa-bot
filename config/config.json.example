@@ -1,0 +1,8 @@
+{
+  "port": 3000,
+  "mode": "bisnis",
+  "business_name": "Toko Contoh",
+  "owner_phone": "628123456789",
+  "gemini_api_key": "YOUR_GEMINI_API_KEY",
+  "grok_api_key": ""
+}

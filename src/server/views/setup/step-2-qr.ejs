@@ -1,0 +1,141 @@
+<%- include('../partials/header') %>
+
+<%- include('../partials/wizard-stepper') %>
+
+<div class="bg-white rounded-xl shadow-md border border-gray-200 p-8 max-w-2xl mx-auto"
+     x-data="qrHandler()" x-init="startPolling()">
+  <div class="text-center mb-6">
+    <h2 class="text-2xl font-bold text-gray-900">Sambungkan Akun WhatsApp</h2>
+    <p class="text-sm text-gray-500 mt-2">Buka WhatsApp di ponsel Anda &rarr; Pengaturan / Titik Tiga &rarr; Perangkat Tertaut &rarr; Tautkan Perangkat.</p>
+  </div>
+
+  <div class="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-xl border border-gray-200/80 min-h-[340px]">
+    <!-- State 1: Ready / Already connected -->
+    <template x-if="state === 'ready' || state === 'authenticated'">
+      <div class="text-center space-y-4 py-6">
+        <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl shadow-sm">
+          ✓
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-gray-900">WhatsApp Berhasil Tersambung!</h3>
+          <p class="text-sm text-gray-600 mt-1" x-text="'Akun: ' + (info?.pushname || 'User') + (info?.phone ? ' (' + info.phone + ')' : '')"></p>
+        </div>
+        <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <a href="/setup/step-3" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-colors">
+            Lanjut ke Pengaturan Kunci AI &rarr;
+          </a>
+          <button @click="resetSession()" type="button" class="text-xs text-red-600 hover:underline">
+            Ganti Akun WhatsApp
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <!-- State 2: QR Ready -->
+    <template x-if="state === 'qr_ready' && qrImage">
+      <div class="text-center space-y-4">
+        <div class="p-3 bg-white rounded-xl border border-gray-300 shadow-sm inline-block">
+          <img :src="qrImage" alt="QR Code WhatsApp" class="w-64 h-64 mx-auto">
+        </div>
+        <p class="text-xs text-gray-500 animate-pulse">QR Code diperbarui otomatis. Arahkan kamera ponsel Anda ke gambar di atas.</p>
+      </div>
+    </template>
+
+    <!-- State 3: Connecting / Loading -->
+    <template x-if="state === 'connecting'">
+      <div class="text-center space-y-4 py-8">
+        <div class="inline-block w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-sm font-medium text-gray-600" x-text="loadingText"></p>
+      </div>
+    </template>
+
+    <!-- State 4: Disconnected / Error -->
+    <template x-if="state === 'disconnected' || state === 'auth_failure'">
+      <div class="text-center space-y-4 py-6 max-w-md">
+        <div class="w-12 h-12 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto text-xl">
+          ⚠️
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-gray-900">Menyiapkan Sesi WhatsApp</h3>
+          <p class="text-xs text-gray-500 mt-1" x-text="errorMessage || 'Sedang menghubungkan ke mesin WhatsApp...'"></p>
+        </div>
+        <div class="flex flex-col sm:flex-row justify-center gap-2 pt-2">
+          <button @click="initEngine()" type="button"
+                  class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-xs shadow-sm transition-colors">
+            🔄 Coba Hubungkan Lagi
+          </button>
+          <button @click="resetSession()" type="button"
+                  class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg text-xs transition-colors">
+            🗑️ Reset Sesi & Buat QR Baru
+          </button>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <div class="flex justify-between items-center mt-8 pt-4 border-t border-gray-100">
+    <a href="/setup/step-1" class="text-sm text-gray-500 hover:text-gray-700 font-medium">
+      &larr; Kembali ke Pilih Mode
+    </a>
+    <a href="/setup/step-3" class="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg text-sm transition-colors">
+      Lewati / Lanjut &rarr;
+    </a>
+  </div>
+</div>
+
+<script>
+  function qrHandler() {
+    return {
+      state: 'connecting',
+      qrImage: null,
+      info: null,
+      errorMessage: null,
+      loadingText: 'Menyiapkan sesi WhatsApp...',
+      pollInterval: null,
+
+      startPolling() {
+        this.fetchStatus();
+        this.pollInterval = setInterval(() => this.fetchStatus(), 1500);
+      },
+
+      async fetchStatus() {
+        try {
+          const res = await fetch('/api/status');
+          const data = await res.json();
+          if (data.success && data.data) {
+            this.state = data.data.state;
+            this.qrImage = data.data.qrCodeDataUrl;
+            this.info = data.data.info;
+            this.errorMessage = data.data.errorMessage;
+            
+            if (this.state === 'connecting') {
+              this.loadingText = 'Menghubungi server WhatsApp Web...';
+            } else if (this.state === 'authenticated') {
+              this.loadingText = 'Autentikasi berhasil, memuat data...';
+            }
+          }
+        } catch (err) {
+          this.loadingText = 'Menunggu server siap...';
+        }
+      },
+
+      async initEngine() {
+        this.loadingText = 'Memulai ulang mesin WhatsApp...';
+        this.state = 'connecting';
+        try {
+          await fetch('/api/init-engine', { method: 'POST' });
+        } catch (e) {}
+      },
+
+      async resetSession() {
+        this.loadingText = 'Membersihkan sesi dan membuat QR baru...';
+        this.state = 'connecting';
+        try {
+          await fetch('/api/reset-session', { method: 'POST' });
+        } catch (e) {}
+      }
+    }
+  }
+</script>
+
+<%- include('../partials/footer') %>

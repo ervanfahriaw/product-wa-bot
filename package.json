@@ -1,0 +1,42 @@
+{
+  "name": "wa-bot-assistant",
+  "version": "0.1.0",
+  "description": "WhatsApp bot untuk kebutuhan bisnis & asisten pribadi, dikonfigurasi lewat web controller lokal",
+  "main": "src/server/index.js",
+  "scripts": {
+    "start": "node src/server/index.js",
+    "build:exe": "node scripts/build-exe.js",
+    "test:db": "node scripts/test-db.js",
+    "test:ai": "node scripts/test-ai.js",
+    "test:business": "node scripts/test-business-mode.js",
+    "test:personal": "node scripts/test-personal-mode.js",
+    "test:dashboard": "node scripts/test-dashboard-management.js",
+    "test:e2e": "node scripts/test-e2e-audit.js",
+    "test:packaging": "node scripts/test-packaging.js"
+  },
+  "pkg": {
+    "scripts": "src/**/*.js",
+    "assets": [
+      "src/server/views/**/*",
+      "src/ai/prompts/**/*",
+      "src/db/schema.sql",
+      "config/config.json.example"
+    ],
+    "targets": [
+      "node20-win-x64"
+    ],
+    "outputPath": "dist"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "open": "^10.1.0",
+    "qrcode": "^1.5.4",
+    "whatsapp-web.js": "^1.26.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}

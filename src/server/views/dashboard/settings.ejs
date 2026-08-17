@@ -1,0 +1,169 @@
+<%- include('../partials/header') %>
+
+<div class="flex flex-col md:flex-row bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[600px]"
+     x-data="settingsManager()">
+  <!-- Sidebar -->
+  <%- include('../partials/sidebar', { activeMenu: 'settings', config }) %>
+
+  <!-- Main Content Area -->
+  <div class="flex-1 p-6 md:p-8 bg-gray-50 space-y-6">
+    <div class="flex justify-between items-center">
+      <div>
+        <h2 class="text-2xl font-bold text-gray-900">Pengaturan Bot</h2>
+        <p class="text-sm text-gray-500 mt-1">Konfigurasi kunci akses kecerdasan buatan (BYOK), nomor notifikasi pemilik, dan mode operasional bot.</p>
+      </div>
+    </div>
+
+    <% if (typeof success !== 'undefined' && success) { %>
+      <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded text-sm text-green-700">
+        <%= success %>
+      </div>
+    <% } %>
+
+    <form action="/dashboard/settings" method="POST" class="space-y-6 max-w-2xl bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+      <!-- 1. Mode Bot Switcher -->
+      <div class="space-y-2">
+        <label class="block text-sm font-bold text-gray-800">Mode Operasional Bot</label>
+        <div class="grid grid-cols-2 gap-3">
+          <label class="border-2 rounded-lg p-3 cursor-pointer flex items-center space-x-2 transition-all"
+                 :class="mode === 'bisnis' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-200'">
+            <input type="radio" name="mode" value="bisnis" x-model="mode" class="text-blue-600">
+            <span class="text-sm font-semibold text-gray-800">🏪 Mode Bisnis</span>
+          </label>
+          <label class="border-2 rounded-lg p-3 cursor-pointer flex items-center space-x-2 transition-all"
+                 :class="mode === 'personal' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-200'">
+            <input type="radio" name="mode" value="personal" x-model="mode" class="text-blue-600">
+            <span class="text-sm font-semibold text-gray-800">👤 Mode Personal</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 2. Business Specific Settings -->
+      <div class="space-y-4 pt-4 border-t border-gray-100" x-show="mode === 'bisnis'" x-transition>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Usaha / Toko</label>
+          <input type="text" name="business_name" value="<%= config.business_name || '' %>" placeholder="Contoh: Toko Kopi Segar"
+                 class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- 3. Owner Phone Number (for Handover / Reminders) -->
+      <div class="pt-4 border-t border-gray-100">
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Nomor WhatsApp Pemilik / Pengguna</label>
+        <input type="text" name="owner_phone" value="<%= config.owner_phone || '' %>" placeholder="Contoh: 628123456789"
+               class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        <p class="text-xs text-gray-400 mt-1">Menerima notifikasi pengalihan chat (handover) atau pengingat jadwal (reminder).</p>
+      </div>
+
+      <!-- 4. Gemini API Key -->
+      <div class="pt-4 border-t border-gray-100 space-y-2">
+        <div class="flex justify-between items-center">
+          <label class="block text-sm font-bold text-gray-800">Gemini API Key *</label>
+          <button type="button" @click="showGemini = !showGemini" class="text-xs text-blue-600 hover:underline"
+                  x-text="showGemini ? 'Sembunyikan' : 'Lihat Kunci'"></button>
+        </div>
+        <div class="flex gap-2">
+          <input :type="showGemini ? 'text' : 'password'"
+                 name="gemini_api_key"
+                 x-model="geminiKey"
+                 required
+                 placeholder="AIzaSy..."
+                 class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          <button @click="testKey('gemini')" type="button"
+                  :disabled="isTestingGemini"
+                  class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 transition-colors whitespace-nowrap">
+            <span x-text="isTestingGemini ? 'Menguji...' : '⚡ Test Koneksi'"></span>
+          </button>
+        </div>
+        <!-- Gemini Test Result Badge -->
+        <template x-if="geminiTestResult">
+          <div class="text-xs p-2.5 rounded-lg border"
+               :class="geminiTestResult.valid ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'"
+               x-text="geminiTestResult.message"></div>
+        </template>
+      </div>
+
+      <!-- 5. Grok Vision API Key -->
+      <div class="pt-4 border-t border-gray-100 space-y-2">
+        <div class="flex justify-between items-center">
+          <label class="block text-sm font-bold text-gray-800">Grok Vision API Key (Opsional)</label>
+          <button type="button" @click="showGrok = !showGrok" class="text-xs text-blue-600 hover:underline"
+                  x-text="showGrok ? 'Sembunyikan' : 'Lihat Kunci'"></button>
+        </div>
+        <div class="flex gap-2">
+          <input :type="showGrok ? 'text' : 'password'"
+                 name="grok_api_key"
+                 x-model="grokKey"
+                 placeholder="xai-..."
+                 class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          <button @click="testKey('grok')" type="button"
+                  :disabled="isTestingGrok"
+                  class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 transition-colors whitespace-nowrap">
+            <span x-text="isTestingGrok ? 'Menguji...' : '⚡ Test Koneksi'"></span>
+          </button>
+        </div>
+        <!-- Grok Test Result Badge -->
+        <template x-if="grokTestResult">
+          <div class="text-xs p-2.5 rounded-lg border"
+               :class="grokTestResult.valid ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'"
+               x-text="grokTestResult.message"></div>
+        </template>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="pt-6 border-t border-gray-100 flex justify-end">
+        <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-colors">
+          Simpan Pengaturan
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function settingsManager() {
+    return {
+      mode: '<%= config.mode || "bisnis" %>',
+      geminiKey: '<%= config.gemini_api_key || "" %>',
+      grokKey: '<%= config.grok_api_key || "" %>',
+      showGemini: false,
+      showGrok: false,
+      isTestingGemini: false,
+      isTestingGrok: false,
+      geminiTestResult: null,
+      grokTestResult: null,
+
+      async testKey(provider) {
+        const apiKey = provider === 'gemini' ? this.geminiKey : this.grokKey;
+        if (!apiKey) {
+          alert('Silakan masukkan API key terlebih dahulu.');
+          return;
+        }
+
+        if (provider === 'gemini') this.isTestingGemini = true;
+        else this.isTestingGrok = true;
+
+        try {
+          const res = await fetch('/dashboard/settings/test-key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider, apiKey })
+          });
+          const data = await res.json();
+          if (provider === 'gemini') {
+            this.geminiTestResult = { valid: data.valid, message: data.message };
+          } else {
+            this.grokTestResult = { valid: data.valid, message: data.message };
+          }
+        } catch (err) {
+          alert('Gagal menghubungi server pengujian: ' + err.message);
+        } finally {
+          this.isTestingGemini = false;
+          this.isTestingGrok = false;
+        }
+      }
+    }
+  }
+</script>
+
+<%- include('../partials/footer') %>
