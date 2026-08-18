@@ -1,0 +1,211 @@
+<%- include('../partials/header') %>
+
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="businessProfileManager()">
+  <!-- Sidebar -->
+  <%- include('../partials/sidebar', { activeMenu: 'business-profile', config, pendingHandoverCount }) %>
+
+  <!-- Main Content Panel -->
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-6">
+    <!-- Header -->
+    <div class="pb-6 border-b border-[#E4E4E7]">
+      <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Profil & Knowledge Usaha</h1>
+      <p class="text-xs md:text-sm text-[#71717A] mt-1">Lengkapi informasi resmi bisnis Anda (alamat, kontak, rekening pembayaran, ekspedisi, SOP) agar AI menjawab pertanyaan pelanggan dengan tepat dan akurat.</p>
+    </div>
+
+    <% if (typeof successMessage !== 'undefined' && successMessage) { %>
+      <div class="p-3.5 rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] text-xs font-medium text-[#18181B] flex items-center space-x-2">
+        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span><%= successMessage %></span>
+      </div>
+    <% } %>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Kolom 1 & 2: Form Detail Profil Usaha Terstruktur -->
+      <div class="lg:col-span-2 space-y-6">
+        <form action="/dashboard/business-profile/save-text" method="POST" class="p-6 rounded-2xl border border-[#E4E4E7] bg-white space-y-5">
+          <div class="flex items-center justify-between border-b border-[#E4E4E7] pb-3">
+            <h2 class="text-sm font-semibold text-[#18181B]">Informasi Resmi Bisnis & Layanan</h2>
+            <span class="text-[11px] font-medium text-[#71717A] bg-[#F4F4F5] px-2.5 py-0.5 rounded-full">Konteks AI RAG</span>
+          </div>
+
+          <!-- Section 1: Lokasi & Kontak -->
+          <div class="space-y-3.5">
+            <div class="text-xs font-semibold text-[#18181B] uppercase tracking-wider text-[11px] text-[#71717A]">
+              1. Lokasi & Jam Operasional
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label class="block text-xs font-medium text-[#71717A] mb-1">No. Kontak Admin / Hotline CS</label>
+                <input type="text" name="business_contact" value="<%= (typeof profileData !== 'undefined' && profileData.contact) ? profileData.contact : '' %>"
+                       placeholder="Contoh: 0812-3456-7890 / 021-5551234"
+                       class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-[#71717A] mb-1">Jam & Hari Operasional</label>
+                <input type="text" name="business_hours" value="<%= (typeof profileData !== 'undefined' && profileData.hours) ? profileData.hours : '' %>"
+                       placeholder="Contoh: Setiap hari 08.00 - 22.00 WIB"
+                       class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-[#71717A] mb-1">Alamat Fisik / Patokan Toko & Gudang</label>
+              <textarea name="business_address" rows="2"
+                        placeholder="Contoh: Jl. Senopati No. 88, Kebayoran Baru, Jakarta Selatan (Sebelah Bank BCA)"
+                        class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"><%= (typeof profileData !== 'undefined' && profileData.address) ? profileData.address : '' %></textarea>
+            </div>
+          </div>
+
+          <!-- Section 2: Pembayaran & Pengiriman -->
+          <div class="space-y-3.5 pt-4 border-t border-[#E4E4E7]">
+            <div class="text-xs font-semibold text-[#18181B] uppercase tracking-wider text-[11px] text-[#71717A]">
+              2. Pembayaran & Logistik
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-[#71717A] mb-1">Metode & Rekening Pembayaran</label>
+              <textarea name="payment_methods" rows="2"
+                        placeholder="Contoh: Transfer Bank (BCA 1234567890 a.n PT Toko Saya, Mandiri), QRIS All Payment, COD khusus wilayah Jabodetabek."
+                        class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"><%= (typeof profileData !== 'undefined' && profileData.paymentMethods) ? profileData.paymentMethods : '' %></textarea>
+              <p class="text-[11px] text-[#71717A] mt-0.5">AI akan memberikan nomor rekening / QRIS ini ketika pelanggan bertanya cara bayar atau mau transfer.</p>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-[#71717A] mb-1">Jasa & Ekspedisi Pengiriman</label>
+              <textarea name="shipping_methods" rows="2"
+                        placeholder="Contoh: GoSend / GrabExpress (Instant & Sameday cut-off jam 15.00), JNE Reg/YES, SiCepat, J&T, Paxel Cold Chain."
+                        class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"><%= (typeof profileData !== 'undefined' && profileData.shippingMethods) ? profileData.shippingMethods : '' %></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-[#71717A] mb-1">Garansi & Kebijakan Retur / Komplain</label>
+              <textarea name="return_policy" rows="2"
+                        placeholder="Contoh: Garansi retur/ganti baru 2x24 jam sejak barang diterima jika cacat produksi. Wajib menyertakan video unboxing utuh."
+                        class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"><%= (typeof profileData !== 'undefined' && profileData.returnPolicy) ? profileData.returnPolicy : '' %></textarea>
+            </div>
+          </div>
+
+          <!-- Section 3: Catatan Khusus & Deskripsi Tambahan -->
+          <div class="space-y-3.5 pt-4 border-t border-[#E4E4E7]">
+            <div class="text-xs font-semibold text-[#18181B] uppercase tracking-wider text-[11px] text-[#71717A]">
+              3. SOP & Catatan Khusus Tambahan
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-[#71717A] mb-1">SOP & Catatan Khusus Toko</label>
+              <textarea name="business_notes" rows="2"
+                        placeholder="Contoh: Pesanan yang masuk sebelum pukul 16.00 WIB dikirim pada hari yang sama. Pembelian grosir minimal 12 pcs dapat diskon khusus melalui admin."
+                        class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"><%= (typeof profileData !== 'undefined' && profileData.businessNotes) ? profileData.businessNotes : '' %></textarea>
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-[#71717A] mb-1">Deskripsi Umum / Tentang Toko</label>
+              <textarea name="business_profile_text" rows="4"
+                        placeholder="Contoh: Toko Kopi Senja adalah roastery & supplier biji kopi artisan pilihan Nusantara yang berfokus pada kualitas biji arabika specialty."
+                        class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"><%= (typeof profileData !== 'undefined' && profileData.profileText) ? profileData.profileText : '' %></textarea>
+            </div>
+          </div>
+
+          <div class="flex justify-end pt-3 border-t border-[#E4E4E7]">
+            <button type="submit" 
+                    class="px-6 py-2.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors">
+              Simpan Seluruh Informasi Usaha
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Kolom 3: Upload Dokumen Knowledge Base -->
+      <div class="space-y-4">
+        <div class="p-6 rounded-2xl border border-[#E4E4E7] bg-white space-y-4">
+          <div class="border-b border-[#E4E4E7] pb-3">
+            <h3 class="text-sm font-semibold text-[#18181B]">Unggah Dokumen SOP</h3>
+            <p class="text-xs text-[#71717A] mt-0.5">Format: .txt, .md, .pdf, .json, .csv</p>
+          </div>
+
+          <form action="/dashboard/business-profile/upload-doc" method="POST" enctype="multipart/form-data" class="space-y-3">
+            <div class="p-6 rounded-2xl bg-[#F4F4F5] border border-dashed border-[#D4D4D8] hover:border-[#18181B] text-center cursor-pointer transition-colors relative">
+              <input type="file" name="document" required accept=".txt,.md,.pdf,.json,.csv"
+                     @change="fileName = $event.target.files[0] ? $event.target.files[0].name : ''"
+                     class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+              <svg class="w-6 h-6 text-[#71717A] mx-auto mb-2" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span class="text-xs font-medium text-[#18181B] block truncate" x-text="fileName || 'Pilih atau Tarik Berkas ke Sini'"></span>
+              <span class="text-[10px] text-[#71717A] block mt-0.5">Maks. 5 MB</span>
+            </div>
+
+            <button type="submit" 
+                    class="w-full py-2 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors">
+              Unggah Dokumen
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabel Dokumen Terunggah -->
+    <div class="space-y-3 pt-2">
+      <h3 class="text-sm font-semibold text-[#18181B]">Dokumen Knowledge Base Tersimpan</h3>
+
+      <div class="border border-[#E4E4E7] rounded-2xl overflow-hidden bg-white">
+        <table class="w-full text-left text-xs text-[#18181B]">
+          <thead class="bg-[#F7F7F8] border-b border-[#E4E4E7] text-[11px] font-semibold text-[#71717A] uppercase tracking-wider">
+            <tr>
+              <th class="px-5 py-3.5">Nama Berkas</th>
+              <th class="px-5 py-3.5">Panjang Teks</th>
+              <th class="px-5 py-3.5">Cuplikan Knowledge</th>
+              <th class="px-5 py-3.5 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[#E4E4E7]">
+            <% if (documents && documents.length > 0) { %>
+              <% documents.forEach(function(doc) { %>
+                <tr class="hover:bg-[#F7F7F8] transition-colors">
+                  <td class="px-5 py-3.5 font-medium text-[#18181B] whitespace-nowrap">
+                    <%= doc.original_filename %>
+                  </td>
+                  <td class="px-5 py-3.5 text-[#71717A] whitespace-nowrap">
+                    <%= (doc.extracted_text || '').length %> karakter
+                  </td>
+                  <td class="px-5 py-3.5 text-[#71717A] max-w-md truncate">
+                    "<%= (doc.extracted_text || '').slice(0, 120) %>..."
+                  </td>
+                  <td class="px-5 py-3.5 text-right whitespace-nowrap">
+                    <form action="/dashboard/business-profile/delete-doc/<%= doc.id %>" method="POST" class="inline" onsubmit="return confirm('Hapus dokumen ini?')">
+                      <button type="submit" class="text-xs text-red-600 hover:text-red-800 font-medium transition-colors">
+                        Hapus
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="4" class="px-5 py-8 text-center text-[#71717A]">
+                  Belum ada dokumen knowledge base tambahan yang diunggah.
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  function businessProfileManager() {
+    return {
+      fileName: ''
+    }
+  }
+</script>
+
+<%- include('../partials/footer') %>

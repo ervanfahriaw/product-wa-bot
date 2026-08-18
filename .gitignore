@@ -10,3 +10,4 @@ src/engine/session/
 *.log
 dist/
 .env
+.tools/

@@ -75,11 +75,28 @@ function clearAllChatLogs() {
   return result.changes >= 0;
 }
 
+/**
+ * Menghitung jumlah pesan AI yang diproses hari ini (untuk monitoring quota/token).
+ * @returns {number}
+ */
+function getTodayAiMessageCount() {
+  try {
+    const row = db.prepare(`
+      SELECT COUNT(*) as count FROM chat_logs 
+      WHERE date(created_at, 'localtime') = date('now', 'localtime')
+    `).get();
+    return row ? (row.count || 0) : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
 module.exports = {
   getChatLogById,
   getAllChatLogs,
   getChatLogsByContact,
   createChatLog,
   deleteChatLog,
-  clearAllChatLogs
+  clearAllChatLogs,
+  getTodayAiMessageCount
 };

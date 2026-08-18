@@ -1,63 +1,114 @@
 <%- include('../partials/header') %>
 
-<div class="flex flex-col md:flex-row bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[600px]"
-     x-data="productManager()">
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="productManager()">
   <!-- Sidebar -->
-  <%- include('../partials/sidebar', { activeMenu: 'products', config }) %>
+  <%- include('../partials/sidebar', { activeMenu: 'products', config, pendingHandoverCount }) %>
 
-  <!-- Main Content Area -->
-  <div class="flex-1 p-6 md:p-8 bg-gray-50 space-y-6">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  <!-- Main Content Panel -->
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-6">
+    <!-- Header & Action Bar -->
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h2 class="text-2xl font-bold text-gray-900">Katalog Produk</h2>
-        <p class="text-sm text-gray-500 mt-1">Kelola data nama, harga, stok ketersediaan, dan gambar produk yang dapat dicek oleh pembeli via WhatsApp.</p>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Katalog Produk</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">Daftar produk, harga, stok, dan product knowledge yang dipelajari AI bot.</p>
       </div>
-      <button @click="openCreateModal()" type="button"
-              class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-colors flex items-center space-x-2">
-        <span>➕</span>
-        <span>Tambah Produk</span>
-      </button>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <button @click="showSheetsModal = true" type="button"
+                class="px-3.5 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors flex items-center space-x-1.5">
+          <svg class="w-3.5 h-3.5 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+            <path d="M3 9h18"></path>
+            <path d="M3 15h18"></path>
+            <path d="M9 3v18"></path>
+            <path d="M15 3v18"></path>
+          </svg>
+          <span>Setup Sheets</span>
+        </button>
+
+        <button @click="syncSheets()" type="button" :disabled="isSyncing"
+                class="px-3.5 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors flex items-center space-x-1.5 disabled:opacity-50">
+          <svg class="w-3.5 h-3.5 text-[#71717A]" :class="isSyncing ? 'animate-spin' : ''" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+            <path d="M16 16h5v5"></path>
+          </svg>
+          <span x-text="isSyncing ? 'Menyinkronkan...' : 'Tarik dari Sheets'"></span>
+        </button>
+
+        <button @click="openCreateModal()" type="button"
+                class="px-4 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors flex items-center space-x-1.5">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Tambah Produk</span>
+        </button>
+      </div>
     </div>
 
-    <!-- Product Table Card -->
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <!-- Sync Result Banner -->
+    <template x-if="syncResult">
+      <div class="p-3.5 rounded-xl border text-xs font-medium flex items-center justify-between"
+           :class="syncResult.success ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'">
+        <div class="flex items-center space-x-2">
+          <span x-text="syncResult.message"></span>
+        </div>
+        <button @click="syncResult = null" class="text-xs font-bold opacity-70 hover:opacity-100">&times;</button>
+      </div>
+    </template>
+
+    <!-- Table Container -->
+    <div class="border border-[#E4E4E7] rounded-2xl overflow-hidden bg-white">
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm text-gray-600">
-          <thead class="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase">
+        <table class="w-full text-left text-xs text-[#18181B]">
+          <thead class="bg-[#F7F7F8] border-b border-[#E4E4E7] text-[11px] font-semibold text-[#71717A] uppercase tracking-wider">
             <tr>
+              <th class="px-5 py-3.5">SKU & Kategori</th>
               <th class="px-5 py-3.5">Nama Produk</th>
               <th class="px-5 py-3.5">Harga</th>
               <th class="px-5 py-3.5">Stok</th>
-              <th class="px-5 py-3.5">Deskripsi</th>
+              <th class="px-5 py-3.5">Product Knowledge</th>
               <th class="px-5 py-3.5 text-right">Aksi</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100">
+          <tbody class="divide-y divide-[#E4E4E7]">
             <% if (products && products.length > 0) { %>
               <% products.forEach(function(product) { %>
-                <tr class="hover:bg-gray-50/80 transition-colors">
-                  <td class="px-5 py-4 font-bold text-gray-900">
+                <tr class="hover:bg-[#F7F7F8] transition-colors">
+                  <td class="px-5 py-3.5 whitespace-nowrap">
+                    <div class="font-mono font-medium text-[#18181B]"><%= product.sku || '-' %></div>
+                    <span class="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] bg-[#F4F4F5] text-[#71717A]">
+                      <%= product.category || 'Umum' %>
+                    </span>
+                  </td>
+                  <td class="px-5 py-3.5 font-medium text-[#18181B]">
                     <%= product.name %>
                   </td>
-                  <td class="px-5 py-4 font-medium text-gray-800">
+                  <td class="px-5 py-3.5 whitespace-nowrap text-[#18181B]">
                     Rp<%= Number(product.price).toLocaleString('id-ID') %>
                   </td>
-                  <td class="px-5 py-4">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
-                      <%= product.stock > 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' %>">
+                  <td class="px-5 py-3.5 whitespace-nowrap">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium
+                      <%= product.stock > 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800' %>">
+                      <span class="w-1.5 h-1.5 rounded-full <%= product.stock > 0 ? 'bg-emerald-500' : 'bg-red-500' %> mr-1.5"></span>
                       <%= product.stock %> unit
                     </span>
                   </td>
-                  <td class="px-5 py-4 text-xs text-gray-500 max-w-xs truncate">
-                    <%= product.description || '-' %>
+                  <td class="px-5 py-3.5 text-[#71717A] max-w-xs">
+                    <% if (product.product_knowledge) { %>
+                      <p class="text-[#18181B] font-medium line-clamp-1"><%= product.product_knowledge %></p>
+                    <% } %>
+                    <p class="text-[11px] text-[#A1A1AA] line-clamp-1"><%= product.description || '-' %></p>
                   </td>
-                  <td class="px-5 py-4 text-right space-x-2">
+                  <td class="px-5 py-3.5 text-right whitespace-nowrap space-x-2">
                     <button @click="openEditModal(<%= JSON.stringify(product) %>)" 
-                            class="text-xs text-blue-600 hover:text-blue-800 font-semibold">
+                            class="text-xs text-[#71717A] hover:text-[#18181B] font-medium transition-colors">
                       Edit
                     </button>
                     <button @click="openDeleteModal(<%= product.id %>, '<%= product.name %>')" 
-                            class="text-xs text-red-600 hover:text-red-800 font-semibold">
+                            class="text-xs text-red-600 hover:text-red-800 font-medium transition-colors">
                       Hapus
                     </button>
                   </td>
@@ -65,8 +116,11 @@
               <% }); %>
             <% } else { %>
               <tr>
-                <td colspan="5" class="px-5 py-8 text-center text-gray-400 text-sm">
-                  Belum ada produk. Klik tombol "Tambah Produk" di atas untuk menambahkan produk pertama Anda.
+                <td colspan="6" class="px-5 py-12 text-center text-[#71717A]">
+                  <div class="max-w-xs mx-auto space-y-2">
+                    <p class="text-sm font-semibold text-[#18181B]">Belum ada produk</p>
+                    <p class="text-xs text-[#71717A]">Mulai dengan menambah produk manual atau tarik dari Google Sheets.</p>
+                  </div>
                 </td>
               </tr>
             <% } %>
@@ -74,55 +128,122 @@
         </table>
       </div>
     </div>
-  </div>
+  </main>
 
-  <!-- Modal: Tambah / Edit Produk -->
-  <div x-show="showFormModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4" @click.away="showFormModal = false">
-      <div class="flex justify-between items-center pb-2 border-b border-gray-100">
-        <h3 class="text-lg font-bold text-gray-900" x-text="isEdit ? 'Edit Produk' : 'Tambah Produk Baru'"></h3>
-        <button @click="showFormModal = false" class="text-gray-400 hover:text-gray-600 text-xl font-bold">&times;</button>
+  <!-- Modal: Tambah / Edit Produk (Minimalist) -->
+  <div x-show="showFormModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-[#E4E4E7]" @click.away="showFormModal = false">
+      <div class="flex justify-between items-center pb-2 border-b border-[#E4E4E7]">
+        <h3 class="text-sm font-semibold text-[#18181B]" x-text="isEdit ? 'Edit Data Produk' : 'Tambah Produk Baru'"></h3>
+        <button @click="showFormModal = false" class="text-[#71717A] hover:text-[#18181B] text-base font-bold">&times;</button>
       </div>
 
-      <form :action="isEdit ? '/dashboard/products/' + formData.id + '/edit' : '/dashboard/products'" method="POST" class="space-y-4">
+      <form :action="isEdit ? '/dashboard/products/' + formData.id + '/edit' : '/dashboard/products'" method="POST" class="space-y-3.5">
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-[#71717A] mb-1">SKU / Kode</label>
+            <input type="text" name="sku" x-model="formData.sku" placeholder="KOP-01"
+                   class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs font-mono text-[#18181B] focus:outline-none focus:border-[#18181B]">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-medium text-[#71717A] mb-1">Kategori Produk</label>
+            <input type="text" name="category" x-model="formData.category" placeholder="Minuman Kopi"
+                   class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+          </div>
+        </div>
+
         <div>
-          <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Nama Produk *</label>
-          <input type="text" name="name" required x-model="formData.name" placeholder="Contoh: Kopi Susu Gula Aren"
-                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          <label class="block text-xs font-medium text-[#71717A] mb-1">Nama Produk *</label>
+          <input type="text" name="name" required x-model="formData.name" placeholder="Kopi Susu Gula Aren"
+                 class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Harga (Rp) *</label>
+            <label class="block text-xs font-medium text-[#71717A] mb-1">Harga (Rp) *</label>
             <input type="number" name="price" required min="0" x-model="formData.price" placeholder="18000"
-                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                   class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
           </div>
           <div>
-            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Jumlah Stok *</label>
+            <label class="block text-xs font-medium text-[#71717A] mb-1">Jumlah Stok *</label>
             <input type="number" name="stock" required min="0" x-model="formData.stock" placeholder="50"
-                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                   class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Deskripsi Singkat</label>
-          <textarea name="description" rows="2" x-model="formData.description" placeholder="Keterangan rasa, varian, atau ukuran..."
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+          <label class="block text-xs font-medium text-[#71717A] mb-1">Product Knowledge / Detail Bahan</label>
+          <textarea name="product_knowledge" rows="2" x-model="formData.product_knowledge"
+                    placeholder="Bahan alami, rasa creamy, masa simpan 3 hari di kulkas..."
+                    class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"></textarea>
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Path Gambar Produk (Opsional)</label>
-          <input type="text" name="image_path" x-model="formData.image_path" placeholder="assets/products/kopi.jpg"
-                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-          <p class="text-[11px] text-gray-400 mt-1">Path gambar lokal yang akan dikirim bot via WhatsApp saat pelanggan meminta foto.</p>
+          <label class="block text-xs font-medium text-[#71717A] mb-1">Deskripsi Singkat</label>
+          <textarea name="description" rows="2" x-model="formData.description" placeholder="Keterangan ukuran atau varian..."
+                    class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"></textarea>
         </div>
 
-        <div class="flex justify-end space-x-2 pt-3 border-t border-gray-100">
-          <button @click="showFormModal = false" type="button" class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+        <div class="flex justify-end items-center gap-2 pt-3 border-t border-[#E4E4E7]">
+          <button @click="showFormModal = false" type="button" 
+                  class="px-4 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B]">
             Batal
           </button>
-          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-lg shadow-sm">
-            Simpan Produk
+          <button type="submit" 
+                  class="px-5 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium">
+            Simpan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Google Sheets Config -->
+  <div x-show="showSheetsModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-[#E4E4E7]" @click.away="showSheetsModal = false">
+      <div class="flex justify-between items-center pb-2 border-b border-[#E4E4E7]">
+        <h3 class="text-sm font-semibold text-[#18181B]">Integrasi Google Sheets</h3>
+        <button @click="showSheetsModal = false" class="text-[#71717A] hover:text-[#18181B] text-base font-bold">&times;</button>
+      </div>
+
+      <form action="/dashboard/products/sheets-config" method="POST" class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-[#71717A] mb-1">URL Google Spreadsheet *</label>
+          <input type="url" name="sheets_url" value="<%= config.sheets_url || '' %>" required
+                 placeholder="https://docs.google.com/spreadsheets/d/..."
+                 class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+          <p class="text-[11px] text-[#71717A] mt-1">Pastikan setelan spreadsheet di Google Drive adalah <strong>Siapa saja dengan link dapat melihat</strong>.</p>
+        </div>
+
+        <div class="bg-[#F7F7F8] p-3 rounded-xl border border-[#E4E4E7] text-xs text-[#71717A] space-y-1">
+          <p class="font-medium text-[#18181B]">Format Kolom Header Spreadsheet:</p>
+          <p class="font-mono text-[10px] bg-white p-2 rounded-lg border border-[#E4E4E7] text-[#18181B]">
+            SKU | Nama Produk | Kategori | Harga | Stok | Link Gambar | Deskripsi | Product Knowledge
+          </p>
+        </div>
+
+        <div class="space-y-2 pt-2 border-t border-[#E4E4E7]">
+          <label class="flex items-center space-x-2 cursor-pointer">
+            <input type="checkbox" name="sheets_auto_sync" value="1" <%= config.sheets_auto_sync ? 'checked' : '' %> class="rounded text-[#18181B]">
+            <span class="text-xs font-medium text-[#18181B]">Aktifkan Sinkronisasi Otomatis</span>
+          </label>
+
+          <div class="flex items-center space-x-2 pl-6">
+            <span class="text-xs text-[#71717A]">Interval:</span>
+            <input type="number" name="sheets_sync_interval" value="<%= config.sheets_sync_interval || 10 %>" min="1" max="60"
+                   class="w-16 px-2 py-1 border border-[#E4E4E7] rounded-lg text-xs text-center text-[#18181B] focus:outline-none">
+            <span class="text-xs text-[#71717A]">Menit</span>
+          </div>
+        </div>
+
+        <div class="flex justify-end items-center gap-2 pt-3 border-t border-[#E4E4E7]">
+          <button @click="showSheetsModal = false" type="button" 
+                  class="px-4 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B]">
+            Batal
+          </button>
+          <button type="submit" 
+                  class="px-5 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium">
+            Simpan Konfigurasi
           </button>
         </div>
       </form>
@@ -130,21 +251,27 @@
   </div>
 
   <!-- Modal: Konfirmasi Hapus Produk -->
-  <div x-show="showDeleteModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-6 space-y-4" @click.away="showDeleteModal = false">
-      <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl font-bold">
-        ⚠️
+  <div x-show="showDeleteModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-xs w-full p-6 space-y-4 text-center border border-[#E4E4E7]" @click.away="showDeleteModal = false">
+      <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
       </div>
-      <div class="text-center">
-        <h3 class="text-base font-bold text-gray-900">Konfirmasi Hapus Produk</h3>
-        <p class="text-xs text-gray-500 mt-1">Apakah Anda yakin ingin menghapus produk <span class="font-bold text-gray-800" x-text="deleteName"></span>? Tindakan ini tidak dapat dibatalkan.</p>
+      <div>
+        <h3 class="text-sm font-semibold text-[#18181B]">Hapus Produk?</h3>
+        <p class="text-xs text-[#71717A] mt-1">Produk <span class="font-medium text-[#18181B]" x-text="deleteName"></span> akan dihapus dari katalog.</p>
       </div>
-      <form :action="'/dashboard/products/' + deleteId + '/delete'" method="POST" class="flex justify-center space-x-3 pt-2">
-        <button @click="showDeleteModal = false" type="button" class="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-lg">
+      <form :action="'/dashboard/products/' + deleteId + '/delete'" method="POST" class="flex justify-center gap-2 pt-2">
+        <button @click="showDeleteModal = false" type="button" 
+                class="px-4 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B]">
           Batal
         </button>
-        <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg shadow-sm">
-          Ya, Hapus Sekarang
+        <button type="submit" 
+                class="px-4 py-1.5 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-medium">
+          Hapus
         </button>
       </form>
     </div>
@@ -156,27 +283,33 @@
     return {
       showFormModal: false,
       showDeleteModal: false,
+      showSheetsModal: false,
       isEdit: false,
+      isSyncing: false,
+      syncResult: null,
       deleteId: null,
       deleteName: '',
       formData: {
         id: null,
+        sku: '',
         name: '',
+        category: '',
         price: '',
         stock: '',
         description: '',
+        product_knowledge: '',
         image_path: ''
       },
 
       openCreateModal() {
         this.isEdit = false;
-        this.formData = { id: null, name: '', price: '', stock: '', description: '', image_path: '' };
+        this.formData = { id: null, sku: '', name: '', category: '', price: '', stock: '', description: '', product_knowledge: '', image_path: '' };
         this.showFormModal = true;
       },
 
-      openEditModal(product) {
+      openEditModal(prod) {
         this.isEdit = true;
-        this.formData = { ...product };
+        this.formData = { ...prod };
         this.showFormModal = true;
       },
 
@@ -184,6 +317,23 @@
         this.deleteId = id;
         this.deleteName = name;
         this.showDeleteModal = true;
+      },
+
+      async syncSheets() {
+        this.isSyncing = true;
+        this.syncResult = null;
+        try {
+          const res = await fetch('/dashboard/products/sync-sheets', { method: 'POST' });
+          const data = await res.json();
+          this.syncResult = data;
+          if (data.success) {
+            setTimeout(() => window.location.reload(), 1200);
+          }
+        } catch (err) {
+          this.syncResult = { success: false, message: 'Gagal menghubungi server: ' + err.message };
+        } finally {
+          this.isSyncing = false;
+        }
       }
     }
   }

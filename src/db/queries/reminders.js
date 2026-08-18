@@ -26,13 +26,22 @@ function getPendingReminders(currentDateTime) {
   if (currentDateTime) {
     return db.prepare(`
       SELECT * FROM reminders 
-      WHERE sent = 0 AND trigger_at <= ?
+      WHERE sent = 0 AND (
+        datetime(trigger_at) <= datetime(?)
+        OR datetime(trigger_at, 'localtime') <= datetime(?, 'localtime')
+        OR trigger_at <= ?
+      )
       ORDER BY trigger_at ASC
-    `).all(currentDateTime);
+    `).all(currentDateTime, currentDateTime, currentDateTime);
   }
   return db.prepare(`
     SELECT * FROM reminders 
-    WHERE sent = 0 AND trigger_at <= datetime('now', 'localtime')
+    WHERE sent = 0 AND (
+      datetime(trigger_at) <= datetime('now')
+      OR datetime(trigger_at, 'localtime') <= datetime('now', 'localtime')
+      OR trigger_at <= datetime('now', 'localtime')
+      OR trigger_at <= datetime('now')
+    )
     ORDER BY trigger_at ASC
   `).all();
 }

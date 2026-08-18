@@ -44,5 +44,47 @@ CREATE TABLE IF NOT EXISTS chat_logs (
   message_in TEXT,
   message_out TEXT,
   handled_by TEXT,
+  lead_status TEXT DEFAULT 'general',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Tabel Contact States (Status Pause / Mute Auto-Reply per Kontak)
+CREATE TABLE IF NOT EXISTS contact_states (
+  contact TEXT PRIMARY KEY,
+  is_paused INTEGER NOT NULL DEFAULT 0,
+  paused_until DATETIME,
+  pause_reason TEXT,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 7. Tabel Conversation Samples (Training Gaya Percakapan / Few-Shot Learning)
+CREATE TABLE IF NOT EXISTS conversation_samples (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_sample TEXT NOT NULL,
+  bot_sample TEXT NOT NULL,
+  tag TEXT DEFAULT 'umum',
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 8. Tabel Business Documents (Knowledge Base Usaha / Dokumen File Upload)
+CREATE TABLE IF NOT EXISTS business_documents (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  original_filename TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  file_type TEXT,
+  extracted_text TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 9. Tabel Manual Handovers (Tiket Antrean Pesan yang Butuh Respon Manual)
+CREATE TABLE IF NOT EXISTS manual_handovers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contact TEXT NOT NULL,
+  customer_name TEXT,
+  trigger_message TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  resolved_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,0 +1,263 @@
+<%- include('../partials/header') %>
+
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="{ isGenerating: false }">
+  <!-- Sidebar -->
+  <%- include('../partials/sidebar', { activeMenu: 'analytics', config, pendingHandoverCount }) %>
+
+  <!-- Main Content Panel -->
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-6">
+    <!-- Header & Period Filter -->
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Analisis Bisnis & AI Insights</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">Data intelejen dari riwayat percakapan pelanggan untuk mengoptimalkan produk, closing penjualan, dan strategi toko.</p>
+      </div>
+
+      <!-- Filter Periode Pill Tabs -->
+      <div class="flex items-center space-x-1.5 p-1 bg-[#F4F4F5] rounded-full border border-[#E4E4E7] self-start sm:self-auto">
+        <a href="/dashboard/analytics?days=7" 
+           class="px-3.5 py-1 rounded-full text-xs font-medium transition-colors <%= selectedDays === 7 ? 'bg-white text-[#18181B] shadow-sm' : 'text-[#71717A] hover:text-[#18181B]' %>">
+          7 Hari
+        </a>
+        <a href="/dashboard/analytics?days=30" 
+           class="px-3.5 py-1 rounded-full text-xs font-medium transition-colors <%= selectedDays === 30 ? 'bg-white text-[#18181B] shadow-sm' : 'text-[#71717A] hover:text-[#18181B]' %>">
+          30 Hari
+        </a>
+        <a href="/dashboard/analytics?days=90" 
+           class="px-3.5 py-1 rounded-full text-xs font-medium transition-colors <%= selectedDays === 90 ? 'bg-white text-[#18181B] shadow-sm' : 'text-[#71717A] hover:text-[#18181B]' %>">
+          90 Hari
+        </a>
+      </div>
+    </div>
+
+    <!-- AI Executive Advisor Card -->
+    <div class="p-6 md:p-8 rounded-2xl bg-[#18181B] text-white space-y-5 border border-[#27272A] relative overflow-hidden">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#27272A] pb-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-sm md:text-base font-semibold text-white">AI Business Strategist & Insights</h2>
+            <p class="text-[11px] text-[#A1A1AA]">
+              <% if (latestInsight && latestInsight.generatedAt) { %>
+                Dianalisis pada <%= new Date(latestInsight.generatedAt).toLocaleString('id-ID') %>
+              <% } else { %>
+                Belum ada analisis AI yang dibuat untuk periode ini.
+              <% } %>
+            </p>
+          </div>
+        </div>
+
+        <form action="/dashboard/analytics/generate-insight" method="POST" @submit="isGenerating = true">
+          <input type="hidden" name="days" value="<%= selectedDays %>">
+          <button type="submit" :disabled="isGenerating"
+                  class="px-4 py-2 rounded-full bg-white text-[#18181B] hover:bg-[#F4F4F5] text-xs font-medium transition-colors flex items-center space-x-2">
+            <svg x-show="!isGenerating" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+            <div x-show="isGenerating" class="w-3.5 h-3.5 border-2 border-[#18181B] border-t-transparent rounded-full animate-spin"></div>
+            <span x-text="isGenerating ? 'Menganalisis Data...' : 'Generate Insight Baru'"></span>
+          </button>
+        </form>
+      </div>
+
+      <!-- Body Analisis AI -->
+      <div class="text-xs md:text-sm text-[#D4D4D8] leading-relaxed space-y-3 font-normal whitespace-pre-line">
+        <% if (latestInsight && latestInsight.insight) { %>
+          <%= latestInsight.insight %>
+        <% } else { %>
+          <div class="py-4 text-center text-[#A1A1AA] space-y-2">
+            <p class="text-xs">Klik tombol "Generate Insight Baru" di atas untuk meminta AI menganalisis riwayat chat, performa produk, dan memberikan rekomendasi strategi bisnis.</p>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+    <!-- 4 KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Card 1: Total Pesan -->
+      <div class="p-5 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-1.5">
+        <div class="text-[11px] font-medium text-[#71717A]">Total Pesan Masuk</div>
+        <div class="text-2xl font-bold text-[#18181B]">
+          <%= analyticsData.totalUserMessages %>
+        </div>
+        <p class="text-[10px] text-[#71717A]">Dalam <%= selectedDays %> hari terakhir</p>
+      </div>
+
+      <!-- Card 2: Closing / Purchase Intent -->
+      <div class="p-5 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-1.5">
+        <div class="text-[11px] font-medium text-[#71717A]">Sinyal Closing (Niat Beli)</div>
+        <div class="text-2xl font-bold text-[#18181B]">
+          <%= analyticsData.totalPurchaseIntentMessages %>
+        </div>
+        <p class="text-[10px] text-[#71717A]"><%= analyticsData.purchaseIntentRate %>% rasio minat beli</p>
+      </div>
+
+      <!-- Card 3: Jam Sibuk -->
+      <div class="p-5 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-1.5">
+        <div class="text-[11px] font-medium text-[#71717A]">Jam Tersibuk Pelanggan</div>
+        <div class="text-lg md:text-xl font-bold text-[#18181B] truncate">
+          <%= analyticsData.peakHourRange %>
+        </div>
+        <p class="text-[10px] text-[#71717A]">Waktu trafik chat tertinggi</p>
+      </div>
+
+      <!-- Card 4: Otomatisasi AI -->
+      <div class="p-5 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-1.5">
+        <div class="text-[11px] font-medium text-[#71717A]">Otomatisasi AI</div>
+        <div class="text-2xl font-bold text-[#18181B]">
+          <% 
+            const totalH = (analyticsData.generalStats.aiHandled + analyticsData.generalStats.humanHandled) || 1;
+            const aiPercent = Math.round((analyticsData.generalStats.aiHandled / totalH) * 100);
+          %>
+          <%= aiPercent %>%
+        </div>
+        <p class="text-[10px] text-[#71717A]"><%= analyticsData.generalStats.aiHandled %> dibalas otomatis</p>
+      </div>
+    </div>
+
+    <!-- 2 Column Section: Top Products & Inquiries Breakdown -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Kolom Kiri: Produk Paling Sering Ditanyakan & Closing -->
+      <div class="p-6 rounded-2xl border border-[#E4E4E7] bg-white space-y-4">
+        <div class="flex items-center justify-between border-b border-[#E4E4E7] pb-3">
+          <div>
+            <h3 class="text-sm font-semibold text-[#18181B]">Produk Paling Banyak Diminati</h3>
+            <p class="text-[11px] text-[#71717A]">Frekuensi pertanyaan & niat beli per produk</p>
+          </div>
+          <span class="text-[11px] font-medium text-[#71717A] bg-[#F4F4F5] px-2.5 py-0.5 rounded-full">Katalog</span>
+        </div>
+
+        <div class="divide-y divide-[#E4E4E7]">
+          <% if (analyticsData.topInquiredProducts && analyticsData.topInquiredProducts.length > 0) { %>
+            <% analyticsData.topInquiredProducts.slice(0, 6).forEach(function(item, idx) { %>
+              <div class="py-3 flex items-center justify-between gap-3 text-xs">
+                <div class="flex items-center space-x-3 truncate">
+                  <span class="w-5 h-5 rounded-full bg-[#F4F4F5] text-[#71717A] font-semibold text-[10px] flex items-center justify-center flex-shrink-0">
+                    <%= idx + 1 %>
+                  </span>
+                  <div class="truncate">
+                    <div class="font-medium text-[#18181B] truncate"><%= item.name %></div>
+                    <div class="text-[10px] text-[#71717A]">Stok: <%= item.stock %> unit &bull; Rp<%= item.price.toLocaleString('id-ID') %></div>
+                  </div>
+                </div>
+
+                <div class="flex items-center space-x-3 text-right flex-shrink-0">
+                  <div>
+                    <div class="font-semibold text-[#18181B]"><%= item.inquiriesCount %>x</div>
+                    <div class="text-[10px] text-[#71717A]">Ditanyakan</div>
+                  </div>
+                  <% if (item.closingIntentCount > 0) { %>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700">
+                      <%= item.closingIntentCount %> closing
+                    </span>
+                  <% } %>
+                </div>
+              </div>
+            <% }); %>
+          <% } else { %>
+            <div class="py-8 text-center text-[#71717A] text-xs">
+              Belum ada produk terdaftar di katalog.
+            </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Kolom Kanan: Kategori Topik Pertanyaan Pelanggan -->
+      <div class="p-6 rounded-2xl border border-[#E4E4E7] bg-white space-y-4">
+        <div class="flex items-center justify-between border-b border-[#E4E4E7] pb-3">
+          <div>
+            <h3 class="text-sm font-semibold text-[#18181B]">Topik Pertanyaan Pelanggan</h3>
+            <p class="text-[11px] text-[#71717A]">Distribusi hal yang paling sering ditanyakan</p>
+          </div>
+          <span class="text-[11px] font-medium text-[#71717A] bg-[#F4F4F5] px-2.5 py-0.5 rounded-full">Topik</span>
+        </div>
+
+        <div class="space-y-3.5 pt-1">
+          <% analyticsData.inquiryCategories.forEach(function(cat) { %>
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-medium text-[#18181B]"><%= cat.label %></span>
+                <span class="text-[#71717A] font-semibold"><%= cat.count %>x (<%= cat.percentage %>%)</span>
+              </div>
+              <div class="w-full bg-[#E4E4E7] h-1.5 rounded-full overflow-hidden">
+                <div class="bg-[#18181B] h-1.5 rounded-full" style="width: <%= Math.max(2, cat.percentage) %>%;"></div>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Distribusi Jam Aktivitas Chat (24 Jam) -->
+    <div class="p-6 rounded-2xl border border-[#E4E4E7] bg-white space-y-4">
+      <div class="flex items-center justify-between border-b border-[#E4E4E7] pb-3">
+        <div>
+          <h3 class="text-sm font-semibold text-[#18181B]">Distribusi Jam Aktivitas Chat Pelanggan</h3>
+          <p class="text-[11px] text-[#71717A]">Waktu kedatangan pesan masuk sepanjang hari (00:00 - 23:00 WIB)</p>
+        </div>
+        <span class="text-[11px] font-medium text-[#71717A] bg-[#F4F4F5] px-2.5 py-0.5 rounded-full">24 Jam</span>
+      </div>
+
+      <% 
+        const maxActivity = Math.max(...analyticsData.hourlyDistribution, 1);
+      %>
+      <div class="grid grid-cols-12 sm:grid-cols-24 gap-1 items-end h-28 pt-4">
+        <% analyticsData.hourlyDistribution.forEach(function(count, h) { 
+           const heightPercent = Math.round((count / maxActivity) * 100);
+        %>
+          <div class="flex flex-col items-center gap-1 group relative">
+            <!-- Tooltip -->
+            <div class="absolute -top-7 bg-[#18181B] text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+              <%= h %>:00 - <%= count %> chat
+            </div>
+            <!-- Bar -->
+            <div class="w-full bg-[#18181B] rounded-t-sm transition-all duration-300"
+                 style="height: <%= Math.max(4, heightPercent) %>%;"></div>
+            <!-- Hour label (Tampilkan sebagian agar tidak sesak) -->
+            <% if (h % 3 === 0) { %>
+              <span class="text-[9px] text-[#71717A]"><%= h %></span>
+            <% } else { %>
+              <span class="text-[9px] text-transparent">.</span>
+            <% } %>
+          </div>
+        <% }); %>
+      </div>
+    </div>
+
+    <!-- Sampel Sinyal Niat Beli Terkini -->
+    <% if (analyticsData.recentIntentConversations && analyticsData.recentIntentConversations.length > 0) { %>
+      <div class="p-6 rounded-2xl border border-[#E4E4E7] bg-white space-y-4">
+        <div class="flex items-center justify-between border-b border-[#E4E4E7] pb-3">
+          <div>
+            <h3 class="text-sm font-semibold text-[#18181B]">Sampel Percakapan Niat Beli (Closing Signals)</h3>
+            <p class="text-[11px] text-[#71717A]">Contoh interaksi pembeli dengan intensi transaksi tinggi</p>
+          </div>
+          <span class="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">High Intent</span>
+        </div>
+
+        <div class="space-y-3">
+          <% analyticsData.recentIntentConversations.forEach(function(conv) { %>
+            <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-1.5 text-xs">
+              <div class="flex items-center justify-between text-[11px] text-[#71717A]">
+                <span class="font-mono font-medium text-[#18181B]"><%= conv.contact %></span>
+                <span><%= conv.time %></span>
+              </div>
+              <p class="text-[#18181B] font-medium">"<%= conv.message %>"</p>
+              <% if (conv.reply) { %>
+                <p class="text-[#71717A] text-[11px] line-clamp-2">&larr; <%= conv.reply %></p>
+              <% } %>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+    <% } %>
+  </main>
+</div>
+
+<%- include('../partials/footer') %>

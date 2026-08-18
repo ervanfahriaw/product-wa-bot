@@ -1,12 +1,13 @@
 const express = require('express');
 const path = require('path');
-const open = require('open');
 
 const { getConfig, isSetupComplete } = require('../config');
 const { initClient, destroyClient } = require('../engine');
 const setupRouter = require('./routes/setup');
 const dashboardRouter = require('./routes/dashboard');
 const apiRouter = require('./routes/api');
+
+const { startAutoSyncScheduler } = require('../engine/sheets-sync');
 
 const app = express();
 const config = getConfig();
@@ -59,14 +60,17 @@ const server = app.listen(PORT, async () => {
   console.log(`  🚀 WA Bot Web Controller berjalan di ${url}`);
   console.log(`======================================================\n`);
 
-  // Inisialisasi WhatsApp client di latar belakang
+  // Inisialisasi WhatsApp client & Auto-Sync Google Sheets di latar belakang
   console.log('[Server] Menyiapkan WhatsApp Engine...');
   initClient();
+  startAutoSyncScheduler();
 
   // Auto-open browser jika dijalankan secara lokal
   try {
     if (process.env.NODE_ENV !== 'production' && !process.env.NO_AUTO_OPEN) {
-      await open(url);
+      const openModule = await import('open');
+      const openFn = openModule.default || openModule;
+      await openFn(url);
     }
   } catch (err) {
     console.log(`Buka browser Anda di: ${url}`);

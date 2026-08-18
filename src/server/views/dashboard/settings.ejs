@@ -1,65 +1,149 @@
 <%- include('../partials/header') %>
 
-<div class="flex flex-col md:flex-row bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[600px]"
-     x-data="settingsManager()">
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="settingsManager()">
   <!-- Sidebar -->
-  <%- include('../partials/sidebar', { activeMenu: 'settings', config }) %>
+  <%- include('../partials/sidebar', { activeMenu: 'settings', config, pendingHandoverCount }) %>
 
-  <!-- Main Content Area -->
-  <div class="flex-1 p-6 md:p-8 bg-gray-50 space-y-6">
-    <div class="flex justify-between items-center">
+  <!-- Main Content Panel (Matching Reference Design) -->
+  <main class="flex-1 p-6 md:p-10 max-w-4xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto">
+    <!-- Page Header -->
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h2 class="text-2xl font-bold text-gray-900">Pengaturan Bot</h2>
-        <p class="text-sm text-gray-500 mt-1">Konfigurasi kunci akses kecerdasan buatan (BYOK), nomor notifikasi pemilik, dan mode operasional bot.</p>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Pengaturan</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">Konfigurasi operasional bot, koneksi WhatsApp, parameter AI, dan gaya percakapan.</p>
+      </div>
+
+      <!-- Quick Action: Status Badge -->
+      <div>
+        <template x-if="statusState === 'READY'">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#F4F4F5] border border-[#E4E4E7] text-[#18181B]">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
+            <span>Online</span>
+          </span>
+        </template>
+        <template x-if="statusState === 'QR_READY'">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 border border-amber-200 text-amber-900">
+            <span class="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse"></span>
+            <span>Scan QR</span>
+          </span>
+        </template>
+        <template x-if="statusState === 'CONNECTING' || statusState === 'INITIALIZING'">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A]">
+            <span class="w-2 h-2 rounded-full bg-indigo-500 mr-2 animate-ping"></span>
+            <span>Menghubungkan...</span>
+          </span>
+        </template>
+        <template x-if="statusState === 'DISCONNECTED' || statusState === 'AUTH_FAILURE'">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-50 border border-red-200 text-red-900">
+            <span class="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
+            <span>Terputus</span>
+          </span>
+        </template>
       </div>
     </div>
 
     <% if (typeof success !== 'undefined' && success) { %>
-      <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded text-sm text-green-700">
-        <%= success %>
+      <div class="mt-4 p-3.5 rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] text-xs font-medium text-[#18181B] flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span><%= success %></span>
+        </div>
       </div>
     <% } %>
 
-    <form action="/dashboard/settings" method="POST" class="space-y-6 max-w-2xl bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-      <!-- 1. Mode Bot Switcher -->
-      <div class="space-y-2">
-        <label class="block text-sm font-bold text-gray-800">Mode Operasional Bot</label>
-        <div class="grid grid-cols-2 gap-3">
-          <label class="border-2 rounded-lg p-3 cursor-pointer flex items-center space-x-2 transition-all"
-                 :class="mode === 'bisnis' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-200'">
-            <input type="radio" name="mode" value="bisnis" x-model="mode" class="text-blue-600">
-            <span class="text-sm font-semibold text-gray-800">🏪 Mode Bisnis</span>
-          </label>
-          <label class="border-2 rounded-lg p-3 cursor-pointer flex items-center space-x-2 transition-all"
-                 :class="mode === 'personal' ? 'border-blue-600 bg-blue-50/50' : 'border-gray-200'">
-            <input type="radio" name="mode" value="personal" x-model="mode" class="text-blue-600">
-            <span class="text-sm font-semibold text-gray-800">👤 Mode Personal</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- 2. Business Specific Settings -->
-      <div class="space-y-4 pt-4 border-t border-gray-100" x-show="mode === 'bisnis'" x-transition>
+    <!-- 1. Perangkat WhatsApp & Scan Ulang -->
+    <div class="py-6 border-b border-[#E4E4E7] space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Usaha / Toko</label>
-          <input type="text" name="business_name" value="<%= config.business_name || '' %>" placeholder="Contoh: Toko Kopi Segar"
-                 class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          <label class="text-sm font-semibold text-[#18181B]">Koneksi WhatsApp</label>
+          <p class="text-xs text-[#71717A] mt-0.5">Tautkan akun WhatsApp bot atau ganti perangkat tanpa menghapus basis data.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button @click="checkStatus(true)" type="button"
+                  class="px-3.5 py-1.5 rounded-full border border-[#E4E4E7] bg-white text-xs font-medium text-[#18181B] hover:bg-[#F4F4F5] transition-colors">
+            Cek Status
+          </button>
+          <button @click="startScanModal()" type="button" :disabled="isResetting"
+                  class="px-4 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors flex items-center space-x-1.5 disabled:opacity-50">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect>
+              <line x1="12" x2="12.01" y1="18" y2="18"></line>
+            </svg>
+            <span x-text="isResetting ? 'Menyiapkan...' : 'Ganti Perangkat / Scan QR'"></span>
+          </button>
         </div>
       </div>
 
-      <!-- 3. Owner Phone Number (for Handover / Reminders) -->
-      <div class="pt-4 border-t border-gray-100">
-        <label class="block text-sm font-semibold text-gray-700 mb-1">Nomor WhatsApp Pemilik / Pengguna</label>
-        <input type="text" name="owner_phone" value="<%= config.owner_phone || '' %>" placeholder="Contoh: 628123456789"
-               class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
-        <p class="text-xs text-gray-400 mt-1">Menerima notifikasi pengalihan chat (handover) atau pengingat jadwal (reminder).</p>
+      <!-- Account Details Box -->
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7] text-xs space-y-1.5">
+        <div class="flex justify-between">
+          <span class="text-[#71717A]">Nama Akun:</span>
+          <span class="font-medium text-[#18181B]" x-text="accountInfo.pushname || 'Belum terhubung'"></span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-[#71717A]">Nomor HP Bot:</span>
+          <span class="font-medium text-[#18181B]" x-text="accountInfo.phone || '-'"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Settings Form -->
+    <form action="/dashboard/settings" method="POST" class="space-y-6 pt-2">
+      <!-- 2. Mode Bot Switcher -->
+      <div class="py-5 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <label class="text-sm font-semibold text-[#18181B]">Mode Operasional</label>
+          <p class="text-xs text-[#71717A] mt-0.5">Pilih peran utama bot untuk customer service bisnis atau asisten pribadi.</p>
+        </div>
+        <div class="inline-flex p-1 bg-[#F4F4F5] rounded-full border border-[#E4E4E7]">
+          <button type="button" @click="mode = 'bisnis'"
+                  class="px-4 py-1.5 text-xs font-medium rounded-full transition-all"
+                  :class="mode === 'bisnis' ? 'bg-[#18181B] text-white shadow-sm' : 'text-[#71717A] hover:text-[#18181B]'">
+            Mode Bisnis
+          </button>
+          <button type="button" @click="mode = 'personal'"
+                  class="px-4 py-1.5 text-xs font-medium rounded-full transition-all"
+                  :class="mode === 'personal' ? 'bg-[#18181B] text-white shadow-sm' : 'text-[#71717A] hover:text-[#18181B]'">
+            Mode Personal
+          </button>
+          <input type="hidden" name="mode" :value="mode">
+        </div>
       </div>
 
-      <!-- 4. Gemini API Key -->
-      <div class="pt-4 border-t border-gray-100 space-y-2">
-        <div class="flex justify-between items-center">
-          <label class="block text-sm font-bold text-gray-800">Gemini API Key *</label>
-          <button type="button" @click="showGemini = !showGemini" class="text-xs text-blue-600 hover:underline"
+      <!-- 3. Business Name (Only in Business Mode) -->
+      <div class="py-5 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4" x-show="mode === 'bisnis'">
+        <div>
+          <label class="text-sm font-semibold text-[#18181B]">Nama Usaha / Brand</label>
+          <p class="text-xs text-[#71717A] mt-0.5">Nama bisnis yang digunakan bot saat menyapa pelanggan.</p>
+        </div>
+        <div class="w-full sm:w-72">
+          <input type="text" name="business_name" value="<%= config.business_name || '' %>" placeholder="Contoh: Companion Coffee"
+                 class="w-full px-3.5 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B] transition-colors">
+        </div>
+      </div>
+
+      <!-- 4. Owner Phone -->
+      <div class="py-5 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <label class="text-sm font-semibold text-[#18181B]">Nomor WhatsApp Pemilik</label>
+          <p class="text-xs text-[#71717A] mt-0.5">Menerima notifikasi pengalihan (handover) nego/komplain dari bot.</p>
+        </div>
+        <div class="w-full sm:w-72">
+          <input type="text" name="owner_phone" value="<%= config.owner_phone || '' %>" placeholder="Contoh: 628123456789"
+                 class="w-full px-3.5 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B] transition-colors">
+        </div>
+      </div>
+
+      <!-- 5. Gemini API Key & Model -->
+      <div class="py-5 border-b border-[#E4E4E7] space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <label class="text-sm font-semibold text-[#18181B]">Gemini API Key</label>
+            <p class="text-xs text-[#71717A] mt-0.5">Kunci API bawaan Anda sendiri (BYOK) dari Google AI Studio.</p>
+          </div>
+          <button type="button" @click="showGemini = !showGemini" class="text-xs text-[#71717A] hover:text-[#18181B] underline self-start sm:self-auto"
                   x-text="showGemini ? 'Sembunyikan' : 'Lihat Kunci'"></button>
         </div>
         <div class="flex gap-2">
@@ -68,55 +152,206 @@
                  x-model="geminiKey"
                  required
                  placeholder="AIzaSy..."
-                 class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                 class="flex-1 px-3.5 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs font-mono text-[#18181B] focus:outline-none focus:border-[#18181B] transition-colors">
           <button @click="testKey('gemini')" type="button"
                   :disabled="isTestingGemini"
-                  class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 transition-colors whitespace-nowrap">
-            <span x-text="isTestingGemini ? 'Menguji...' : '⚡ Test Koneksi'"></span>
+                  class="px-4 py-2 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors disabled:opacity-50 whitespace-nowrap">
+            <span x-text="isTestingGemini ? 'Menguji...' : 'Uji Kunci'"></span>
           </button>
         </div>
-        <!-- Gemini Test Result Badge -->
         <template x-if="geminiTestResult">
-          <div class="text-xs p-2.5 rounded-lg border"
-               :class="geminiTestResult.valid ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'"
-               x-text="geminiTestResult.message"></div>
+          <div class="p-2.5 rounded-xl text-xs font-medium flex items-center space-x-2"
+               :class="geminiTestResult.valid ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'">
+            <span x-text="geminiTestResult.valid ? 'Valid:' : 'Gagal:'"></span>
+            <span x-text="geminiTestResult.message"></span>
+          </div>
         </template>
       </div>
 
-      <!-- 5. Grok Vision API Key -->
-      <div class="pt-4 border-t border-gray-100 space-y-2">
-        <div class="flex justify-between items-center">
-          <label class="block text-sm font-bold text-gray-800">Grok Vision API Key (Opsional)</label>
-          <button type="button" @click="showGrok = !showGrok" class="text-xs text-blue-600 hover:underline"
-                  x-text="showGrok ? 'Sembunyikan' : 'Lihat Kunci'"></button>
+      <!-- 6. Model Selection -->
+      <div class="py-5 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <label class="text-sm font-semibold text-[#18181B]">Model AI</label>
+          <p class="text-xs text-[#71717A] mt-0.5">Pilih varian model Gemini yang digunakan untuk menghasilkan balasan.</p>
         </div>
-        <div class="flex gap-2">
-          <input :type="showGrok ? 'text' : 'password'"
-                 name="grok_api_key"
-                 x-model="grokKey"
-                 placeholder="xai-..."
-                 class="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none">
-          <button @click="testKey('grok')" type="button"
-                  :disabled="isTestingGrok"
-                  class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 transition-colors whitespace-nowrap">
-            <span x-text="isTestingGrok ? 'Menguji...' : '⚡ Test Koneksi'"></span>
-          </button>
+        <div class="w-full sm:w-72">
+          <select name="ai_model" x-model="aiModel"
+                  class="w-full px-3.5 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B] transition-colors">
+            <option value="gemini-3.7-flash">Gemini 3.7 Flash (Direkomendasikan)</option>
+            <option value="gemini-3.5-flash">Gemini 3.5 Flash (Ringan & Cepat)</option>
+            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Penalaran Mendalam)</option>
+            <option value="auto">Otomatis (Auto Fallback)</option>
+          </select>
         </div>
-        <!-- Grok Test Result Badge -->
-        <template x-if="grokTestResult">
-          <div class="text-xs p-2.5 rounded-lg border"
-               :class="grokTestResult.valid ? 'bg-green-50 text-green-800 border-green-200' : 'bg-red-50 text-red-800 border-red-200'"
-               x-text="grokTestResult.message"></div>
-        </template>
       </div>
 
-      <!-- Submit Button -->
-      <div class="pt-6 border-t border-gray-100 flex justify-end">
-        <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm shadow-sm transition-colors">
-          Simpan Pengaturan
+      <!-- 7. Tone & Style -->
+      <div class="py-5 border-b border-[#E4E4E7] space-y-4">
+        <div>
+          <label class="text-sm font-semibold text-[#18181B]">Gaya Bahasa & Nada Bicara</label>
+          <p class="text-xs text-[#71717A] mt-0.5">Sesuaikan karakter percakapan agar selaras dengan identitas brand.</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <!-- Nada Bicara -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-medium text-[#71717A]">Nada Bicara</label>
+            <select name="tone_style" x-model="toneStyle"
+                    class="w-full px-3 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+              <option value="ramah">Ramah & Akrab</option>
+              <option value="santai">Santai (Casual)</option>
+              <option value="formal">Formal & Sopan</option>
+            </select>
+          </div>
+
+          <!-- Panjang Respon -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-medium text-[#71717A]">Panjang Respon</label>
+            <select name="response_length" x-model="responseLength"
+                    class="w-full px-3 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+              <option value="ringkas">Ringkas</option>
+              <option value="sedang">Sedang (Standar)</option>
+              <option value="detail">Detail & Lengkap</option>
+            </select>
+          </div>
+
+          <!-- Emoji Level -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-medium text-[#71717A]">Intensitas Emoji</label>
+            <select name="emoji_level" x-model="emojiLevel"
+                    class="w-full px-3 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+              <option value="minimal">Minimal / Tanpa Emoji</option>
+              <option value="wajar">Wajar (1-2 emoji)</option>
+              <option value="ekspresif">Ceria & Ekspresif</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Max Bubbles Slider -->
+        <div class="pt-2">
+          <div class="flex justify-between items-center mb-1.5">
+            <label class="text-xs font-medium text-[#71717A]">Maksimal Gelembung Chat Balasan</label>
+            <span class="text-xs font-semibold text-[#18181B]" x-text="maxBubbles + ' Pesan'"></span>
+          </div>
+          <input type="range" name="max_bubbles" min="1" max="4" step="1" x-model="maxBubbles"
+                 class="w-full h-1.5 bg-[#E4E4E7] rounded-lg appearance-none cursor-pointer accent-[#18181B]">
+        </div>
+      </div>
+
+      <!-- 8. Timing & Debounce -->
+      <div class="py-5 border-b border-[#E4E4E7] space-y-4">
+        <div>
+          <label class="text-sm font-semibold text-[#18181B]">Jeda Waktu & Human Pacing</label>
+          <p class="text-xs text-[#71717A] mt-0.5">Mencegah deteksi spam dan mensimulasikan jeda mengetik manusia nyata.</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Jeda Awal -->
+          <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-2">
+            <div class="flex justify-between items-center text-xs">
+              <span class="font-medium text-[#18181B]">Jeda Respon Awal</span>
+              <span class="font-mono font-semibold text-[#71717A]" x-text="minDelay + 's - ' + maxDelay + 's'"></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <input type="range" name="min_delay_sec" min="2" max="20" step="1" x-model="minDelay"
+                     @input="if(parseInt(minDelay) > parseInt(maxDelay)) maxDelay = minDelay"
+                     class="flex-1 h-1.5 bg-[#E4E4E7] rounded-lg appearance-none cursor-pointer accent-[#18181B]">
+              <input type="range" name="max_delay_sec" min="3" max="30" step="1" x-model="maxDelay"
+                     @input="if(parseInt(maxDelay) < parseInt(minDelay)) minDelay = maxDelay"
+                     class="flex-1 h-1.5 bg-[#E4E4E7] rounded-lg appearance-none cursor-pointer accent-[#18181B]">
+            </div>
+            <p class="text-[11px] text-[#71717A]">Waktu jeda acak sebelum bot mulai memproses pesan masuk.</p>
+          </div>
+
+          <!-- Jeda Antar-Bubble -->
+          <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-2">
+            <div class="flex justify-between items-center text-xs">
+              <span class="font-medium text-[#18181B]">Jeda Antar-Bubble</span>
+              <span class="font-mono font-semibold text-[#71717A]" x-text="interBubbleDelay + ' Detik'"></span>
+            </div>
+            <input type="range" name="inter_bubble_delay" min="1.0" max="5.0" step="0.5" x-model="interBubbleDelay"
+                   class="w-full h-1.5 bg-[#E4E4E7] rounded-lg appearance-none cursor-pointer accent-[#18181B]">
+            <p class="text-[11px] text-[#71717A]">Lama status mengetik sebelum bubble berikutnya dikirim.</p>
+          </div>
+
+          <!-- Debounce Buffer Pelanggan -->
+          <div class="sm:col-span-2 p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-2">
+            <div class="flex justify-between items-center text-xs">
+              <span class="font-medium text-[#18181B]">Waktu Tunggu Chat Berturut-turut (Debounce)</span>
+              <span class="font-mono font-semibold text-[#71717A]" x-text="customerDebounce + ' Detik'"></span>
+            </div>
+            <input type="range" name="customer_debounce_sec" min="1" max="15" step="1" x-model="customerDebounce"
+                   class="w-full h-1.5 bg-[#E4E4E7] rounded-lg appearance-none cursor-pointer accent-[#18181B]">
+            <p class="text-[11px] text-[#71717A]">Menunggu pelanggan selesai mengirim rangkaian bubble chat agar dibaca dan dibalas sekaligus.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons (Matching Reference Save Changes Pill) -->
+      <div class="pt-6 flex justify-end items-center gap-3">
+        <a href="/dashboard" 
+           class="px-5 py-2 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors">
+          Batalkan
+        </a>
+        <button type="submit" 
+                class="px-6 py-2 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium shadow-sm transition-colors">
+          Simpan Perubahan
         </button>
       </div>
     </form>
+  </main>
+
+  <!-- Modal Scan QR Code (Clean & Minimalist) -->
+  <div x-show="showQrModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 space-y-4 text-center border border-[#E4E4E7]" @click.away="closeScanModal()">
+      <div class="flex justify-between items-center pb-2 border-b border-[#E4E4E7]">
+        <h3 class="text-sm font-semibold text-[#18181B]">Pindai QR Code WhatsApp</h3>
+        <button @click="closeScanModal()" class="text-[#71717A] hover:text-[#18181B] text-base font-bold">&times;</button>
+      </div>
+
+      <!-- QR Display Box -->
+      <div class="flex flex-col items-center justify-center min-h-[240px] bg-[#F7F7F8] rounded-xl p-4 border border-[#E4E4E7]">
+        <template x-if="qrCodeDataUrl && statusState === 'QR_READY'">
+          <div class="space-y-3">
+            <img :src="qrCodeDataUrl" alt="QR Code WhatsApp" class="w-52 h-52 rounded-lg border border-[#E4E4E7] bg-white p-2 mx-auto">
+            <p class="text-xs text-[#71717A]">Arahkan kamera WhatsApp smartphone ke QR Code ini</p>
+          </div>
+        </template>
+
+        <template x-if="statusState === 'READY'">
+          <div class="space-y-2 py-6">
+            <div class="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+            <h4 class="text-sm font-semibold text-[#18181B]">Berhasil Tersambung</h4>
+            <p class="text-xs text-[#71717A]" x-text="'Akun: ' + (accountInfo.pushname || 'User')"></p>
+          </div>
+        </template>
+
+        <template x-if="statusState !== 'QR_READY' && statusState !== 'READY'">
+          <div class="space-y-3 py-6">
+            <div class="w-8 h-8 border-2 border-[#18181B] border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p class="text-xs text-[#71717A]" x-text="modalStatusText || 'Menyiapkan sesi...'"></p>
+          </div>
+        </template>
+      </div>
+
+      <div class="text-left text-xs text-[#71717A] bg-[#F4F4F5] p-3 rounded-xl space-y-1">
+        <p class="font-medium text-[#18181B]">Langkah Penautan:</p>
+        <ol class="list-decimal list-inside space-y-0.5 text-[11px]">
+          <li>Buka WhatsApp &gt; Perangkat Tertaut.</li>
+          <li>Ketuk Tautkan Perangkat.</li>
+          <li>Pindai QR Code di atas.</li>
+        </ol>
+      </div>
+
+      <button @click="closeScanModal()" type="button" 
+              class="w-full py-2 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors">
+        Tutup
+      </button>
+    </div>
   </div>
 </div>
 
@@ -125,24 +360,86 @@
     return {
       mode: '<%= config.mode || "bisnis" %>',
       geminiKey: '<%= config.gemini_api_key || "" %>',
-      grokKey: '<%= config.grok_api_key || "" %>',
+      aiModel: '<%= config.ai_model || "gemini-3.7-flash" %>',
+      toneStyle: '<%= config.tone_style || "ramah" %>',
+      responseLength: '<%= config.response_length || "sedang" %>',
+      emojiLevel: '<%= config.emoji_level || "wajar" %>',
+      maxBubbles: <%= config.max_bubbles || 3 %>,
+      minDelay: <%= config.min_delay_sec || 5 %>,
+      maxDelay: <%= config.max_delay_sec || 12 %>,
+      interBubbleDelay: <%= config.inter_bubble_delay || 2.5 %>,
+      customerDebounce: <%= config.customer_debounce_sec || 5 %>,
       showGemini: false,
-      showGrok: false,
       isTestingGemini: false,
-      isTestingGrok: false,
       geminiTestResult: null,
-      grokTestResult: null,
+
+      statusState: '<%= (status && status.state) ? status.state : "DISCONNECTED" %>',
+      accountInfo: <%- JSON.stringify((status && status.info) ? status.info : {}) %>,
+      qrCodeDataUrl: '<%= (status && status.qrCodeDataUrl) ? status.qrCodeDataUrl : "" %>',
+      showQrModal: false,
+      isResetting: false,
+      modalStatusText: '',
+      pollInterval: null,
+
+      init() {
+        this.checkStatus(false);
+      },
+
+      async checkStatus(manual = false) {
+        try {
+          const res = await fetch('/api/status');
+          const json = await res.json();
+          if (json.success && json.data) {
+            this.statusState = json.data.state;
+            this.accountInfo = json.data.info || {};
+            this.qrCodeDataUrl = json.data.qrCodeDataUrl || '';
+            if (manual && this.statusState === 'READY') {
+              alert('Status WhatsApp: Tersambung Aktif sebagai ' + (this.accountInfo.pushname || 'User') + ' (' + (this.accountInfo.phone || '') + ')');
+            }
+          }
+        } catch (_) {}
+      },
+
+      async startScanModal() {
+        this.showQrModal = true;
+        this.isResetting = true;
+        this.modalStatusText = 'Menyiapkan sesi & memuat QR Code baru...';
+
+        try {
+          await fetch('/api/reset-session', { method: 'POST' });
+        } catch (err) {
+          console.error(err);
+        } finally {
+          this.isResetting = false;
+        }
+
+        if (this.pollInterval) clearInterval(this.pollInterval);
+        this.pollInterval = setInterval(async () => {
+          await this.checkStatus(false);
+          if (this.statusState === 'READY') {
+            setTimeout(() => {
+              this.closeScanModal();
+            }, 1500);
+          }
+        }, 1500);
+      },
+
+      closeScanModal() {
+        this.showQrModal = false;
+        if (this.pollInterval) {
+          clearInterval(this.pollInterval);
+          this.pollInterval = null;
+        }
+      },
 
       async testKey(provider) {
-        const apiKey = provider === 'gemini' ? this.geminiKey : this.grokKey;
+        const apiKey = this.geminiKey;
         if (!apiKey) {
           alert('Silakan masukkan API key terlebih dahulu.');
           return;
         }
 
-        if (provider === 'gemini') this.isTestingGemini = true;
-        else this.isTestingGrok = true;
-
+        this.isTestingGemini = true;
         try {
           const res = await fetch('/dashboard/settings/test-key', {
             method: 'POST',
@@ -150,16 +447,11 @@
             body: JSON.stringify({ provider, apiKey })
           });
           const data = await res.json();
-          if (provider === 'gemini') {
-            this.geminiTestResult = { valid: data.valid, message: data.message };
-          } else {
-            this.grokTestResult = { valid: data.valid, message: data.message };
-          }
+          this.geminiTestResult = { valid: data.valid, message: data.message };
         } catch (err) {
           alert('Gagal menghubungi server pengujian: ' + err.message);
         } finally {
           this.isTestingGemini = false;
-          this.isTestingGrok = false;
         }
       }
     }

@@ -28,7 +28,7 @@
     "outputPath": "dist"
   },
   "dependencies": {
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "^11.8.1",
     "ejs": "^3.1.10",
     "express": "^4.19.2",
     "node-cron": "^3.0.3",

@@ -1,5 +1,7 @@
 const db = require('../../db');
+const { getConfig } = require('../../config');
 const { generateReply } = require('../../ai');
+const { splitIntoBubbles, sendMultiBubbleMessages } = require('../bubble-sender');
 
 /**
  * Ekstraksi nilai nominal dan kategori pengeluaran dari teks kalimat bebas (Fallback / Rule-based Parser).
@@ -24,45 +26,75 @@ function extractExpenseFromText(text = '') {
     baseNum *= 1000000;
   }
 
-  const amount = Math.round(baseNum);
-  if (isNaN(amount) || amount <= 0 || amount > 100000000000) {
-    return null;
-  }
-
-  // Tentukan kategori dari kata kunci
+  // Cari kategori berdasarkan kata kunci umum
   let category = 'Lain-lain';
-  if (/(makan|minum|kopi|nasi|bakso|ayam|mie|snack|jajan|lunch|dinner|sarapan)/i.test(lower)) {
-    category = 'Makan & Minum';
-  } else if (/(bensin|bbm|pertalite|pertamax|parkir|tol|ojol|grab|gojek|taksi|kereta|bus)/i.test(lower)) {
+  if (/makan|minum|kopi|lunch|dinner|sarapan|snack|resto|cafe|boba/i.test(lower)) {
+    category = 'Makanan & Minuman';
+  } else if (/bensin|pertalite|pertamax|parkir|toll|ojol|grab|gojek|transport/i.test(lower)) {
     category = 'Transportasi';
-  } else if (/(belanja|baju|sepatu|shopee|tokopedia|lazada|mall|supermarket|indomaret|alfamart)/i.test(lower)) {
-    category = 'Belanja';
-  } else if (/(listrik|air|pdam|wifi|indihome|pulsa|kuota|tagihan|bpjs|sewa|kontrakan)/i.test(lower)) {
+  } else if (/listrik|air|pdam|wifi|pulsa|kuota|indihome|token/i.test(lower)) {
     category = 'Tagihan & Utilitas';
-  } else if (/(obat|dokter|klinik|apotek|rs|vitamin|sehat)/i.test(lower)) {
+  } else if (/belanja|baju|sepatu|shopee|tokped|lazada|supermarket|indomaret|alfamart/i.test(lower)) {
+    category = 'Belanja';
+  } else if (/obat|dokter|apotek|vitamin|klinik|sakit/i.test(lower)) {
     category = 'Kesehatan';
   }
 
   return {
     category,
-    amount,
+    amount: baseNum,
     note: text.trim()
   };
 }
 
 /**
- * Mencoba mengekstrak JSON intent dari balasan AI.
- * @param {string} aiReply 
+ * Mengekstrak blok JSON intent yang dihasilkan oleh AI Assistant (jika ada).
+ * @param {string} text 
  * @returns {object|null}
  */
-function parseAiIntent(aiReply = '') {
+function parseAiIntent(text = '') {
   try {
-    const jsonMatch = aiReply.match(/\{[\s\S]*?"intent"[\s\S]*?\}/);
+    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*?"intent"[\s\S]*?\}/);
     if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+      const rawJson = jsonMatch[1] || jsonMatch[0];
+      return JSON.parse(rawJson);
     }
   } catch (_) {}
   return null;
+}
+
+/**
+ * Mensimulasikan jeda alami manusia (Anti-Ban) dan status 'sedang mengetik' di WhatsApp.
+ * @param {import('whatsapp-web.js').Message} message 
+ * @param {number} [minMs] 
+ * @param {number} [maxMs] 
+ */
+async function simulateHumanTyping(message, minMs = null, maxMs = null) {
+  if (process.env.NODE_ENV === 'test' || process.env.NO_DELAY) {
+    return;
+  }
+
+  try {
+    const config = getConfig();
+    const resolvedMin = minMs || (Number(config.min_delay_sec) || 5) * 1000;
+    const resolvedMax = maxMs || (Number(config.max_delay_sec) || 12) * 1000;
+
+    const chat = typeof message.getChat === 'function' ? await message.getChat().catch(() => null) : null;
+    if (chat && typeof chat.sendStateTyping === 'function') {
+      await chat.sendStateTyping().catch(() => {});
+    }
+
+    const minTime = Math.min(resolvedMin, resolvedMax);
+    const maxTime = Math.max(resolvedMin, resolvedMax);
+    const randomDelay = Math.floor(Math.random() * (maxTime - minTime + 1)) + minTime;
+
+    console.log(`[Anti-Ban] Mensimulasikan jeda mengetik selama ${(randomDelay / 1000).toFixed(1)} detik...`);
+    await new Promise(resolve => setTimeout(resolve, randomDelay));
+
+    if (chat && typeof chat.clearState === 'function') {
+      await chat.clearState().catch(() => {});
+    }
+  } catch (_) {}
 }
 
 /**
@@ -75,17 +107,23 @@ async function handlePersonalMessage(message, client) {
   const messageBody = message.body || '';
 
   try {
-    // 1. Dapatkan respons AI dengan RAG context
+    const config = getConfig();
+
+    // 1. Simulasikan jeda manusiawi & status typing untuk anti-banned
+    await simulateHumanTyping(message);
+
+    // 2. Dapatkan respons AI dengan RAG context + riwayat chat
     const aiResult = await generateReply({
       message: messageBody,
-      mode: 'personal'
+      mode: 'personal',
+      contact
     });
 
     let finalReply = aiResult.reply || '';
     const aiIntent = parseAiIntent(finalReply);
     const textExtraction = extractExpenseFromText(messageBody);
 
-    // 2. Pemrosesan Pencatatan Pengeluaran
+    // 3. Pemrosesan Pencatatan Pengeluaran
     if (aiIntent?.intent === 'record_expense' || (!aiIntent && textExtraction)) {
       const category = aiIntent?.category || textExtraction?.category || 'Lain-lain';
       const amount = Number(aiIntent?.amount || textExtraction?.amount);
@@ -104,7 +142,7 @@ async function handlePersonalMessage(message, client) {
       }
     }
 
-    // 3. Pemrosesan Pembuatan Reminder
+    // 4. Pemrosesan Pembuatan Reminder
     if (aiIntent?.intent === 'set_reminder' && aiIntent.trigger_at) {
       db.createReminder({
         message: aiIntent.message || messageBody,
@@ -115,14 +153,14 @@ async function handlePersonalMessage(message, client) {
       finalReply = `⏰ *Pengingat Disimpan:*\n"${aiIntent.message || messageBody}" pada ${aiIntent.trigger_at}.\nBot akan mengirimkan pesan saat waktunya tiba.`;
     }
 
-    // 4. Kirim Balasan ke WhatsApp
-    if (typeof message.reply === 'function') {
-      await message.reply(finalReply);
-    } else if (client && typeof client.sendMessage === 'function') {
-      await client.sendMessage(contact, finalReply);
-    }
+    // 5. Pecah pesan panjang menjadi gelembung chat alami & kirim bertahap
+    const maxBubbles = Number(config.max_bubbles) || 3;
+    const bubbles = splitIntoBubbles(finalReply, maxBubbles);
+    await sendMultiBubbleMessages(message, client, contact, bubbles, {
+      interBubbleDelay: config.inter_bubble_delay
+    });
 
-    // 5. Catat ke tabel chat_logs SQLite
+    // 6. Catat ke tabel chat_logs SQLite
     db.createChatLog({
       contact,
       message_in: messageBody,

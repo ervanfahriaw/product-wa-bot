@@ -11,6 +11,18 @@ const DEFAULT_CONFIG = {
   owner_phone: '',
   gemini_api_key: '',
   grok_api_key: '',
+  ai_model: 'gemini-3.7-flash', // 'gemini-3.7-flash' | 'gemini-3.5-flash' | 'gemini-3.1-pro-preview' | 'auto'
+  response_length: 'sedang',    // 'ringkas' | 'sedang' | 'detail'
+  tone_style: 'ramah',          // 'santai' | 'ramah' | 'formal'
+  emoji_level: 'wajar',         // 'minimal' | 'wajar' | 'ekspresif'
+  max_bubbles: 3,               // 1..4
+  min_delay_sec: 5,             // Jeda membaca minimal (detik)
+  max_delay_sec: 12,            // Jeda membaca maksimal (detik)
+  inter_bubble_delay: 2.5,      // Jeda mengetik antar bubble (detik)
+  customer_debounce_sec: 5,     // Waktu tunggu chat lanjutan pelanggan (detik)
+  sheets_url: '',               // URL Google Sheets / CSV Publish URL
+  sheets_auto_sync: false,      // Sinkronisasi otomatis di latar belakang
+  sheets_sync_interval: 10,     // Interval sinkronisasi (menit)
   is_setup_completed: false
 };
 

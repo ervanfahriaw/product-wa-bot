@@ -1,16 +1,16 @@
 <%- include('../partials/header') %>
 
-<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="expenseManager()">
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="trainingManager()">
   <!-- Sidebar -->
-  <%- include('../partials/sidebar', { activeMenu: 'expenses', config, pendingHandoverCount }) %>
+  <%- include('../partials/sidebar', { activeMenu: 'training', config, pendingHandoverCount }) %>
 
   <!-- Main Content Panel -->
   <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-6">
     <!-- Header & Actions -->
     <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Catatan Keuangan</h1>
-        <p class="text-xs md:text-sm text-[#71717A] mt-1">Daftar pencatatan pengeluaran harian via chat WhatsApp asisten atau input manual.</p>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Training Gaya Bicara</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">Ajarkan gaya sapaan dan karakter jawaban khas toko melalui contoh dialog nyata (Few-Shot Learning).</p>
       </div>
 
       <button @click="openCreateModal()" type="button"
@@ -19,66 +19,54 @@
           <line x1="12" y1="5" x2="12" y2="19"></line>
           <line x1="5" y1="12" x2="19" y2="12"></line>
         </svg>
-        <span>Catat Pengeluaran</span>
+        <span>Tambah Contoh</span>
       </button>
     </div>
 
-    <!-- Summary Metrics -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div class="p-5 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-2">
-        <div class="text-xs font-medium text-[#71717A]">Total Seluruh Pengeluaran</div>
-        <div class="text-2xl font-bold text-[#18181B]">
-          Rp<%= totalAmount.toLocaleString('id-ID') %>
-        </div>
-        <p class="text-[11px] text-[#71717A]"><%= expenses.length %> transaksi tercatat</p>
-      </div>
-
-      <div class="p-5 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-2">
-        <div class="text-xs font-medium text-[#71717A]">Pengeluaran Bulan Ini</div>
-        <div class="text-2xl font-bold text-[#18181B]">
-          Rp<%= thisMonthTotal.toLocaleString('id-ID') %>
-        </div>
-        <p class="text-[11px] text-[#71717A]">Periode bulan berjalan</p>
-      </div>
-    </div>
-
-    <!-- Expenses Table -->
+    <!-- Samples List Table -->
     <div class="border border-[#E4E4E7] rounded-2xl overflow-hidden bg-white">
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs text-[#18181B]">
           <thead class="bg-[#F7F7F8] border-b border-[#E4E4E7] text-[11px] font-semibold text-[#71717A] uppercase tracking-wider">
             <tr>
-              <th class="px-5 py-3.5">Tanggal</th>
-              <th class="px-5 py-3.5">Kategori</th>
-              <th class="px-5 py-3.5">Nominal</th>
-              <th class="px-5 py-3.5">Keterangan</th>
+              <th class="px-5 py-3.5">Topik / Tag</th>
+              <th class="px-5 py-3.5">Pesan Pelanggan</th>
+              <th class="px-5 py-3.5">Contoh Jawaban yang Diinginkan</th>
+              <th class="px-5 py-3.5 text-center">Status</th>
               <th class="px-5 py-3.5 text-right">Aksi</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-[#E4E4E7]">
-            <% if (expenses && expenses.length > 0) { %>
-              <% expenses.forEach(function(expense) { %>
+            <% if (samples && samples.length > 0) { %>
+              <% samples.forEach(function(sample) { %>
                 <tr class="hover:bg-[#F7F7F8] transition-colors">
-                  <td class="px-5 py-3.5 text-[#71717A] font-mono text-[11px] whitespace-nowrap">
-                    <%= expense.created_at.substring(0, 10) %>
-                  </td>
                   <td class="px-5 py-3.5 whitespace-nowrap">
-                    <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] bg-[#F4F4F5] text-[#18181B] font-medium">
-                      <%= expense.category %>
+                    <span class="inline-block px-2.5 py-0.5 rounded-full text-[10px] bg-[#F4F4F5] text-[#71717A] font-medium">
+                      #<%= sample.tag || 'umum' %>
                     </span>
                   </td>
-                  <td class="px-5 py-3.5 font-medium text-[#18181B] whitespace-nowrap">
-                    Rp<%= Number(expense.amount).toLocaleString('id-ID') %>
+                  <td class="px-5 py-3.5 text-[#18181B] font-medium max-w-xs">
+                    "<%= sample.user_sample %>"
                   </td>
-                  <td class="px-5 py-3.5 text-[#71717A] max-w-xs truncate">
-                    <%= expense.note || '-' %>
+                  <td class="px-5 py-3.5 text-[#71717A] max-w-md">
+                    <%= sample.bot_sample %>
+                  </td>
+                  <td class="px-5 py-3.5 text-center whitespace-nowrap">
+                    <form action="/dashboard/training/<%= sample.id %>/toggle" method="POST" class="inline">
+                      <button type="submit" 
+                              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-colors
+                              <%= sample.is_active ? 'bg-emerald-50 text-emerald-800' : 'bg-[#F4F4F5] text-[#71717A]' %>">
+                        <span class="w-1.5 h-1.5 rounded-full <%= sample.is_active ? 'bg-emerald-500' : 'bg-gray-400' %> mr-1.5"></span>
+                        <%= sample.is_active ? 'Aktif' : 'Nonaktif' %>
+                      </button>
+                    </form>
                   </td>
                   <td class="px-5 py-3.5 text-right whitespace-nowrap space-x-2">
-                    <button @click="openEditModal(<%= JSON.stringify(expense) %>)" 
+                    <button @click="openEditModal(<%= JSON.stringify(sample) %>)" 
                             class="text-xs text-[#71717A] hover:text-[#18181B] font-medium transition-colors">
                       Edit
                     </button>
-                    <button @click="openDeleteModal(<%= expense.id %>, '<%= expense.category %>', <%= expense.amount %>)" 
+                    <button @click="openDeleteModal(<%= sample.id %>)" 
                             class="text-xs text-red-600 hover:text-red-800 font-medium transition-colors">
                       Hapus
                     </button>
@@ -89,8 +77,8 @@
               <tr>
                 <td colspan="5" class="px-5 py-12 text-center text-[#71717A]">
                   <div class="max-w-xs mx-auto space-y-1">
-                    <p class="text-sm font-semibold text-[#18181B]">Belum ada catatan pengeluaran</p>
-                    <p class="text-xs text-[#71717A]">Kirim chat pengeluaran di WhatsApp atau gunakan tombol Catat Pengeluaran di atas.</p>
+                    <p class="text-sm font-semibold text-[#18181B]">Belum ada contoh percakapan</p>
+                    <p class="text-xs text-[#71717A]">Klik Tambah Contoh di atas untuk melatih gaya bahasa bot Anda.</p>
                   </div>
                 </td>
               </tr>
@@ -101,31 +89,34 @@
     </div>
   </main>
 
-  <!-- Modal: Tambah / Edit Pengeluaran -->
+  <!-- Modal: Tambah / Edit Sample -->
   <div x-show="showFormModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-[#E4E4E7]" @click.away="showFormModal = false">
       <div class="flex justify-between items-center pb-2 border-b border-[#E4E4E7]">
-        <h3 class="text-sm font-semibold text-[#18181B]" x-text="isEdit ? 'Edit Pengeluaran' : 'Catat Pengeluaran'"></h3>
+        <h3 class="text-sm font-semibold text-[#18181B]" x-text="isEdit ? 'Edit Contoh Percakapan' : 'Tambah Contoh Dialog'"></h3>
         <button @click="showFormModal = false" class="text-[#71717A] hover:text-[#18181B] text-base font-bold">&times;</button>
       </div>
 
-      <form :action="isEdit ? '/dashboard/expenses/' + formData.id + '/edit' : '/dashboard/expenses'" method="POST" class="space-y-3.5">
+      <form :action="isEdit ? '/dashboard/training/' + formData.id + '/edit' : '/dashboard/training'" method="POST" class="space-y-3.5">
         <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Kategori *</label>
-          <input type="text" name="category" required x-model="formData.category" placeholder="Makan, Transport, Belanja"
+          <label class="block text-xs font-medium text-[#71717A] mb-1">Topik / Tag</label>
+          <input type="text" name="tag" x-model="formData.tag" placeholder="ongkir, rekomendasi, garansi"
                  class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Nominal (Rp) *</label>
-          <input type="number" name="amount" required min="1" x-model="formData.amount" placeholder="25000"
-                 class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+          <label class="block text-xs font-medium text-[#71717A] mb-1">Pesan Pelanggan (Pertanyaan) *</label>
+          <textarea name="user_sample" required rows="2" x-model="formData.user_sample"
+                    placeholder="Contoh: Ongkir ke Jakarta Selatan berapa ya kak?"
+                    class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"></textarea>
         </div>
 
         <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Catatan Keterangan</label>
-          <input type="text" name="note" x-model="formData.note" placeholder="Makan siang nasi padang..."
-                 class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+          <label class="block text-xs font-medium text-[#71717A] mb-1">Contoh Jawaban yang Diinginkan *</label>
+          <textarea name="bot_sample" required rows="4" x-model="formData.bot_sample"
+                    placeholder="Contoh: Halo Kak! Untuk pengiriman ke Jaksel mulai Rp10.000 via GoSend/Paxel sameday ya. Mau dibantu proses sekarang?"
+                    class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"></textarea>
+          <p class="text-[11px] text-[#71717A] mt-1">Tuliskan persis gaya sapaan dan nada bicara yang ingin ditiru oleh AI.</p>
         </div>
 
         <div class="flex justify-end items-center gap-2 pt-3 border-t border-[#E4E4E7]">
@@ -135,14 +126,14 @@
           </button>
           <button type="submit" 
                   class="px-5 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium">
-            Simpan
+            Simpan Contoh
           </button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Modal: Konfirmasi Hapus Pengeluaran -->
+  <!-- Modal: Konfirmasi Hapus -->
   <div x-show="showDeleteModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl max-w-xs w-full p-6 space-y-4 text-center border border-[#E4E4E7]" @click.away="showDeleteModal = false">
       <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
@@ -152,10 +143,10 @@
         </svg>
       </div>
       <div>
-        <h3 class="text-sm font-semibold text-[#18181B]">Hapus Catatan?</h3>
-        <p class="text-xs text-[#71717A] mt-1">Catatan <span class="font-medium text-[#18181B]" x-text="deleteCategory + ' (Rp' + deleteAmount + ')'"></span> akan dihapus.</p>
+        <h3 class="text-sm font-semibold text-[#18181B]">Hapus Contoh Dialog?</h3>
+        <p class="text-xs text-[#71717A] mt-1">Data dialog ini tidak akan digunakan lagi dalam prompt training AI.</p>
       </div>
-      <form :action="'/dashboard/expenses/' + deleteId + '/delete'" method="POST" class="flex justify-center gap-2 pt-2">
+      <form :action="'/dashboard/training/' + deleteId + '/delete'" method="POST" class="flex justify-center gap-2 pt-2">
         <button @click="showDeleteModal = false" type="button" 
                 class="px-4 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B]">
           Batal
@@ -170,37 +161,34 @@
 </div>
 
 <script>
-  function expenseManager() {
+  function trainingManager() {
     return {
       showFormModal: false,
       showDeleteModal: false,
       isEdit: false,
       deleteId: null,
-      deleteCategory: '',
-      deleteAmount: 0,
       formData: {
         id: null,
-        category: '',
-        amount: '',
-        note: ''
+        tag: '',
+        user_sample: '',
+        bot_sample: '',
+        is_active: 1
       },
 
       openCreateModal() {
         this.isEdit = false;
-        this.formData = { id: null, category: '', amount: '', note: '' };
+        this.formData = { id: null, tag: '', user_sample: '', bot_sample: '', is_active: 1 };
         this.showFormModal = true;
       },
 
-      openEditModal(expense) {
+      openEditModal(sample) {
         this.isEdit = true;
-        this.formData = { ...expense };
+        this.formData = { ...sample };
         this.showFormModal = true;
       },
 
-      openDeleteModal(id, category, amount) {
+      openDeleteModal(id) {
         this.deleteId = id;
-        this.deleteCategory = category;
-        this.deleteAmount = Number(amount).toLocaleString('id-ID');
         this.showDeleteModal = true;
       }
     }

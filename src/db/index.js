@@ -4,6 +4,11 @@ const productsQueries = require('./queries/products');
 const expensesQueries = require('./queries/expenses');
 const remindersQueries = require('./queries/reminders');
 const chatLogsQueries = require('./queries/chat-logs');
+const contactStatesQueries = require('./queries/contact-states');
+const samplesQueries = require('./queries/samples');
+const businessDocsQueries = require('./queries/business-documents');
+const manualHandoversQueries = require('./queries/manual-handovers');
+const analyticsQueries = require('./queries/analytics');
 
 module.exports = {
   db,
@@ -11,5 +16,10 @@ module.exports = {
   ...productsQueries,
   ...expensesQueries,
   ...remindersQueries,
-  ...chatLogsQueries
+  ...chatLogsQueries,
+  ...contactStatesQueries,
+  ...samplesQueries,
+  ...businessDocsQueries,
+  ...manualHandoversQueries,
+  ...analyticsQueries
 };

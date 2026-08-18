@@ -1,97 +1,149 @@
 <%- include('../partials/header') %>
 
-<div class="flex flex-col md:flex-row bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[600px]">
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]">
   <!-- Sidebar -->
-  <%- include('../partials/sidebar', { activeMenu: 'dashboard', config }) %>
+  <%- include('../partials/sidebar', { activeMenu: 'dashboard', config, pendingHandoverCount }) %>
 
-  <!-- Main Content Area -->
-  <div class="flex-1 p-6 md:p-8 bg-gray-50 space-y-6">
-    <!-- Welcome Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  <!-- Main Content Panel -->
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-8">
+    <!-- Header -->
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h2 class="text-2xl font-bold text-gray-900">Panel Kontrol</h2>
-        <p class="text-sm text-gray-500 mt-1">
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Dashboard</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">
           <%= config.mode === 'bisnis' 
-              ? `Pengelolaan katalog, stok, dan layanan pelanggan WhatsApp (${config.business_name || 'Bisnis Anda'}).`
-              : 'Pengelolaan keuangan pribadi, rekap pengeluaran, dan pengingat WhatsApp.' %>
+              ? `Pengelolaan katalog produk, profil usaha, dan layanan otomatisasi WhatsApp (${config.business_name || 'Toko'}).`
+              : 'Pencatatan keuangan personal, rekap pengeluaran, dan asisten reminder.' %>
         </p>
       </div>
-      <a href="/setup/step-1" class="text-xs text-gray-500 hover:text-blue-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg shadow-sm font-medium self-start sm:self-auto">
-        🔄 Setup Wizard
+
+      <a href="/setup/step-1" 
+         class="px-4 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors flex items-center space-x-1.5 self-start sm:self-auto">
+        <svg class="w-3.5 h-3.5 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+          <path d="M3 3v5h5"></path>
+          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+          <path d="M16 16h5v5"></path>
+        </svg>
+        <span>Setup Ulang</span>
       </a>
     </div>
 
-    <!-- Stat Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
-      <!-- Card 1: WhatsApp Status -->
-      <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Status WhatsApp</div>
-        <div class="mt-2 flex items-center space-x-2">
-          <span class="w-3 h-3 rounded-full <%= status.state === 'ready' ? 'bg-green-500' : 'bg-yellow-500' %>"></span>
-          <span class="text-lg font-bold text-gray-900 capitalize"><%= status.state === 'ready' ? 'Online' : status.state %></span>
+    <!-- Stat Metrics (Clean Minimalist Cards) -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <!-- Status Card -->
+      <div class="p-5 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-3">
+        <div class="text-xs font-medium text-[#71717A]">Status WhatsApp</div>
+        <div class="flex items-center space-x-2">
+          <span class="w-2.5 h-2.5 rounded-full <%= (status && status.state === 'READY') ? 'bg-emerald-500' : 'bg-amber-500' %>"></span>
+          <span class="text-lg font-bold text-[#18181B] capitalize"><%= (status && status.state === 'READY') ? 'Online' : 'Menunggu Sesi' %></span>
         </div>
-        <p class="text-xs text-gray-500 mt-1"><%= status.info?.phone ? `Nomor: +${status.info.phone}` : 'Belum discan' %></p>
+        <p class="text-xs text-[#71717A] truncate"><%= (status && status.info && status.info.phone) ? `+${status.info.phone}` : 'Perangkat Terputus' %></p>
       </div>
 
-      <!-- Card 2: Main Data Metric -->
-      <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-          <%= config.mode === 'bisnis' ? 'Total Produk Aktif' : 'Total Pengeluaran Bulan Ini' %>
+      <!-- Main Metric Card -->
+      <div class="p-5 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-3">
+        <div class="text-xs font-medium text-[#71717A]">
+          <%= config.mode === 'bisnis' ? 'Total Produk Aktif' : 'Pengeluaran Bulan Ini' %>
         </div>
-        <div class="mt-2 text-2xl font-bold text-blue-600">
+        <div class="text-2xl font-bold text-[#18181B]">
           <%= config.mode === 'bisnis' 
-              ? `${stats.totalProducts} Produk` 
+              ? `${stats.totalProducts} Item` 
               : `Rp ${stats.totalExpenses.toLocaleString('id-ID')}` %>
         </div>
-        <a href="<%= config.mode === 'bisnis' ? '/dashboard/products' : '/dashboard/expenses' %>" class="text-xs text-blue-600 hover:underline mt-1 inline-block">
-          Kelola Data &rarr;
+        <a href="<%= config.mode === 'bisnis' ? '/dashboard/products' : '/dashboard/expenses' %>" 
+           class="text-xs font-medium text-[#18181B] hover:underline inline-flex items-center space-x-1">
+          <span>Kelola Data</span>
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <line x1="7" y1="17" x2="17" y2="7"></line>
+            <polyline points="7 7 17 7 17 17"></polyline>
+          </svg>
         </a>
       </div>
 
-      <!-- Card 3: Chat Log Metric -->
-      <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Chat Terekam</div>
-        <div class="mt-2 text-2xl font-bold text-gray-900">
-          <%= stats.totalChatLogs %> Percakapan
+      <!-- Chat Logs Metric Card -->
+      <div class="p-5 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-3">
+        <div class="text-xs font-medium text-[#71717A]">Total Percakapan</div>
+        <div class="text-2xl font-bold text-[#18181B]">
+          <%= stats.totalChatLogs %> Sesi
         </div>
-        <a href="/dashboard/chat-logs" class="text-xs text-blue-600 hover:underline mt-1 inline-block">
-          Buka Chat Log &rarr;
+        <a href="/dashboard/chat-logs" 
+           class="text-xs font-medium text-[#18181B] hover:underline inline-flex items-center space-x-1">
+          <span>Lihat Riwayat</span>
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <line x1="7" y1="17" x2="17" y2="7"></line>
+            <polyline points="7 7 17 7 17 17"></polyline>
+          </svg>
         </a>
       </div>
     </div>
 
-    <!-- Quick Actions Banner -->
-    <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm space-y-4">
-      <h3 class="text-base font-bold text-gray-900">Aksi Cepat</h3>
+    <!-- Quick Actions Panel -->
+    <div class="space-y-4 pt-2">
+      <h3 class="text-sm font-semibold text-[#18181B]">Aksi Cepat</h3>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <% if (config.mode === 'bisnis') { %>
-          <a href="/dashboard/products" class="p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/40 transition-all flex items-center space-x-3">
-            <span class="text-2xl">➕</span>
+          <a href="/dashboard/products" 
+             class="p-4 rounded-2xl border border-[#E4E4E7] bg-white hover:bg-[#F7F7F8] transition-colors flex items-start space-x-3.5">
+            <div class="w-9 h-9 rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-[#18181B] flex-shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path d="m7.5 4.27 9 5.15"></path>
+                <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
+                <path d="m3.3 7 8.7 5 8.7-5"></path>
+                <path d="M12 22V12"></path>
+              </svg>
+            </div>
             <div>
-              <div class="font-bold text-sm text-gray-800">Tambah Produk Baru</div>
-              <div class="text-xs text-gray-500">Perbarui stok atau katalog harga jualan Anda.</div>
+              <h4 class="text-xs font-semibold text-[#18181B]">Kelola Katalog Produk</h4>
+              <p class="text-[11px] text-[#71717A] mt-0.5">Tambah produk, update stok, atau tarik data dari Google Sheets.</p>
+            </div>
+          </a>
+
+          <a href="/dashboard/business-profile" 
+             class="p-4 rounded-2xl border border-[#E4E4E7] bg-white hover:bg-[#F7F7F8] transition-colors flex items-start space-x-3.5">
+            <div class="w-9 h-9 rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-[#18181B] flex-shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
+            </div>
+            <div>
+              <h4 class="text-xs font-semibold text-[#18181B]">Profil & Knowledge Usaha</h4>
+              <p class="text-[11px] text-[#71717A] mt-0.5">Input SOP toko, jam operasional, atau upload file dokumen.</p>
             </div>
           </a>
         <% } else { %>
-          <a href="/dashboard/expenses" class="p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/40 transition-all flex items-center space-x-3">
-            <span class="text-2xl">📝</span>
+          <a href="/dashboard/expenses" 
+             class="p-4 rounded-2xl border border-[#E4E4E7] bg-white hover:bg-[#F7F7F8] transition-colors flex items-start space-x-3.5">
+            <div class="w-9 h-9 rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-[#18181B] flex-shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <rect width="20" height="14" x="2" y="5" rx="2"></rect>
+                <line x1="2" x2="22" y1="10" y2="10"></line>
+              </svg>
+            </div>
             <div>
-              <div class="font-bold text-sm text-gray-800">Catat Pengeluaran Manual</div>
-              <div class="text-xs text-gray-500">Tambah pengeluaran tanpa melalui WhatsApp.</div>
+              <h4 class="text-xs font-semibold text-[#18181B]">Catatan Keuangan</h4>
+              <p class="text-[11px] text-[#71717A] mt-0.5">Catat pengeluaran harian dan pantau anggaran bulanan.</p>
             </div>
           </a>
         <% } %>
 
-        <a href="/dashboard/settings" class="p-4 rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50/40 transition-all flex items-center space-x-3">
-          <span class="text-2xl">🔑</span>
+        <a href="/dashboard/settings" 
+           class="p-4 rounded-2xl border border-[#E4E4E7] bg-white hover:bg-[#F7F7F8] transition-colors flex items-start space-x-3.5">
+          <div class="w-9 h-9 rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-[#18181B] flex-shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </div>
           <div>
-            <div class="font-bold text-sm text-gray-800">Pengaturan Kunci AI & Nomor Owner</div>
-            <div class="text-xs text-gray-500">Uji koneksi Gemini API atau ubah nomor notifikasi.</div>
+            <h4 class="text-xs font-semibold text-[#18181B]">Pengaturan Bot & Perangkat</h4>
+            <p class="text-[11px] text-[#71717A] mt-0.5">Konfigurasi API key, slider jeda waktu, dan scan QR.</p>
           </div>
         </a>
       </div>
     </div>
-  </div>
+  </main>
 </div>
 
 <%- include('../partials/footer') %>

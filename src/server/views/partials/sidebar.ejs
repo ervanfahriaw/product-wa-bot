@@ -1,51 +1,183 @@
-<!-- Sidebar Navigation -->
-<aside class="w-full md:w-64 bg-white border-r border-gray-200 flex-shrink-0 p-4 space-y-2">
-  <div class="px-3 py-2 text-xs font-bold uppercase tracking-wider text-gray-400">
-    Menu Utama
+<%
+  const businessName = (config && config.business_name) ? config.business_name : 'Companion';
+  const initials = businessName.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'CO';
+  const ownerName = (config && config.owner_phone) ? config.owner_phone : 'Admin';
+  const ownerInitial = ownerName.substring(0, 1).toUpperCase() || 'A';
+  const currentMenu = typeof activeMenu !== 'undefined' ? activeMenu : 'dashboard';
+  const pendingCount = typeof pendingHandoverCount !== 'undefined' ? pendingHandoverCount : 0;
+%>
+
+<!-- Left Sidebar Navigation (Matching Minimalist Design System) -->
+<aside class="w-full md:w-60 bg-white border-r border-[#E4E4E7] flex flex-col justify-between p-4 flex-shrink-0 min-h-[640px]">
+  <div class="space-y-4">
+    <!-- Workspace Header -->
+    <div class="flex items-center justify-between px-2 py-1">
+      <div class="flex items-center space-x-2.5">
+        <div class="w-7 h-7 rounded-lg bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-xs font-bold text-[#18181B]">
+          <%= initials %>
+        </div>
+        <span class="text-sm font-semibold text-[#18181B] truncate max-w-[120px]"><%= businessName %></span>
+      </div>
+      <svg class="w-4 h-4 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+        <polyline points="6 9 12 15 18 9"></polyline>
+      </svg>
+    </div>
+
+    <!-- Quick Status / View Link -->
+    <a href="/dashboard/settings" 
+       class="flex items-center justify-between px-3 py-1.5 rounded-full border border-[#E4E4E7] bg-white text-xs font-medium text-[#18181B] hover:bg-[#F4F4F5] transition-colors">
+      <div class="flex items-center space-x-2">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        <span class="text-[12px] font-medium">WhatsApp Engine</span>
+      </div>
+      <svg class="w-3.5 h-3.5 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+        <line x1="7" y1="17" x2="17" y2="7"></line>
+        <polyline points="7 7 17 7 17 17"></polyline>
+      </svg>
+    </a>
+
+    <!-- Navigation Group 1 -->
+    <nav class="space-y-1 pt-2">
+      <!-- Dashboard -->
+      <a href="/dashboard" 
+         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'dashboard' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+        <svg class="w-4 h-4 <%= currentMenu === 'dashboard' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <rect width="7" height="9" x="3" y="3" rx="1"></rect>
+          <rect width="7" height="5" x="14" y="3" rx="1"></rect>
+          <rect width="7" height="9" x="14" y="12" rx="1"></rect>
+          <rect width="7" height="5" x="3" y="16" rx="1"></rect>
+        </svg>
+        <span>Dashboard</span>
+      </a>
+
+      <% if (config && config.mode === 'bisnis') { %>
+        <!-- Analisis Bisnis & AI Insights (Khusus Mode Bisnis) -->
+        <a href="/dashboard/analytics" 
+           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'analytics' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+          <svg class="w-4 h-4 <%= currentMenu === 'analytics' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span>Analisis Bisnis</span>
+        </a>
+
+        <!-- Katalog Produk -->
+        <a href="/dashboard/products" 
+           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'products' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+          <svg class="w-4 h-4 <%= currentMenu === 'products' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <path d="m7.5 4.27 9 5.15"></path>
+            <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
+            <path d="m3.3 7 8.7 5 8.7-5"></path>
+            <path d="M12 22V12"></path>
+          </svg>
+          <span>Katalog Produk</span>
+        </a>
+
+        <!-- Profil & Knowledge Usaha -->
+        <a href="/dashboard/business-profile" 
+           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'business-profile' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+          <svg class="w-4 h-4 <%= currentMenu === 'business-profile' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+          <span>Profil Usaha</span>
+        </a>
+
+        <!-- Inbox Handover -->
+        <a href="/dashboard/handover-inbox" 
+           class="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'handover-inbox' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+          <div class="flex items-center space-x-2.5">
+            <svg class="w-4 h-4 <%= currentMenu === 'handover-inbox' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+            </svg>
+            <span>Inbox Handover</span>
+          </div>
+          <% if (pendingCount > 0) { %>
+            <span class="px-2 py-0.5 text-[11px] font-bold bg-[#DC2626] text-white rounded-full">
+              <%= pendingCount %>
+            </span>
+          <% } %>
+        </a>
+      <% } else { %>
+        <!-- Catatan Keuangan (Mode Personal) -->
+        <a href="/dashboard/expenses" 
+           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'expenses' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+          <svg class="w-4 h-4 <%= currentMenu === 'expenses' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <rect width="20" height="14" x="2" y="5" rx="2"></rect>
+            <line x1="2" x2="22" y1="10" y2="10"></line>
+          </svg>
+          <span>Catatan Keuangan</span>
+        </a>
+      <% } %>
+
+      <!-- Chat Logs -->
+      <a href="/dashboard/chat-logs" 
+         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'chat-logs' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+        <svg class="w-4 h-4 <%= currentMenu === 'chat-logs' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span>Chat Logs</span>
+      </a>
+
+      <!-- Training AI -->
+      <a href="/dashboard/training" 
+         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'training' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+        <svg class="w-4 h-4 <%= currentMenu === 'training' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+          <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+        </svg>
+        <span>Training Gaya Bicara</span>
+      </a>
+    </nav>
+
+    <!-- Divider Line -->
+    <div class="border-t border-[#E4E4E7] pt-2"></div>
+
+    <!-- Navigation Group 2: Settings -->
+    <nav class="space-y-1">
+      <a href="/dashboard/settings" 
+         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'settings' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+        <svg class="w-4 h-4 <%= currentMenu === 'settings' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+        <span>Pengaturan</span>
+      </a>
+    </nav>
   </div>
 
-  <a href="/dashboard" 
-     class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-     <%= (typeof activeMenu !== 'undefined' && activeMenu === 'dashboard') ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-700 hover:bg-gray-100' %>">
-    <span class="text-lg">📊</span>
-    <span>Dashboard</span>
-  </a>
+  <!-- Bottom Section: Quota / Sisa Token AI Hari Ini -->
+  <%
+    const todayCount = (typeof todayAiCount !== 'undefined') ? todayAiCount : 0;
+    const maxQuota = 1500; // Kuota harian default Google Gemini API (1.500 RPD)
+    const percentUsed = Math.min(100, Math.round((todayCount / maxQuota) * 100));
+    const remainingQuota = Math.max(0, maxQuota - todayCount);
+  %>
+  <div class="pt-4 border-t border-[#E4E4E7] space-y-3">
+    <div class="px-2 space-y-1.5">
+      <div class="flex items-center justify-between text-xs">
+        <span class="text-[#71717A] font-medium">Quota AI Hari Ini</span>
+        <span class="font-semibold text-[#18181B]"><%= todayCount %> / <%= maxQuota.toLocaleString('id-ID') %></span>
+      </div>
+      <div class="w-full bg-[#E4E4E7] h-1.5 rounded-full overflow-hidden">
+        <div class="bg-[#18181B] h-1.5 rounded-full transition-all duration-300" style="width: <%= Math.max(3, percentUsed) %>%;"></div>
+      </div>
+      <div class="flex items-center justify-between text-[10px] text-[#A1A1AA]">
+        <span>Sisa: <%= remainingQuota.toLocaleString('id-ID') %> pesan</span>
+        <span>Reset 00:00</span>
+      </div>
+    </div>
 
-  <% if (config.mode === 'bisnis') { %>
-    <a href="/dashboard/products" 
-       class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-       <%= (typeof activeMenu !== 'undefined' && activeMenu === 'products') ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-700 hover:bg-gray-100' %>">
-      <span class="text-lg">📦</span>
-      <span>Katalog Produk</span>
-    </a>
-  <% } else { %>
-    <a href="/dashboard/expenses" 
-       class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-       <%= (typeof activeMenu !== 'undefined' && activeMenu === 'expenses') ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-700 hover:bg-gray-100' %>">
-      <span class="text-lg">💸</span>
-      <span>Catatan Keuangan</span>
-    </a>
-  <% } %>
-
-  <a href="/dashboard/chat-logs" 
-     class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-     <%= (typeof activeMenu !== 'undefined' && activeMenu === 'chat-logs') ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-700 hover:bg-gray-100' %>">
-    <span class="text-lg">💬</span>
-    <span>Riwayat Chat Log</span>
-  </a>
-
-  <a href="/dashboard/settings" 
-     class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-     <%= (typeof activeMenu !== 'undefined' && activeMenu === 'settings') ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-700 hover:bg-gray-100' %>">
-    <span class="text-lg">⚙️</span>
-    <span>Pengaturan Bot</span>
-  </a>
-
-  <div class="pt-4 border-t border-gray-100 px-3">
-    <div class="text-xs text-gray-400 mb-2 font-semibold uppercase tracking-wider">Mode Aktif</div>
-    <span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold uppercase
-      <%= config.mode === 'bisnis' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800' %>">
-      Mode <%= config.mode === 'bisnis' ? 'Bisnis' : 'Personal' %>
-    </span>
+    <!-- User Profile Item -->
+    <div class="flex items-center space-x-2.5 px-2 py-1.5 border-t border-[#E4E4E7]/60 pt-2.5">
+      <div class="w-7 h-7 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-xs font-semibold text-[#18181B]">
+        <%= ownerInitial %>
+      </div>
+      <div class="text-xs truncate font-medium text-[#18181B]">
+        <%= ownerName %>
+      </div>
+    </div>
   </div>
 </aside>

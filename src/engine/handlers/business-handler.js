@@ -10,10 +10,11 @@ const { getConfig } = require('../../config');
 const { generateReply } = require('../../ai');
 
 const HANDOVER_KEYWORDS = [
-  'komplain', 'keluhan', 'rusak', 'pecah', 'cacat', 'retur',
-  'refund', 'kembalikan dana', 'nego', 'diskon khusus', 'bisa kurang',
-  'bicara dengan admin', 'bicara dengan manusia', 'bicara dengan pemilik',
-  'minta nomor rekening', 'nomor rekening', 'rekening transfer'
+  'nego', 'tawar', 'diskon', 'potongan', 'grosir', 'bisa kurang', 'bisa tawar', 'harga pas', 'kurangin', 'turunin harga',
+  'komplain', 'keluhan', 'rusak', 'pecah', 'cacat', 'retur', 'refund', 'kembalikan dana', 'basi', 'apek', 'diare', 'mules',
+  'bicara dengan admin', 'bicara dengan manusia', 'bicara dengan pemilik', 'bicara sama owner', 'ngomong sama owner',
+  'admin asli', 'orang asli', 'hubungkan ke admin', 'hubungkan ke owner', 'owner toko',
+  'minta nomor rekening', 'nomor rekening', 'rekening transfer', 'rekening pribadi'
 ];
 
 /**
@@ -70,6 +71,43 @@ function findProductImageToSend(messageText = '') {
 }
 
 /**
+ * Mensimulasikan jeda alami manusia (Anti-Ban) dan status 'sedang mengetik' di WhatsApp.
+ * @param {import('whatsapp-web.js').Message} message 
+ * @param {number} [minMs] 
+ * @param {number} [maxMs] 
+ */
+async function simulateHumanTyping(message, minMs = null, maxMs = null) {
+  if (process.env.NODE_ENV === 'test' || process.env.NO_DELAY) {
+    return;
+  }
+
+  try {
+    const config = getConfig();
+    const resolvedMin = minMs || (Number(config.min_delay_sec) || 5) * 1000;
+    const resolvedMax = maxMs || (Number(config.max_delay_sec) || 12) * 1000;
+
+    const chat = typeof message.getChat === 'function' ? await message.getChat().catch(() => null) : null;
+    if (chat && typeof chat.sendStateTyping === 'function') {
+      await chat.sendStateTyping().catch(() => {});
+    }
+
+    // Variasi acak antara resolvedMin dan resolvedMax + jitter
+    const minTime = Math.min(resolvedMin, resolvedMax);
+    const maxTime = Math.max(resolvedMin, resolvedMax);
+    const randomDelay = Math.floor(Math.random() * (maxTime - minTime + 1)) + minTime;
+
+    console.log(`[Anti-Ban] Mensimulasikan jeda mengetik selama ${(randomDelay / 1000).toFixed(1)} detik...`);
+    await new Promise(resolve => setTimeout(resolve, randomDelay));
+
+    if (chat && typeof chat.clearState === 'function') {
+      await chat.clearState().catch(() => {});
+    }
+  } catch (_) {}
+}
+
+const { splitIntoBubbles, sendMultiBubbleMessages } = require('../bubble-sender');
+
+/**
  * Menangani pesan masuk dalam Mode Bisnis.
  * @param {import('whatsapp-web.js').Message} message 
  * @param {import('whatsapp-web.js').Client} client 
@@ -79,22 +117,34 @@ async function handleBusinessMessage(message, client) {
   const messageBody = message.body || '';
 
   try {
-    // 1. Generate balasan dari AI Router
+    // 0. Cek apakah kontak sedang dalam status Dijeda (Paused / Handover Owner)
+    if (db.isContactPaused(contact)) {
+      console.log(`[BusinessHandler] Kontak ${contact} sedang dalam status DIJEDA (Paused/Handover). Mengabaikan balasan otomatis.`);
+      return;
+    }
+
+    const config = getConfig();
+
+    // 1. Simulasikan jeda manusiawi & status typing untuk anti-banned
+    await simulateHumanTyping(message);
+
+    // 2. Generate balasan dari AI Router (dengan konteks riwayat chat pelanggan)
     const aiResult = await generateReply({
       message: messageBody,
-      mode: 'bisnis'
+      mode: 'bisnis',
+      contact
     });
 
     const replyText = aiResult.reply || 'Halo, ada yang bisa kami bantu seputar produk kami?';
 
-    // 2. Kirim balasan teks ke WhatsApp
-    if (typeof message.reply === 'function') {
-      await message.reply(replyText);
-    } else if (client && typeof client.sendMessage === 'function') {
-      await client.sendMessage(contact, replyText);
-    }
+    // 3. Pecah pesan panjang menjadi gelembung chat alami & kirim bertahap
+    const maxBubbles = Number(config.max_bubbles) || 3;
+    const bubbles = splitIntoBubbles(replyText, maxBubbles);
+    await sendMultiBubbleMessages(message, client, contact, bubbles, {
+      interBubbleDelay: config.inter_bubble_delay
+    });
 
-    // 3. Cek apakah perlu kirim gambar produk
+    // 4. Cek apakah perlu kirim gambar produk
     const imgInfo = findProductImageToSend(messageBody);
     if (imgInfo && client && MessageMedia) {
       try {
@@ -107,27 +157,46 @@ async function handleBusinessMessage(message, client) {
       }
     }
 
-    // 4. Cek & Notifikasi Human Handover
+    // 5. Cek & Notifikasi Human Handover (Nego Harga / Keluhan / Permintaan Owner)
     const needsHandover = isHandoverTriggered(messageBody, aiResult.handoverRequired);
     if (needsHandover) {
-      const config = getConfig();
-      const ownerPhone = db.getSetting('owner_phone') || config.owner_phone;
+      // Otomatis pause bot untuk kontak ini selama 2 jam agar obrolan manual owner tidak tersela
+      db.pauseContact(contact, 2, 'Handover Nego Harga / Kebutuhan Owner');
+      console.log(`[BusinessHandler] Bot otomatis DIJEDA 2 jam untuk kontak ${contact}.`);
 
-      if (ownerPhone && client && typeof client.sendMessage === 'function') {
-        const cleanPhone = ownerPhone.replace(/[^0-9]/g, '');
-        const targetJid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@c.us`;
-        const handoverNotice = `🔔 *[NOTIFIKASI HANDOVER - WA BOT]*\n\nPelanggan (*${contact}*) membutuhkan bantuan admin/pemilik:\n\n💬 *Pesan Pelanggan:* "${messageBody}"\n\nSilakan lanjutkan obrolan langsung dari ponsel Anda.`;
-        
+      // Catat tiket antrean di tabel manual_handovers untuk dipantau di Inbox Dashboard
+      if (db.createHandoverTicket) {
         try {
-          await client.sendMessage(targetJid, handoverNotice);
-          console.log(`[BusinessHandler] Notifikasi handover terkirim ke owner (${targetJid}).`);
-        } catch (hErr) {
-          console.error('[BusinessHandler] Gagal mengirim notifikasi handover ke owner:', hErr.message);
+          db.createHandoverTicket({
+            contact,
+            customer_name: null,
+            trigger_message: messageBody,
+            reason: 'Nego Harga / Permintaan Khusus / Komplain'
+          });
+        } catch (_) {}
+      }
+
+      const ownerPhone = db.getSetting('owner_phone') || config.owner_phone;
+      if (ownerPhone && client && typeof client.sendMessage === 'function') {
+        let cleanPhone = ownerPhone.replace(/[^0-9]/g, '');
+        if (cleanPhone.startsWith('0')) {
+          cleanPhone = '62' + cleanPhone.slice(1);
+        }
+        if (cleanPhone.length >= 9) {
+          const targetJid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@c.us`;
+          const handoverNotice = `🔔 *[NOTIFIKASI HANDOVER - WA BOT]*\n\nPelanggan (*${contact}*) membutuhkan penanganan langsung oleh Pemilik / Admin Toko:\n\n💬 *Pesan Pelanggan:* "${messageBody}"\n⚠️ *Status:* Nego Harga / Permintaan Khusus / Komplain\n\n👉 *Bot telah OTOMATIS DIJEDA (PAUSED)* untuk kontak ini selama 2 jam agar obrolan manual Anda tidak tertimpa bot.\nSilakan buka WhatsApp Anda dan balas langsung pelanggan ini.`;
+          
+          try {
+            await client.sendMessage(targetJid, handoverNotice);
+            console.log(`[BusinessHandler] Notifikasi handover terkirim ke owner (${targetJid}).`);
+          } catch (hErr) {
+            console.error('[BusinessHandler] Gagal mengirim notifikasi handover ke owner:', hErr.message);
+          }
         }
       }
     }
 
-    // 5. Catat ke tabel chat_logs SQLite
+    // 6. Catat ke tabel chat_logs SQLite
     db.createChatLog({
       contact,
       message_in: messageBody,
