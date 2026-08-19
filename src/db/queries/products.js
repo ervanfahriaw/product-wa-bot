@@ -98,21 +98,27 @@ function createProduct({ sku = null, name, category = 'Umum', description = '', 
  * @param {object} updates 
  * @returns {boolean}
  */
-function updateProduct(id, { sku, name, category, description, product_knowledge, price, stock, image_path }) {
+function updateProduct(id, updates) {
+  const existing = getProductById(id);
+  if (!existing) return false;
+
+  const merged = { ...existing, ...updates };
+
   const stmt = db.prepare(`
     UPDATE products
-    SET sku = ?, name = ?, category = ?, description = ?, product_knowledge = ?, price = ?, stock = ?, image_path = ?, updated_at = CURRENT_TIMESTAMP
+    SET sku = ?, name = ?, category = ?, description = ?, product_knowledge = ?, price = ?, stock = ?, image_path = ?, related_products = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `);
   const result = stmt.run(
-    sku ? sku.trim() : null,
-    name.trim(),
-    category ? category.trim() : 'Umum',
-    description ? description.trim() : '',
-    product_knowledge ? product_knowledge.trim() : '',
-    Number(price) || 0,
-    Number(stock) || 0,
-    image_path,
+    merged.sku ? merged.sku.trim() : null,
+    merged.name ? merged.name.trim() : '',
+    merged.category ? merged.category.trim() : 'Umum',
+    merged.description ? merged.description.trim() : '',
+    merged.product_knowledge ? merged.product_knowledge.trim() : '',
+    Number(merged.price) || 0,
+    Number(merged.stock) || 0,
+    merged.image_path,
+    merged.related_products || null,
     id
   );
   return result.changes > 0;

@@ -20,9 +20,14 @@ const DEFAULT_CONFIG = {
   max_delay_sec: 12,            // Jeda membaca maksimal (detik)
   inter_bubble_delay: 2.5,      // Jeda mengetik antar bubble (detik)
   customer_debounce_sec: 5,     // Waktu tunggu chat lanjutan pelanggan (detik)
+  business_hours: '',            // Jam operasional format "HH:MM-HH:MM" (misal: "08:00-17:00")
+  out_of_hours_mode: 'off',     // 'off' | 'reply_only' | 'full_ai'
   sheets_url: '',               // URL Google Sheets / CSV Publish URL
   sheets_auto_sync: false,      // Sinkronisasi otomatis di latar belakang
   sheets_sync_interval: 10,     // Interval sinkronisasi (menit)
+  follow_up_enabled: false,
+  follow_up_delay_hours: 24,
+  follow_up_template: 'Halo Kak, kemarin sempat tanya tentang *{product_name}* ya. Varian ini masih ready lho Kak. Mau kami bantu proseskan pesanannya? 😊',
   is_setup_completed: false
 };
 

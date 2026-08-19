@@ -1,0 +1,236 @@
+<%- include('../partials/header') %>
+
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="orderManager()">
+  <%- include('../partials/sidebar', { activeMenu: 'orders', config, pendingHandoverCount }) %>
+
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-6">
+    <!-- Header -->
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Daftar Pesanan (Orders)</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">Lacak dan kelola pesanan pelanggan dari WhatsApp serta update status pengiriman.</p>
+      </div>
+    </div>
+
+    <!-- Filter Tab Status -->
+    <div class="flex flex-wrap items-center gap-1.5 pb-2 border-b border-[#F4F4F5]">
+      <a href="/dashboard/orders" 
+         class="px-3.5 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200 <%= !currentStatusFilter ? 'bg-[#18181B] text-white border-[#18181B]' : 'bg-white text-[#71717A] border-[#E4E4E7] hover:bg-[#F4F4F5]' %>">
+        Semua
+      </a>
+      <% ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'].forEach(function(st) { %>
+        <a href="/dashboard/orders?status=<%= st %>" 
+           class="px-3.5 py-1.5 text-xs font-semibold rounded-full border transition-all duration-200 uppercase <%= currentStatusFilter === st ? 'bg-[#18181B] text-white border-[#18181B]' : 'bg-white text-[#71717A] border-[#E4E4E7] hover:bg-[#F4F4F5]' %>">
+          <%= st %>
+        </a>
+      <% }); %>
+    </div>
+
+    <!-- Stats Ringkas -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7]">
+        <p class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold">Total Order</p>
+        <p class="text-xl font-bold text-[#18181B] mt-1"><%= orders.length %></p>
+      </div>
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7]">
+        <p class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold">Pending</p>
+        <p class="text-xl font-bold text-amber-600 mt-1"><%= orders.filter(o => o.status === 'pending').length %></p>
+      </div>
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7]">
+        <p class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold">Dikirim (Shipped)</p>
+        <p class="text-xl font-bold text-purple-600 mt-1"><%= orders.filter(o => o.status === 'shipped').length %></p>
+      </div>
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7]">
+        <p class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold">Total Omset</p>
+        <p class="text-xl font-bold text-emerald-600 mt-1">Rp<%= orders.reduce((s, o) => s + (o.total_amount || 0), 0).toLocaleString('id-ID') %></p>
+      </div>
+    </div>
+
+    <!-- Order Table -->
+    <div class="border border-[#E4E4E7] rounded-2xl overflow-hidden bg-white">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-[#18181B]">
+          <thead class="bg-[#F7F7F8] border-b border-[#E4E4E7] text-[11px] font-semibold text-[#71717A] uppercase tracking-wider">
+            <tr>
+              <th class="px-5 py-3.5">ID Order</th>
+              <th class="px-5 py-3.5">Pelanggan & Kontak</th>
+              <th class="px-5 py-3.5">Ringkasan Pesanan</th>
+              <th class="px-5 py-3.5">Total Harga</th>
+              <th class="px-5 py-3.5">Status</th>
+              <th class="px-5 py-3.5">No. Resi / Kurir</th>
+              <th class="px-5 py-3.5 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[#E4E4E7]">
+            <% if (orders && orders.length > 0) { %>
+              <% orders.forEach(function(order) { %>
+                <tr class="hover:bg-[#FAFAFA] transition-colors">
+                  <td class="px-5 py-3.5 font-mono font-bold text-[#71717A]">#<%= order.id %></td>
+                  <td class="px-5 py-3.5">
+                    <div class="font-semibold text-[#18181B]"><%= order.customer_name || 'Kak (Tanpa Nama)' %></div>
+                    <div class="text-[10px] text-[#71717A] font-mono mt-0.5"><%= order.contact.split('@')[0] %></div>
+                  </td>
+                  <td class="px-5 py-3.5 max-w-[220px]">
+                    <div class="text-[#18181B] font-medium leading-relaxed"><%= order.order_summary %></div>
+                    <% if (order.notes) { %>
+                      <div class="text-[10px] text-amber-600 mt-1 italic">Catatan: "<%= order.notes %>"</div>
+                    <% } %>
+                  </td>
+                  <td class="px-5 py-3.5 font-bold text-[#18181B] whitespace-nowrap">
+                    Rp<%= Number(order.total_amount || 0).toLocaleString('id-ID') %>
+                  </td>
+                  <td class="px-5 py-3.5 whitespace-nowrap">
+                    <% if (order.status === 'pending') { %>
+                      <span class="inline-block px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-200 uppercase">Pending</span>
+                    <% } else if (order.status === 'confirmed') { %>
+                      <span class="inline-block px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-200 uppercase">Confirmed</span>
+                    <% } else if (order.status === 'processing') { %>
+                      <span class="inline-block px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 uppercase">Processing</span>
+                    <% } else if (order.status === 'shipped') { %>
+                      <span class="inline-block px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-purple-50 text-purple-700 border border-purple-200 uppercase">Shipped</span>
+                    <% } else if (order.status === 'delivered') { %>
+                      <span class="inline-block px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">Delivered</span>
+                    <% } else { %>
+                      <span class="inline-block px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-red-50 text-red-700 border border-red-200 uppercase">Cancelled</span>
+                    <% } %>
+                  </td>
+                  <td class="px-5 py-3.5">
+                    <% if (order.resi_number) { %>
+                      <div class="font-mono text-[#18181B] font-bold text-[11px]"><%= order.resi_number %></div>
+                      <div class="text-[10px] text-[#A1A1AA] mt-0.5"><%= order.shipping_method || 'Kurir' %></div>
+                    <% } else { %>
+                      <span class="text-[#A1A1AA] italic text-[11px]">- Belum ada resi -</span>
+                    <% } %>
+                  </td>
+                  <td class="px-5 py-3.5 text-right whitespace-nowrap">
+                    <div class="flex items-center justify-end gap-1">
+                      <button @click="openEditModal(<%= order.id %>, '<%= order.status %>', '<%= order.resi_number || '' %>')"
+                              class="p-1.5 rounded-lg hover:bg-[#F4F4F5] text-[#71717A] hover:text-[#18181B] transition-colors"
+                              title="Update Status">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                      <form method="POST" action="/dashboard/orders/<%= order.id %>/delete" class="inline" onsubmit="return confirm('Hapus order ini dari database?')">
+                        <button type="submit" class="p-1.5 rounded-lg hover:bg-red-50 text-[#71717A] hover:text-red-600 transition-colors">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          </svg>
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="7" class="px-5 py-8 text-center text-[#71717A] italic">
+                  Tidak ada pesanan ditemukan.
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal Update Status / Resi -->
+  <div x-show="isModalOpen" 
+       class="fixed inset-0 z-50 overflow-y-auto" 
+       style="display: none;" 
+       x-transition.opacity>
+    
+    <!-- Backdrop -->
+    <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" @click="closeModal()"></div>
+
+    <!-- Modal Content -->
+    <div class="flex min-h-screen items-center justify-center p-4">
+      <div class="relative w-full max-w-md bg-white rounded-2xl shadow-xl border border-[#E4E4E7] overflow-hidden" 
+           @click.away="closeModal()" 
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        
+        <div class="px-5 py-4 border-b border-[#E4E4E7] flex items-center justify-between">
+          <h3 class="font-bold text-[#18181B] text-sm">Update Status Pesanan</h3>
+          <button @click="closeModal()" class="p-1 rounded-lg hover:bg-[#F4F4F5] text-[#71717A] transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <form :action="'/dashboard/orders/' + editId + '/status'" method="POST" class="p-5 space-y-4">
+          <!-- Dropdown Status -->
+          <div>
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1.5">Status Pesanan</label>
+            <select name="status" 
+                    x-model="formData.status"
+                    class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all">
+              <option value="pending">PENDING</option>
+              <option value="confirmed">CONFIRMED</option>
+              <option value="processing">PROCESSING</option>
+              <option value="shipped">SHIPPED (DIKIRIM)</option>
+              <option value="delivered">DELIVERED</option>
+              <option value="cancelled">CANCELLED</option>
+            </select>
+          </div>
+
+          <!-- Input Nomor Resi -->
+          <div>
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1.5">Nomor Resi / Kurir (Opsional)</label>
+            <input type="text" 
+                   name="resi_number" 
+                   x-model="formData.resi_number"
+                   placeholder="Contoh: JNE-987654321 / SICEPAT" 
+                   class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all">
+            <p class="text-[10px] text-[#A1A1AA] mt-1.5">Jika status diubah ke <strong>SHIPPED</strong>, bot akan otomatis mengirimkan notifikasi nomor resi ke nomor WhatsApp pelanggan.</p>
+          </div>
+
+          <!-- Buttons -->
+          <div class="flex justify-end gap-2 pt-2 border-t border-[#F4F4F5] mt-4">
+            <button type="button" 
+                    @click="closeModal()" 
+                    class="px-4 py-2 rounded-full border border-[#E4E4E7] text-xs font-semibold text-[#71717A] hover:bg-[#F4F4F5] transition-colors">
+              Batal
+            </button>
+            <button type="submit" 
+                    class="px-4 py-2 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-semibold shadow-sm transition-colors">
+              Simpan Perubahan
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function orderManager() {
+    return {
+      isModalOpen: false,
+      editId: null,
+      formData: {
+        status: 'pending',
+        resi_number: ''
+      },
+
+      openEditModal(id, status, resi) {
+        this.editId = id;
+        this.formData.status = status;
+        this.formData.resi_number = resi;
+        this.isModalOpen = true;
+      },
+
+      closeModal() {
+        this.isModalOpen = false;
+        this.editId = null;
+      }
+    }
+  }
+</script>
+
+<%- include('../partials/footer') %>

@@ -1,3 +1,5 @@
+process.env.NODE_ENV = 'test';
+process.env.NO_DELAY = '1';
 const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
@@ -132,6 +134,13 @@ async function runBusinessTddTests() {
     };
 
     await handleIncomingMessage(mockMsg, { sendMessage: async () => {} });
+    
+    // Tunggu antrean debounce buffer & panggilan API selesai diproses
+    const startTime = Date.now();
+    while (!replyCalled && Date.now() - startTime < 12000) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
     assert.strictEqual(replyCalled, true, 'handleIncomingMessage harus memanggil reply saat mode bisnis');
     console.log('  -> OK: Message Handler meneruskan pesan ke alur Mode Bisnis secara otomatis.');
   } catch (err) {

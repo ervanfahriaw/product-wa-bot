@@ -59,7 +59,8 @@ function loadSystemPrompt(mode, config = {}) {
   const businessName = config.business_name || 'Toko Kami';
   let baseContent = 'Anda adalah asisten WhatsApp yang ramah dan solutif.';
   try {
-    const promptPath = path.join(PROMPT_DIR, mode, 'base.md');
+    const modeFolder = (mode === 'bisnis' || mode === 'business') ? 'business' : mode;
+    const promptPath = path.join(PROMPT_DIR, modeFolder, 'base.md');
     if (fs.existsSync(promptPath)) {
       baseContent = fs.readFileSync(promptPath, 'utf-8');
       baseContent = baseContent.replace(/\{BUSINESS_NAME\}/g, businessName);

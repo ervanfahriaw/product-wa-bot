@@ -1,0 +1,135 @@
+<%- include('../partials/header') %>
+
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="habitManager()">
+  <%- include('../partials/sidebar', { activeMenu: 'habits', config, pendingHandoverCount }) %>
+
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-6">
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Habit Tracker</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">Lacak kebiasaan harian & bangun streak motivasi.</p>
+      </div>
+      <button @click="showCreateModal = true" type="button"
+              class="px-4 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors flex items-center space-x-1.5 self-start sm:self-auto">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Tambah Habit</span>
+      </button>
+    </div>
+
+    <!-- Habit Cards -->
+    <div class="space-y-3">
+      <% if (habits.length === 0) { %>
+        <div class="text-center py-10 text-sm text-[#71717A]">
+          Belum ada kebiasaan. Chat bot: <em>"habit olahraga setiap hari"</em> atau tambah dari sini.
+        </div>
+      <% } else { %>
+        <% habits.forEach(h => { %>
+          <div class="p-5 rounded-2xl border border-[#E4E4E7] bg-white hover:bg-[#FAFAFA] transition-colors">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <!-- Check-in Button -->
+                  <% if (!h.checkedToday) { %>
+                    <form method="POST" action="/dashboard/habits/<%= h.id %>/checkin" class="inline">
+                      <button type="submit" class="w-6 h-6 rounded-lg border-2 border-[#D4D4D8] hover:border-[#18181B] flex items-center justify-center transition-colors">
+                      </button>
+                    </form>
+                  <% } else { %>
+                    <div class="w-6 h-6 rounded-lg bg-[#18181B] border-2 border-[#18181B] flex items-center justify-center">
+                      <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    </div>
+                  <% } %>
+                  <span class="text-sm font-semibold text-[#18181B]"><%= h.name %></span>
+                  <span class="px-2 py-0.5 text-[9px] font-bold rounded-full bg-[#F4F4F5] text-[#71717A]">
+                    <%= h.frequency === 'weekly' ? 'MINGGUAN' : 'HARIAN' %>
+                  </span>
+                </div>
+
+                <!-- Stats -->
+                <div class="flex items-center gap-4 mt-2 text-xs text-[#71717A]">
+                  <div class="flex items-center gap-1">
+                    <span><svg class="w-3.5 h-3.5 inline-block text-orange-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M12 22c-4.97 0-9-2.69-9-6 0-4 5-11 9-14 4 3 9 10 9 14 0 3.31-4.03 6-9 6z"></path></svg></span>
+                    <span class="font-semibold text-[#18181B]"><%= h.streak.current %></span>
+                    <span>hari</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span><svg class="w-3.5 h-3.5 inline-block text-amber-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg></span>
+                    <span>Best: <span class="font-semibold text-[#18181B]"><%= h.streak.best %></span></span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span><svg class="w-3.5 h-3.5 inline-block text-[#7F77DD]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg></span>
+                    <span>7 hari: <span class="font-semibold text-[#18181B]"><%= h.weekCount %>x</span></span>
+                  </div>
+                </div>
+
+                <!-- Weekly Dots -->
+                <div class="flex items-center gap-1 mt-2">
+                  <% const days = ['Sen','Sel','Rab','Kam','Jum','Sab','Min']; %>
+                  <% for (let d = 6; d >= 0; d--) { %>
+                    <% 
+                      const dayDate = new Date(Date.now() - d * 86400000);
+                      const dayStr = dayDate.toISOString().substring(0, 10);
+                      const isLogged = h.recentDates && h.recentDates.includes(dayStr);
+                    %>
+                    <div class="flex flex-col items-center">
+                      <div class="w-4 h-4 rounded-full border transition-colors
+                        <%= isLogged ? 'bg-[#18181B] border-[#18181B]' : 'bg-[#F4F4F5] border-[#E4E4E7]' %>"></div>
+                      <span class="text-[8px] text-[#A1A1AA] mt-0.5"><%= days[dayDate.getDay() === 0 ? 6 : dayDate.getDay() - 1] %></span>
+                    </div>
+                  <% } %>
+                </div>
+              </div>
+
+              <!-- Actions -->
+              <form method="POST" action="/dashboard/habits/<%= h.id %>/delete" class="flex-shrink-0">
+                <button type="submit"
+                        class="px-2.5 py-1 text-[10px] font-medium border border-[#E4E4E7] rounded-full text-[#71717A] hover:text-[#DC2626] hover:border-[#DC2626] transition-colors"
+                        onclick="return confirm('Hapus kebiasaan ini dan semua lognya?')">Hapus</button>
+              </form>
+            </div>
+          </div>
+        <% }); %>
+      <% } %>
+    </div>
+  </main>
+
+  <div class="hidden lg:block flex-1 bg-[#F7F7F8]"></div>
+
+  <!-- Create Modal -->
+  <div x-show="showCreateModal" x-cloak class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" @click.self="showCreateModal = false">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-md p-6 space-y-4" @click.stop>
+      <h2 class="text-lg font-bold text-[#18181B]">Tambah Kebiasaan Baru</h2>
+      <form method="POST" action="/dashboard/habits" class="space-y-4">
+        <div>
+          <label class="text-sm font-medium text-[#18181B]">Nama Kebiasaan</label>
+          <input type="text" name="name" required placeholder="Olahraga pagi"
+                 class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#7F77DD] bg-white">
+        </div>
+        <div>
+          <label class="text-sm font-medium text-[#18181B]">Frekuensi</label>
+          <select name="frequency"
+                  class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#7F77DD] bg-white">
+            <option value="daily">Harian</option>
+            <option value="weekly">Mingguan</option>
+          </select>
+        </div>
+        <div class="flex items-center justify-end space-x-3 pt-2">
+          <button type="button" @click="showCreateModal = false"
+                  class="px-4 py-1.5 rounded-full border border-[#E4E4E7] text-xs font-medium text-[#18181B] hover:bg-[#F4F4F5] transition-colors">Batal</button>
+          <button type="submit"
+                  class="px-4 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors">Mulai Tracking</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function habitManager() { return { showCreateModal: false }; }
+</script>
+
+<%- include('../partials/footer') %>

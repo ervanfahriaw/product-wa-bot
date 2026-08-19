@@ -309,6 +309,99 @@ router.get('/business-profile', (req, res) => {
   });
 });
 
+// ============================================================
+// CUSTOMERS CRM (Mode Bisnis)
+// ============================================================
+router.get('/customers', (req, res) => {
+  const config = getConfig();
+  if (config.mode !== 'bisnis') return res.redirect('/dashboard');
+  const customers = db.getAllCustomerProfiles ? db.getAllCustomerProfiles(200) : [];
+  const pendingHandoverCount = db.countPendingHandovers ? db.countPendingHandovers() : 0;
+  res.render('dashboard/customers', {
+    title: 'Pelanggan',
+    activeMenu: 'customers',
+    config,
+    customers,
+    pendingHandoverCount
+  });
+});
+
+router.post('/customers/:contact/update', (req, res) => {
+  const config = getConfig();
+  if (config.mode !== 'bisnis') return res.redirect('/dashboard');
+  const contact = decodeURIComponent(req.params.contact);
+  const { customer_name, tags, favorite_products, notes, total_orders, total_spent } = req.body;
+
+  if (db.upsertCustomerProfile) {
+    db.upsertCustomerProfile(contact, {
+      customer_name: customer_name || null,
+      tags: tags || null,
+      favorite_products: favorite_products || null,
+      notes: notes || null,
+      total_orders: parseInt(total_orders, 10) || 0,
+      total_spent: parseInt(total_spent, 10) || 0
+    });
+  }
+
+  return res.redirect('/dashboard/customers');
+});
+
+// ============================================================
+// FAQ OTOMATIS (Mode Bisnis)
+// ============================================================
+router.get('/faqs', (req, res) => {
+  const config = getConfig();
+  if (config.mode !== 'bisnis') return res.redirect('/dashboard');
+  const faqs = db.getAllFaqs ? db.getAllFaqs() : [];
+  const pendingHandoverCount = db.countPendingHandovers ? db.countPendingHandovers() : 0;
+  res.render('dashboard/faqs', {
+    title: 'FAQ Otomatis',
+    activeMenu: 'faqs',
+    config,
+    faqs,
+    pendingHandoverCount
+  });
+});
+
+router.post('/faqs', (req, res) => {
+  const config = getConfig();
+  if (config.mode !== 'bisnis') return res.redirect('/dashboard');
+  const { question_label, trigger_keywords, answer, is_active } = req.body;
+  if (db.createFaq && question_label && trigger_keywords && answer) {
+    db.createFaq({
+      question_label: question_label.trim(),
+      trigger_keywords: trigger_keywords.trim(),
+      answer: answer.trim(),
+      is_active: is_active ? 1 : 0
+    });
+  }
+  return res.redirect('/dashboard/faqs');
+});
+
+router.post('/faqs/:id/update', (req, res) => {
+  const config = getConfig();
+  if (config.mode !== 'bisnis') return res.redirect('/dashboard');
+  const id = parseInt(req.params.id, 10);
+  const { question_label, trigger_keywords, answer, is_active } = req.body;
+  if (db.updateFaq) {
+    db.updateFaq(id, {
+      question_label: question_label ? question_label.trim() : undefined,
+      trigger_keywords: trigger_keywords ? trigger_keywords.trim() : undefined,
+      answer: answer ? answer.trim() : undefined,
+      is_active: is_active ? 1 : 0
+    });
+  }
+  return res.redirect('/dashboard/faqs');
+});
+
+router.post('/faqs/:id/delete', (req, res) => {
+  const config = getConfig();
+  if (config.mode !== 'bisnis') return res.redirect('/dashboard');
+  const id = parseInt(req.params.id, 10);
+  if (db.deleteFaq) db.deleteFaq(id);
+  return res.redirect('/dashboard/faqs');
+});
+
 router.post('/business-profile/save-text', (req, res) => {
   const config = getConfig();
   if (config.mode !== 'bisnis') return res.redirect('/dashboard');
@@ -431,11 +524,13 @@ router.post('/analytics/generate-insight', async (req, res) => {
 router.get('/settings', (req, res) => {
   const config = getConfig();
   const status = getStatus();
+  const optouts = db.getAllOptOuts ? db.getAllOptOuts() : [];
   res.render('dashboard/settings', {
     title: 'Pengaturan Bot',
     activeMenu: 'settings',
     config,
     status,
+    optouts,
     success: req.query.saved === 'true' ? 'Pengaturan berhasil diperbarui!' : null
   });
 });
@@ -455,7 +550,13 @@ router.post('/settings', (req, res) => {
     min_delay_sec,
     max_delay_sec,
     inter_bubble_delay,
-    customer_debounce_sec
+    customer_debounce_sec,
+    business_hours_open,
+    business_hours_close,
+    out_of_hours_mode,
+    follow_up_enabled,
+    follow_up_delay_hours,
+    follow_up_template
   } = req.body;
 
   const updates = {};
@@ -521,8 +622,44 @@ router.post('/settings', (req, res) => {
     db.setSetting('customer_debounce_sec', String(debounceVal));
   }
 
+  // Jam operasional (gabungkan open + close menjadi "HH:MM-HH:MM")
+  if (typeof business_hours_open !== 'undefined' && typeof business_hours_close !== 'undefined') {
+    const hoursStr = `${(business_hours_open || '08:00').trim()}-${(business_hours_close || '17:00').trim()}`;
+    updates.business_hours = hoursStr;
+    db.setSetting('business_hours', hoursStr);
+  }
+  if (typeof out_of_hours_mode !== 'undefined') {
+    updates.out_of_hours_mode = out_of_hours_mode;
+    db.setSetting('out_of_hours_mode', out_of_hours_mode);
+  }
+
+  // Follow-up settings (Fase 5)
+  if (typeof follow_up_enabled !== 'undefined') {
+    const isEnabled = follow_up_enabled === '1' || follow_up_enabled === 'true' || follow_up_enabled === true;
+    updates.follow_up_enabled = isEnabled;
+    db.setSetting('follow_up_enabled', isEnabled ? 'true' : 'false');
+  }
+  if (typeof follow_up_delay_hours !== 'undefined') {
+    const hours = Math.min(72, Math.max(1, parseInt(follow_up_delay_hours, 10) || 24));
+    updates.follow_up_delay_hours = hours;
+    db.setSetting('follow_up_delay_hours', String(hours));
+  }
+  if (typeof follow_up_template !== 'undefined') {
+    updates.follow_up_template = follow_up_template.trim();
+    db.setSetting('follow_up_template', follow_up_template.trim());
+  }
+
   saveConfig(updates);
   return res.redirect('/dashboard/settings?saved=true');
+});
+
+router.post('/settings/follow-ups/optout/delete', (req, res) => {
+  const { contact } = req.body;
+  if (contact && contact.trim()) {
+    db.removeOptOut(contact.trim());
+    console.log(`[Dashboard] Menghapus ${contact} dari daftar opt-out follow-up`);
+  }
+  return res.redirect('/dashboard/settings');
 });
 
 router.post('/settings/test-key', async (req, res) => {
@@ -541,6 +678,425 @@ router.post('/settings/test-key', async (req, res) => {
       message: `Uji coba gagal: ${err.message}`
     });
   }
+});
+
+// ============================
+// REMINDERS CRUD (Mode Personal)
+// ============================
+
+// Halaman daftar pengingat
+router.get('/reminders', (req, res) => {
+  const config = getConfig();
+  const allReminders = db.getAllReminders ? db.getAllReminders() : [];
+  const activeReminders = allReminders.filter(r => r.is_active);
+  
+  res.render('dashboard/reminders', {
+    title: 'Pengingat',
+    activeMenu: 'reminders',
+    config,
+    reminders: allReminders,
+    activeCount: activeReminders.length,
+    recurringCount: activeReminders.filter(r => r.recurrence_type).length,
+    oneshotCount: activeReminders.filter(r => !r.recurrence_type && !r.sent).length
+  });
+});
+
+// Tambah pengingat baru dari dashboard
+router.post('/reminders', (req, res) => {
+  const { message, trigger_date, trigger_time, recurrence_type } = req.body;
+  if (message && message.trim() && trigger_date && trigger_time) {
+    const triggerAt = `${trigger_date} ${trigger_time}:00`;
+    db.createReminder({
+      message: message.trim(),
+      trigger_at: triggerAt,
+      is_recurring: recurrence_type ? 1 : 0,
+      sent: 0,
+      label: message.trim().toLowerCase().substring(0, 100),
+      recurrence_type: recurrence_type || null
+    });
+  }
+  return res.redirect('/dashboard/reminders');
+});
+
+// Batalkan pengingat (soft delete — set is_active = 0)
+router.post('/reminders/:id/cancel', (req, res) => {
+  const { id } = req.params;
+  if (db.cancelReminderById) {
+    db.cancelReminderById(Number(id));
+  }
+  return res.redirect('/dashboard/reminders');
+});
+
+// Hapus pengingat permanen (hard delete)
+router.post('/reminders/:id/delete', (req, res) => {
+  const { id } = req.params;
+  db.deleteReminder(Number(id));
+  return res.redirect('/dashboard/reminders');
+});
+
+// ============================
+// NOTES CRUD (Mode Personal)
+// ============================
+
+router.get('/notes', (req, res) => {
+  const config = getConfig();
+  const q = req.query.q || '';
+  const notes = q ? (db.searchNotes ? db.searchNotes(q) : []) : (db.getAllNotes ? db.getAllNotes(100) : []);
+  
+  res.render('dashboard/notes', {
+    title: 'Catatan',
+    activeMenu: 'notes',
+    config,
+    notes,
+    q
+  });
+});
+
+router.post('/notes', (req, res) => {
+  const { title, content, tags } = req.body;
+  if (content && content.trim()) {
+    db.createNote({
+      title: title ? title.trim() : null,
+      content: content.trim(),
+      tags: tags ? tags.trim() : null
+    });
+  }
+  return res.redirect('/dashboard/notes');
+});
+
+router.post('/notes/:id/delete', (req, res) => {
+  const { id } = req.params;
+  db.deleteNoteById(Number(id));
+  return res.redirect('/dashboard/notes');
+});
+
+// ============================
+// TODOS CRUD (Mode Personal)
+// ============================
+
+router.get('/todos', (req, res) => {
+  const config = getConfig();
+  const filter = req.query.filter || 'active';
+  const allTodos = db.getAllTodos ? db.getAllTodos(200) : [];
+  const activeTodos = allTodos.filter(t => !t.is_done);
+  const doneTodos = allTodos.filter(t => t.is_done);
+
+  let filteredTodos;
+  if (filter === 'done') filteredTodos = doneTodos;
+  else if (filter === 'all') filteredTodos = allTodos;
+  else filteredTodos = activeTodos;
+  
+  res.render('dashboard/todos', {
+    title: 'Daftar Tugas',
+    activeMenu: 'todos',
+    config,
+    todos: allTodos,
+    filteredTodos,
+    filter,
+    activeCount: activeTodos.length,
+    doneCount: doneTodos.length
+  });
+});
+
+router.post('/todos', (req, res) => {
+  const { task, priority, due_date } = req.body;
+  if (task && task.trim()) {
+    db.createTodo({
+      task: task.trim(),
+      priority: priority || 'normal',
+      due_date: due_date || null
+    });
+  }
+  return res.redirect('/dashboard/todos');
+});
+
+router.post('/todos/:id/complete', (req, res) => {
+  const { id } = req.params;
+  if (db.completeTodoById) db.completeTodoById(Number(id));
+  return res.redirect('/dashboard/todos');
+});
+
+router.post('/todos/:id/uncomplete', (req, res) => {
+  const { id } = req.params;
+  if (db.uncompleteTodoById) db.uncompleteTodoById(Number(id));
+  return res.redirect('/dashboard/todos');
+});
+
+router.post('/todos/:id/delete', (req, res) => {
+  const { id } = req.params;
+  db.deleteTodoById(Number(id));
+  return res.redirect('/dashboard/todos');
+});
+
+// ============================
+// BUDGETS CRUD (Mode Personal)
+// ============================
+
+router.get('/budgets', (req, res) => {
+  const config = getConfig();
+  const { getAllBudgetStatus } = require('../../engine/budget-checker');
+  const budgetStatuses = getAllBudgetStatus();
+
+  res.render('dashboard/budgets', {
+    title: 'Budget Planner',
+    activeMenu: 'budgets',
+    config,
+    budgetStatuses
+  });
+});
+
+router.post('/budgets', (req, res) => {
+  const { category, monthly_limit, alert_at_percent } = req.body;
+  if (category && category.trim() && monthly_limit) {
+    db.setBudget({
+      category: category.trim(),
+      monthly_limit: Number(monthly_limit),
+      alert_at_percent: Number(alert_at_percent) || 80
+    });
+  }
+  return res.redirect('/dashboard/budgets');
+});
+
+router.post('/budgets/:id/delete', (req, res) => {
+  const { id } = req.params;
+  db.deleteBudget(Number(id));
+  return res.redirect('/dashboard/budgets');
+});
+
+// ============================
+// HABITS CRUD (Mode Personal)
+// ============================
+
+router.get('/habits', (req, res) => {
+  const config = getConfig();
+  const activeHabits = db.getActiveHabits ? db.getActiveHabits() : [];
+  
+  // Enrich with streak, check-in status, and recent dates
+  const habits = activeHabits.map(h => {
+    const streak = db.calculateStreak ? db.calculateStreak(h.id) : { current: 0, best: 0 };
+    const checkedToday = db.hasCheckedInToday ? db.hasCheckedInToday(h.id) : false;
+    const weekCount = db.getCheckinCount ? db.getCheckinCount(h.id, 7) : 0;
+    
+    // Get last 7 days of log dates for visual dots
+    const logs = db.getHabitLogs ? db.getHabitLogs(h.id, 30) : [];
+    const recentDates = logs.map(l => l.logged_at.substring(0, 10));
+    
+    return { ...h, streak, checkedToday, weekCount, recentDates };
+  });
+
+  res.render('dashboard/habits', {
+    title: 'Habit Tracker',
+    activeMenu: 'habits',
+    config,
+    habits
+  });
+});
+
+router.post('/habits', (req, res) => {
+  const { name, frequency } = req.body;
+  if (name && name.trim()) {
+    db.createHabit({ name: name.trim(), frequency: frequency || 'daily' });
+  }
+  return res.redirect('/dashboard/habits');
+});
+
+router.post('/habits/:id/checkin', (req, res) => {
+  const { id } = req.params;
+  const habitId = Number(id);
+  if (db.hasCheckedInToday && !db.hasCheckedInToday(habitId)) {
+    db.logHabitCheckin(habitId);
+    const streak = db.calculateStreak ? db.calculateStreak(habitId) : { current: 0, best: 0 };
+    db.updateStreak(habitId, streak.current, streak.best);
+  }
+  return res.redirect('/dashboard/habits');
+});
+
+router.post('/habits/:id/delete', (req, res) => {
+  const { id } = req.params;
+  db.deleteHabit(Number(id));
+  return res.redirect('/dashboard/habits');
+});
+
+// ============================
+// EVENTS CRUD (Mode Personal)
+// ============================
+
+router.get('/events', (req, res) => {
+  const config = getConfig();
+  const events = db.getUpcomingEvents ? db.getUpcomingEvents(50) : [];
+  res.render('dashboard/events', { title: 'Jadwal Acara', activeMenu: 'events', config, events });
+});
+
+router.post('/events', (req, res) => {
+  const { title, event_date, location, description } = req.body;
+  if (title && title.trim() && event_date) {
+    db.createEvent({ title: title.trim(), event_date, location: location || null, description: description || null });
+  }
+  return res.redirect('/dashboard/events');
+});
+
+router.post('/events/:id/delete', (req, res) => {
+  db.deleteEvent(Number(req.params.id));
+  return res.redirect('/dashboard/events');
+});
+
+// ============================
+// JOURNALS CRUD (Mode Personal)
+// ============================
+
+router.get('/journals', (req, res) => {
+  const config = getConfig();
+  const journals = db.getAllJournals ? db.getAllJournals(50) : [];
+  const streak = db.getJournalStreak ? db.getJournalStreak() : 0;
+  res.render('dashboard/journals', { title: 'Daily Journal', activeMenu: 'journals', config, journals, streak });
+});
+
+router.post('/journals', (req, res) => {
+  const { content, mood, tags } = req.body;
+  if (content && content.trim()) {
+    db.createJournal({ content: content.trim(), mood: mood || null, tags: tags || null });
+  }
+  return res.redirect('/dashboard/journals');
+});
+
+router.post('/journals/:id/delete', (req, res) => {
+  db.deleteJournal(Number(req.params.id));
+  return res.redirect('/dashboard/journals');
+});
+
+// ============================
+// GOALS CRUD (Mode Personal)
+// ============================
+
+router.get('/goals', (req, res) => {
+  const config = getConfig();
+  const goals = db.getAllGoals ? db.getAllGoals(50) : [];
+  res.render('dashboard/goals', { title: 'Goal Setting', activeMenu: 'goals', config, goals });
+});
+
+router.post('/goals', (req, res) => {
+  const { title, target_value, unit, deadline } = req.body;
+  if (title && title.trim()) {
+    db.createGoal({
+      title: title.trim(),
+      target_value: target_value ? Number(target_value) : null,
+      unit: unit || null,
+      deadline: deadline || null
+    });
+  }
+  return res.redirect('/dashboard/goals');
+});
+
+router.post('/goals/:id/complete', (req, res) => {
+  db.completeGoal(Number(req.params.id));
+  return res.redirect('/dashboard/goals');
+});
+
+router.post('/goals/:id/delete', (req, res) => {
+  db.deleteGoal(Number(req.params.id));
+  return res.redirect('/dashboard/goals');
+});
+
+// ============================
+// EXPORT DATA (Mode Personal)
+// ============================
+
+router.get('/export', (req, res) => {
+  const config = getConfig();
+  res.render('dashboard/export', { title: 'Export Data', activeMenu: 'export', config });
+});
+
+router.get('/export/download', (req, res) => {
+  const { type } = req.query;
+  const exportData = require('../../engine/export-data');
+
+  const exporters = {
+    expenses: { fn: exportData.exportExpenses, name: 'pengeluaran' },
+    notes: { fn: exportData.exportNotes, name: 'catatan' },
+    todos: { fn: exportData.exportTodos, name: 'tugas' },
+    budgets: { fn: exportData.exportBudgets, name: 'budget' },
+    habits: { fn: exportData.exportHabits, name: 'kebiasaan' },
+    journals: { fn: exportData.exportJournals, name: 'jurnal' },
+    goals: { fn: exportData.exportGoals, name: 'goal' },
+    events: { fn: exportData.exportEvents, name: 'jadwal' }
+  };
+
+  const exporter = exporters[type];
+  if (!exporter) {
+    return res.status(400).send('Tipe export tidak valid');
+  }
+
+  const csv = exporter.fn();
+  const date = new Date().toISOString().substring(0, 10);
+  const filename = `${exporter.name}_${date}.csv`;
+
+  // Add BOM for Excel UTF-8 compatibility
+  const bom = '\uFEFF';
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(bom + csv);
+});
+
+// ============================
+// ORDERS CRUD (Mode Bisnis)
+// ============================
+
+router.get('/orders', (req, res) => {
+  const config = getConfig();
+  if (config.mode !== 'bisnis') return res.redirect('/dashboard');
+  
+  const { status } = req.query;
+  const orders = db.getAllOrders(status && status.trim() ? status.trim() : undefined, 100);
+  
+  res.render('dashboard/orders', {
+    title: 'Daftar Pesanan',
+    activeMenu: 'orders',
+    config,
+    orders,
+    currentStatusFilter: status || ''
+  });
+});
+
+router.post('/orders/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { status, resi_number } = req.body;
+  
+  if (status) {
+    db.updateOrderStatus(Number(id), status, resi_number ? resi_number.trim() : null);
+    
+    // Kirim notifikasi WA otomatis jika pesanan dikirim (shipped) dan nomor resi terisi
+    if (status === 'shipped') {
+      try {
+        const order = db.getOrderById(Number(id));
+        if (order && order.contact) {
+          const { getClient } = require('../../engine');
+          const client = getClient();
+          if (client) {
+            const businessName = getConfig().business_name || 'Toko Kami';
+            const resiText = resi_number ? ` dengan nomor resi *${resi_number.trim()}*` : '';
+            const notificationMsg = `🎉 *[NOTIFIKASI PESANAN - ${businessName.toUpperCase()}]*\n\nHalo ${order.customer_name || 'Kak'}!\nKabar baik, pesanan Anda *(${order.order_summary})* telah dikirim${resiText}.\n\nTerima kasih telah berbelanja di toko kami! 🙏😊`;
+            
+            // Kirim ke nomor WA pelanggan
+            let contactJid = order.contact;
+            if (!contactJid.includes('@')) {
+              contactJid = `${contactJid.replace(/[^0-9]/g, '')}@c.us`;
+            }
+            await client.sendMessage(contactJid, notificationMsg);
+            console.log(`[OrderNotification] Berhasil mengirim notifikasi shipped ke ${contactJid}`);
+          }
+        }
+      } catch (err) {
+        console.error('[OrderNotification] Gagal mengirim notifikasi shipped:', err.message);
+      }
+    }
+  }
+  
+  return res.redirect('/dashboard/orders');
+});
+
+router.post('/orders/:id/delete', (req, res) => {
+  db.deleteOrder(Number(req.params.id));
+  return res.redirect('/dashboard/orders');
 });
 
 module.exports = router;

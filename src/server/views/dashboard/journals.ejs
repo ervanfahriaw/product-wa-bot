@@ -1,0 +1,91 @@
+<%- include('../partials/header') %>
+
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="journalManager()">
+  <%- include('../partials/sidebar', { activeMenu: 'journals', config, pendingHandoverCount }) %>
+
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-6">
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Daily Journal</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">Tulis refleksi harian — curhat, syukur, atau catatan perasaan. <svg class="w-3.5 h-3.5 inline-block text-[#7F77DD]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg> Streak: <strong><%= streak %></strong> hari</p>
+      </div>
+      <button @click="showCreateModal = true" type="button"
+              class="px-4 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors flex items-center space-x-1.5 self-start sm:self-auto">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Tulis Jurnal</span>
+      </button>
+    </div>
+
+    <div class="space-y-3">
+      <% if (journals.length === 0) { %>
+        <div class="text-center py-10 text-sm text-[#71717A]">Belum ada jurnal. Chat bot: <em>"jurnal: hari ini produktif banget"</em></div>
+      <% } else { %>
+        <% const moodSvg = {
+          senang: '<svg class="w-3.5 h-3.5 inline-block text-amber-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>',
+          biasa: '<svg class="w-3.5 h-3.5 inline-block text-gray-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="15" x2="16" y2="15"></line><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>',
+          sedih: '<svg class="w-3.5 h-3.5 inline-block text-blue-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M16 16s-1.5-2-4-2-4 2-4 2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>',
+          marah: '<svg class="w-3.5 h-3.5 inline-block text-red-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M16 16s-1.5-2-4-2-4 2-4 2"></path><line x1="7" y1="8" x2="10" y2="10"></line><line x1="17" y1="8" x2="14" y2="10"></line></svg>',
+          cemas: '<svg class="w-3.5 h-3.5 inline-block text-orange-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+          bersyukur: '<svg class="w-3.5 h-3.5 inline-block text-rose-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>'
+        }; %>
+        <% const defaultMoodSvg = '<svg class="w-3.5 h-3.5 inline-block text-[#71717A]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>'; %>
+        <% journals.forEach(j => { %>
+          <div class="p-4 rounded-2xl border border-[#E4E4E7] bg-white hover:bg-[#FAFAFA] transition-colors">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 text-xs text-[#71717A]">
+                  <span class="font-semibold text-[#18181B]"><%= j.journal_date %></span>
+                  <% if (j.mood) { %><span class="inline-flex items-center gap-1"><%- moodSvg[j.mood] || defaultMoodSvg %> <%= j.mood %></span><% } %>
+                </div>
+                <p class="text-sm text-[#18181B] mt-1 whitespace-pre-wrap"><%= j.content %></p>
+                <% if (j.tags) { %>
+                  <div class="flex gap-1 mt-2">
+                    <% j.tags.split(',').forEach(t => { %>
+                      <span class="px-2 py-0.5 text-[10px] font-medium rounded-full bg-[#F4F4F5] text-[#71717A]"><%= t.trim() %></span>
+                    <% }); %>
+                  </div>
+                <% } %>
+              </div>
+              <form method="POST" action="/dashboard/journals/<%= j.id %>/delete" class="flex-shrink-0">
+                <button type="submit" class="px-2.5 py-1 text-[10px] font-medium border border-[#E4E4E7] rounded-full text-[#71717A] hover:text-[#DC2626] hover:border-[#DC2626] transition-colors" onclick="return confirm('Hapus jurnal ini?')">Hapus</button>
+              </form>
+            </div>
+          </div>
+        <% }); %>
+      <% } %>
+    </div>
+  </main>
+  <div class="hidden lg:block flex-1 bg-[#F7F7F8]"></div>
+
+  <div x-show="showCreateModal" x-cloak class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" @click.self="showCreateModal = false">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-md p-6 space-y-4" @click.stop>
+      <h2 class="text-lg font-bold text-[#18181B]">Tulis Jurnal Baru</h2>
+      <form method="POST" action="/dashboard/journals" class="space-y-4">
+        <div><label class="text-sm font-medium text-[#18181B]">Isi Jurnal</label>
+          <textarea name="content" required rows="4" placeholder="Hari ini aku merasa..." class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#7F77DD] bg-white resize-none"></textarea></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="text-sm font-medium text-[#18181B]">Mood</label>
+            <select name="mood" class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#7F77DD] bg-white">
+              <option value="">— pilih —</option>
+              <option value="senang">&#9786; Senang</option>
+              <option value="bersyukur">&#9829; Bersyukur</option>
+              <option value="biasa">&#8212; Biasa</option>
+              <option value="cemas">&#9888; Cemas</option>
+              <option value="sedih">&#9785; Sedih</option>
+              <option value="marah">&#9747; Marah</option>
+            </select></div>
+          <div><label class="text-sm font-medium text-[#18181B]">Tags (opsional)</label>
+            <input type="text" name="tags" placeholder="kerja, keluarga" class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#7F77DD] bg-white"></div>
+        </div>
+        <div class="flex items-center justify-end space-x-3 pt-2">
+          <button type="button" @click="showCreateModal = false" class="px-4 py-1.5 rounded-full border border-[#E4E4E7] text-xs font-medium text-[#18181B] hover:bg-[#F4F4F5] transition-colors">Batal</button>
+          <button type="submit" class="px-4 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>function journalManager() { return { showCreateModal: false }; }</script>
+<%- include('../partials/footer') %>

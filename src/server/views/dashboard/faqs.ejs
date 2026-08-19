@@ -1,0 +1,201 @@
+<%- include('../partials/header') %>
+
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="faqManager()">
+  <%- include('../partials/sidebar', { activeMenu: 'faqs', config, pendingHandoverCount }) %>
+
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-6">
+    <!-- Header -->
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">FAQ Otomatis</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">Pertanyaan berulang yang dijawab langsung tanpa memanggil AI, menghemat kuota token.</p>
+      </div>
+      <button @click="openAddModal()"
+              class="px-4 py-2 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium shadow-sm transition-colors flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Tambah FAQ
+      </button>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7]">
+        <p class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold">Total FAQ</p>
+        <p class="text-xl font-bold text-[#18181B] mt-1"><%= faqs.length %></p>
+      </div>
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7]">
+        <p class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold">FAQ Aktif</p>
+        <p class="text-xl font-bold text-[#18181B] mt-1"><%= faqs.filter(f => f.is_active).length %></p>
+      </div>
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7]">
+        <p class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold">Total Pencocokan</p>
+        <p class="text-xl font-bold text-[#18181B] mt-1"><%= faqs.reduce((s, f) => s + (f.match_count || 0), 0) %></p>
+        <p class="text-[10px] text-[#A1A1AA] mt-0.5">panggilan AI terhemat</p>
+      </div>
+    </div>
+
+    <!-- FAQ Table -->
+    <div class="border border-[#E4E4E7] rounded-2xl overflow-hidden bg-white">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-[#18181B]">
+          <thead class="bg-[#F7F7F8] border-b border-[#E4E4E7] text-[11px] font-semibold text-[#71717A] uppercase tracking-wider">
+            <tr>
+              <th class="px-5 py-3.5">Label</th>
+              <th class="px-5 py-3.5">Keywords</th>
+              <th class="px-5 py-3.5">Jawaban</th>
+              <th class="px-5 py-3.5 text-center">Match</th>
+              <th class="px-5 py-3.5 text-center">Status</th>
+              <th class="px-5 py-3.5 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[#E4E4E7]">
+            <% if (faqs && faqs.length > 0) { %>
+              <% faqs.forEach(function(faq) { %>
+                <tr class="hover:bg-[#FAFAFA] transition-colors">
+                  <td class="px-5 py-3 font-semibold whitespace-nowrap"><%= faq.question_label %></td>
+                  <td class="px-5 py-3 max-w-[180px]">
+                    <div class="flex flex-wrap gap-1">
+                      <% faq.trigger_keywords.split(',').slice(0, 3).forEach(function(kw) { %>
+                        <span class="inline-block px-2 py-0.5 text-[10px] font-medium rounded-full bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A]"><%= kw.trim() %></span>
+                      <% }); %>
+                      <% if (faq.trigger_keywords.split(',').length > 3) { %>
+                        <span class="text-[10px] text-[#A1A1AA]">+<%= faq.trigger_keywords.split(',').length - 3 %></span>
+                      <% } %>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3 max-w-[200px] truncate text-[#71717A]"><%= faq.answer.substring(0, 60) %><%= faq.answer.length > 60 ? '...' : '' %></td>
+                  <td class="px-5 py-3 text-center">
+                    <span class="font-mono font-bold text-[#18181B]"><%= faq.match_count || 0 %></span>
+                  </td>
+                  <td class="px-5 py-3 text-center">
+                    <% if (faq.is_active) { %>
+                      <span class="inline-block px-2 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Aktif</span>
+                    <% } else { %>
+                      <span class="inline-block px-2 py-0.5 text-[10px] font-semibold rounded-full bg-[#F4F4F5] text-[#A1A1AA] border border-[#E4E4E7]">Nonaktif</span>
+                    <% } %>
+                  </td>
+                  <td class="px-5 py-3 text-right">
+                    <div class="flex items-center justify-end gap-1">
+                      <button @click="openEditModal(<%= faq.id %>, '<%= faq.question_label.replace(/'/g, "\\'") %>', `<%= faq.trigger_keywords.replace(/`/g, "\\`") %>`, `<%= faq.answer.replace(/`/g, "\\`").replace(/\n/g, "\\n") %>`, <%= faq.is_active %>)"
+                              class="p-1.5 rounded-lg hover:bg-[#F4F4F5] text-[#71717A] hover:text-[#18181B] transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                      <form method="POST" action="/dashboard/faqs/<%= faq.id %>/delete" class="inline" onsubmit="return confirm('Hapus FAQ ini?')">
+                        <button type="submit" class="p-1.5 rounded-lg hover:bg-red-50 text-[#71717A] hover:text-red-600 transition-colors">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          </svg>
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="6" class="px-5 py-12 text-center text-[#A1A1AA]">
+                  <svg class="w-10 h-10 mx-auto mb-3 text-[#D4D4D8]" fill="none" stroke="currentColor" stroke-width="1.25" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                  <p class="text-sm font-medium text-[#71717A]">Belum ada FAQ</p>
+                  <p class="text-xs text-[#A1A1AA] mt-1">Tambahkan pertanyaan yang sering ditanyakan pelanggan untuk menghemat kuota AI.</p>
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Add/Edit FAQ Modal -->
+  <div x-show="showModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-[#E4E4E7]" @click.away="showModal = false">
+      <div class="flex justify-between items-center pb-3 border-b border-[#E4E4E7]">
+        <h3 class="text-sm font-semibold text-[#18181B]" x-text="isEditing ? 'Edit FAQ' : 'Tambah FAQ Baru'"></h3>
+        <button @click="showModal = false" class="text-[#71717A] hover:text-[#18181B] text-base font-bold">&times;</button>
+      </div>
+
+      <form method="POST" :action="isEditing ? '/dashboard/faqs/' + editId + '/update' : '/dashboard/faqs'" class="space-y-3">
+        <div>
+          <label class="text-xs font-medium text-[#18181B]">Label Pertanyaan</label>
+          <input type="text" name="question_label" x-model="formLabel" placeholder="Jam Operasional" required
+                 class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-[#18181B]">Trigger Keywords</label>
+          <input type="text" name="trigger_keywords" x-model="formKeywords" placeholder="jam buka, kapan buka, buka tutup" required
+                 class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white">
+          <p class="text-[10px] text-[#A1A1AA] mt-1">Pisahkan dengan koma. Jika salah satu keyword cocok, FAQ ini akan dipicu.</p>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-[#18181B]">Jawaban</label>
+          <textarea name="answer" x-model="formAnswer" rows="4" placeholder="Toko kami buka Senin-Sabtu, pukul 08:00-17:00 WIB." required
+                    class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white resize-none"></textarea>
+          <p class="text-[10px] text-[#A1A1AA] mt-1">Jawaban ini akan dikirim langsung ke pelanggan tanpa AI. Gunakan format WhatsApp (*tebal*, - list).</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" name="is_active" x-model="formActive" :value="1" id="faqActiveToggle"
+                 class="w-4 h-4 rounded border-[#E4E4E7] accent-[#18181B]">
+          <label for="faqActiveToggle" class="text-xs font-medium text-[#18181B]">FAQ Aktif</label>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-[#E4E4E7]">
+          <button type="button" @click="showModal = false"
+                  class="px-4 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors">
+            Batal
+          </button>
+          <button type="submit"
+                  class="px-5 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors">
+            Simpan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function faqManager() {
+  return {
+    showModal: false,
+    isEditing: false,
+    editId: null,
+    formLabel: '',
+    formKeywords: '',
+    formAnswer: '',
+    formActive: true,
+
+    openAddModal() {
+      this.isEditing = false;
+      this.editId = null;
+      this.formLabel = '';
+      this.formKeywords = '';
+      this.formAnswer = '';
+      this.formActive = true;
+      this.showModal = true;
+    },
+
+    openEditModal(id, label, keywords, answer, active) {
+      this.isEditing = true;
+      this.editId = id;
+      this.formLabel = label;
+      this.formKeywords = keywords;
+      this.formAnswer = answer;
+      this.formActive = active === 1;
+      this.showModal = true;
+    }
+  };
+}
+</script>
+
+<%- include('../partials/footer') %>

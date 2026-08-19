@@ -5,7 +5,61 @@ const { getConfig } = require('../config');
 let reminderCronJob = null;
 
 /**
+ * Menghitung trigger_at berikutnya berdasarkan recurrence_type.
+ * @param {string} currentTrigger Format DATETIME
+ * @param {string} recurrenceType 'daily', 'weekly', 'monthly'
+ * @returns {string} Format YYYY-MM-DD HH:MM:SS
+ */
+function calculateNextTrigger(currentTrigger, recurrenceType) {
+  const current = new Date(currentTrigger);
+  
+  // Jika waktu saat ini sudah lewat, hitung dari sekarang
+  const base = current < new Date() ? new Date() : current;
+
+  switch (recurrenceType) {
+    case 'daily': {
+      const next = new Date(base);
+      next.setDate(next.getDate() + 1);
+      // Gunakan jam dari trigger asli
+      next.setHours(current.getHours(), current.getMinutes(), current.getSeconds(), 0);
+      return formatDateTime(next);
+    }
+    case 'weekly': {
+      const next = new Date(base);
+      next.setDate(next.getDate() + 7);
+      next.setHours(current.getHours(), current.getMinutes(), current.getSeconds(), 0);
+      return formatDateTime(next);
+    }
+    case 'monthly': {
+      const next = new Date(base);
+      next.setMonth(next.getMonth() + 1);
+      next.setHours(current.getHours(), current.getMinutes(), current.getSeconds(), 0);
+      return formatDateTime(next);
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Format Date object ke string YYYY-MM-DD HH:MM:SS.
+ * @param {Date} date 
+ * @returns {string}
+ */
+function formatDateTime(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const h = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  const s = String(date.getSeconds()).padStart(2, '0');
+  return `${y}-${m}-${d} ${h}:${min}:${s}`;
+}
+
+/**
  * Memeriksa reminder yang jatuh tempo dan mengirimkannya ke WhatsApp.
+ * Untuk recurring: hitung trigger_at berikutnya setelah kirim.
+ * Untuk one-shot: mark sent=1 seperti biasa.
  * @param {import('whatsapp-web.js').Client} client 
  */
 async function checkAndSendReminders(client) {
@@ -23,12 +77,31 @@ async function checkAndSendReminders(client) {
     if (!pendingList || pendingList.length === 0) return;
 
     for (const reminder of pendingList) {
-      const text = `⏰ *[PENGINGAT OTOMATIS]*\n\n📌 *Pesan:* ${reminder.message}\n🕒 *Waktu:* ${reminder.trigger_at}`;
+      const isRecurring = reminder.recurrence_type && ['daily', 'weekly', 'monthly'].includes(reminder.recurrence_type);
+      
+      const typeLabel = isRecurring 
+        ? `🔄 ${reminder.recurrence_type === 'daily' ? 'Harian' : reminder.recurrence_type === 'weekly' ? 'Mingguan' : 'Bulanan'}`
+        : '🔔 Satu Kali';
+
+      const text = `⏰ *[PENGINGAT OTOMATIS]*\n\n📌 *Pesan:* ${reminder.message}\n🕒 *Waktu:* ${reminder.trigger_at}\n📋 *Jenis:* ${typeLabel}\n\n_Balas "tunda 30 menit" untuk menunda._`;
       
       try {
         await client.sendMessage(targetJid, text);
-        db.markReminderSent(reminder.id);
         console.log(`[Scheduler] Reminder #${reminder.id} berhasil dikirim ke ${targetJid}.`);
+        
+        if (isRecurring) {
+          // Untuk recurring: hitung waktu trigger berikutnya
+          const nextTrigger = calculateNextTrigger(reminder.trigger_at, reminder.recurrence_type);
+          if (nextTrigger) {
+            db.updateNextTrigger(reminder.id, nextTrigger);
+            console.log(`[Scheduler] Recurring reminder #${reminder.id} dijadwalkan ulang ke ${nextTrigger}.`);
+          } else {
+            db.markReminderSent(reminder.id);
+          }
+        } else {
+          // Untuk one-shot: tandai sudah terkirim
+          db.markReminderSent(reminder.id);
+        }
       } catch (err) {
         console.error(`[Scheduler] Gagal mengirim reminder #${reminder.id}:`, err.message);
       }
@@ -69,5 +142,7 @@ function stopReminderScheduler() {
 module.exports = {
   checkAndSendReminders,
   startReminderScheduler,
-  stopReminderScheduler
+  stopReminderScheduler,
+  calculateNextTrigger,
+  formatDateTime
 };

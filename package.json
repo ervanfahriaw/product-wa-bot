@@ -12,7 +12,12 @@
     "test:personal": "node scripts/test-personal-mode.js",
     "test:dashboard": "node scripts/test-dashboard-management.js",
     "test:e2e": "node scripts/test-e2e-audit.js",
-    "test:packaging": "node scripts/test-packaging.js"
+    "test:packaging": "node scripts/test-packaging.js",
+    "test:faq": "node scripts/test-fase3-auto-faq.js",
+    "test:followup": "node scripts/test-fase5-follow-ups.js",
+    "test:enhancement": "node scripts/test-enhancement-fixes.js",
+    "test:qa": "node scripts/test-qa-final.js",
+    "test": "node scripts/test-full-qa-a-to-z.js"
   },
   "pkg": {
     "scripts": "src/**/*.js",

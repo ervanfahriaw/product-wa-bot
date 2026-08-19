@@ -1,0 +1,134 @@
+<%- include('../partials/header') %>
+
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="todoManager()">
+  <%- include('../partials/sidebar', { activeMenu: 'todos', config, pendingHandoverCount }) %>
+
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-6">
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Daftar Tugas</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">Kelola tugas harian — tambah, selesaikan, atau hapus via chat atau dashboard.</p>
+      </div>
+      <button @click="showCreateModal = true" type="button"
+              class="px-4 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors flex items-center space-x-1.5 self-start sm:self-auto">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Tambah Tugas</span>
+      </button>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="flex items-center gap-2">
+      <a href="/dashboard/todos?filter=active" class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors <%= filter === 'active' ? 'bg-[#18181B] text-white' : 'bg-[#F4F4F5] text-[#71717A] hover:bg-[#E4E4E7]' %>">
+        Aktif (<%= activeCount %>)
+      </a>
+      <a href="/dashboard/todos?filter=done" class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors <%= filter === 'done' ? 'bg-[#18181B] text-white' : 'bg-[#F4F4F5] text-[#71717A] hover:bg-[#E4E4E7]' %>">
+        Selesai (<%= doneCount %>)
+      </a>
+      <a href="/dashboard/todos?filter=all" class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors <%= filter === 'all' ? 'bg-[#18181B] text-white' : 'bg-[#F4F4F5] text-[#71717A] hover:bg-[#E4E4E7]' %>">
+        Semua (<%= todos.length %>)
+      </a>
+    </div>
+
+    <!-- Todos List -->
+    <div class="space-y-2">
+      <% if (filteredTodos.length === 0) { %>
+        <div class="text-center py-10 text-sm text-[#71717A]">
+          <% if (filter === 'active') { %>
+            Tidak ada tugas aktif. Semua beres! <svg class="w-4 h-4 inline-block text-emerald-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          <% } else if (filter === 'done') { %>
+            Belum ada tugas yang diselesaikan.
+          <% } else { %>
+            Belum ada tugas. Chat bot: <em>"tugas: beli deterjen"</em> atau tambah dari sini.
+          <% } %>
+        </div>
+      <% } else { %>
+        <% filteredTodos.forEach(t => { %>
+          <div class="flex items-center gap-3 p-3 rounded-xl border border-[#E4E4E7] bg-white hover:bg-[#FAFAFA] transition-colors group">
+            <!-- Checkbox -->
+            <form method="POST" action="/dashboard/todos/<%= t.id %>/<%= t.is_done ? 'uncomplete' : 'complete' %>" class="flex-shrink-0">
+              <button type="submit" class="w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors
+                <%= t.is_done ? 'bg-[#18181B] border-[#18181B]' : 'border-[#D4D4D8] hover:border-[#18181B]' %>">
+                <% if (t.is_done) { %>
+                  <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                <% } %>
+              </button>
+            </form>
+            
+            <!-- Task Content -->
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium <%= t.is_done ? 'line-through text-[#A1A1AA]' : 'text-[#18181B]' %>"><%= t.task %></div>
+              <div class="flex items-center gap-2 mt-0.5">
+                <% if (t.priority === 'urgent') { %>
+                  <span class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-red-50 text-red-600">URGENT</span>
+                <% } else if (t.priority === 'low') { %>
+                  <span class="px-1.5 py-0.5 text-[9px] font-bold rounded bg-blue-50 text-blue-600">RENDAH</span>
+                <% } %>
+                <% if (t.due_date) { %>
+                  <span class="text-[10px] text-[#71717A] inline-flex items-center gap-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><%= t.due_date %></span>
+                <% } %>
+                <% if (t.is_done && t.completed_at) { %>
+                  <span class="text-[10px] text-green-600 inline-flex items-center gap-0.5"><svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg><%= t.completed_at %></span>
+                <% } %>
+              </div>
+            </div>
+
+            <!-- Delete -->
+            <form method="POST" action="/dashboard/todos/<%= t.id %>/delete" class="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button type="submit"
+                      class="px-2.5 py-1 text-[10px] font-medium border border-[#E4E4E7] rounded-full text-[#71717A] hover:text-[#DC2626] hover:border-[#DC2626] transition-colors"
+                      onclick="return confirm('Hapus tugas ini?')">Hapus</button>
+            </form>
+          </div>
+        <% }); %>
+      <% } %>
+    </div>
+  </main>
+
+  <div class="hidden lg:block flex-1 bg-[#F7F7F8]"></div>
+
+  <!-- Create Modal -->
+  <div x-show="showCreateModal" x-cloak class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" @click.self="showCreateModal = false">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-md p-6 space-y-4" @click.stop>
+      <h2 class="text-lg font-bold text-[#18181B]">Tambah Tugas Baru</h2>
+      <form method="POST" action="/dashboard/todos" class="space-y-4">
+        <div>
+          <label class="text-sm font-medium text-[#18181B]">Nama Tugas</label>
+          <input type="text" name="task" required placeholder="Beli deterjen"
+                 class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#7F77DD] bg-white">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm font-medium text-[#18181B]">Prioritas</label>
+            <select name="priority"
+                    class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#7F77DD] bg-white">
+              <option value="normal">Normal</option>
+              <option value="urgent">Urgent / Penting</option>
+              <option value="low">Rendah</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm font-medium text-[#18181B]">Deadline (opsional)</label>
+            <input type="date" name="due_date"
+                   class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#7F77DD] bg-white">
+          </div>
+        </div>
+        <div class="flex items-center justify-end space-x-3 pt-2">
+          <button type="button" @click="showCreateModal = false"
+                  class="px-4 py-1.5 rounded-full border border-[#E4E4E7] text-xs font-medium text-[#18181B] hover:bg-[#F4F4F5] transition-colors">Batal</button>
+          <button type="submit"
+                  class="px-4 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors">Tambah Tugas</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function todoManager() { return { showCreateModal: false }; }
+</script>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,106 @@
+<%- include('../partials/header') %>
+
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="budgetManager()">
+  <%- include('../partials/sidebar', { activeMenu: 'budgets', config, pendingHandoverCount }) %>
+
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-6">
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Budget Planner</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">Atur batas anggaran per kategori dan pantau pengeluaran bulanan.</p>
+      </div>
+      <button @click="showCreateModal = true" type="button"
+              class="px-4 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors flex items-center space-x-1.5 self-start sm:self-auto">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Tambah Budget</span>
+      </button>
+    </div>
+
+    <!-- Budget Cards -->
+    <div class="space-y-4">
+      <% if (budgetStatuses.length === 0) { %>
+        <div class="text-center py-10 text-sm text-[#71717A]">
+          Belum ada anggaran. Chat bot: <em>"budget makan 2 juta per bulan"</em> atau tambah dari sini.
+        </div>
+      <% } else { %>
+        <% budgetStatuses.forEach(b => { %>
+          <div class="p-5 rounded-2xl border border-[#E4E4E7] bg-white space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-sm font-semibold text-[#18181B]"><%= b.category %></span>
+                <span class="ml-2 px-2 py-0.5 text-[10px] font-bold rounded-full
+                  <%= b.status === 'over' ? 'bg-red-50 text-red-600' : b.status === 'warning' ? 'bg-yellow-50 text-yellow-700' : 'bg-green-50 text-green-600' %>">
+                  <%= b.status === 'over' ? 'OVER BUDGET' : b.status === 'warning' ? 'HAMPIR HABIS' : 'AMAN' %>
+                </span>
+              </div>
+              <form method="POST" action="/dashboard/budgets/<%= b.id %>/delete" class="inline">
+                <button type="submit"
+                        class="px-2.5 py-1 text-[10px] font-medium border border-[#E4E4E7] rounded-full text-[#71717A] hover:text-[#DC2626] hover:border-[#DC2626] transition-colors"
+                        onclick="return confirm('Hapus budget ini?')">Hapus</button>
+              </form>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-[#71717A]">Rp<%= b.spent.toLocaleString('id-ID') %> / Rp<%= b.monthly_limit.toLocaleString('id-ID') %></span>
+                <span class="font-semibold text-[#18181B]"><%= b.percent %>%</span>
+              </div>
+              <div class="w-full bg-[#E4E4E7] h-2 rounded-full overflow-hidden">
+                <div class="h-2 rounded-full transition-all duration-500
+                  <%= b.status === 'over' ? 'bg-red-500' : b.status === 'warning' ? 'bg-yellow-500' : 'bg-emerald-500' %>"
+                  style="width: <%= Math.min(100, b.percent) %>%"></div>
+              </div>
+              <div class="flex items-center justify-between text-[10px] text-[#A1A1AA]">
+                <span>Sisa: Rp<%= Math.max(0, b.remaining).toLocaleString('id-ID') %></span>
+                <span><%= b.daysLeft %> hari tersisa bulan ini</span>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      <% } %>
+    </div>
+  </main>
+
+  <div class="hidden lg:block flex-1 bg-[#F7F7F8]"></div>
+
+  <!-- Create Modal -->
+  <div x-show="showCreateModal" x-cloak class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" @click.self="showCreateModal = false">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-md p-6 space-y-4" @click.stop>
+      <h2 class="text-lg font-bold text-[#18181B]">Tambah Budget Baru</h2>
+      <form method="POST" action="/dashboard/budgets" class="space-y-4">
+        <div>
+          <label class="text-sm font-medium text-[#18181B]">Kategori</label>
+          <input type="text" name="category" required placeholder="Makan & Minum"
+                 class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#7F77DD] bg-white">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm font-medium text-[#18181B]">Batas (Rp/bulan)</label>
+            <input type="number" name="monthly_limit" required min="1000" placeholder="2000000"
+                   class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#7F77DD] bg-white">
+          </div>
+          <div>
+            <label class="text-sm font-medium text-[#18181B]">Alert di (%)</label>
+            <input type="number" name="alert_at_percent" value="80" min="50" max="100"
+                   class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#7F77DD] bg-white">
+          </div>
+        </div>
+        <div class="flex items-center justify-end space-x-3 pt-2">
+          <button type="button" @click="showCreateModal = false"
+                  class="px-4 py-1.5 rounded-full border border-[#E4E4E7] text-xs font-medium text-[#18181B] hover:bg-[#F4F4F5] transition-colors">Batal</button>
+          <button type="submit"
+                  class="px-4 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function budgetManager() { return { showCreateModal: false }; }
+</script>
+
+<%- include('../partials/footer') %>

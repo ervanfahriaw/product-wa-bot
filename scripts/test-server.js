@@ -71,7 +71,7 @@ async function runTests() {
     console.log('[2/7] Testing GET /setup/step-1...');
     const resStep1 = await makeRequest('/setup/step-1');
     assert.strictEqual(resStep1.statusCode, 200);
-    assert.ok(resStep1.body.includes('Pilih Mode Penggunaan Bot'), 'Halaman step-1 harus memuat judul');
+    assert.ok(resStep1.body.includes('Pilih Mode Bot'), 'Halaman step-1 harus memuat judul');
     console.log('  -> OK: Halaman Step 1 EJS rendered dengan sukses');
 
     // 3. Test POST /setup/step-1 (Pilih Mode Bisnis)
@@ -89,7 +89,7 @@ async function runTests() {
     console.log('[4/7] Testing GET /setup/step-2 (Scan QR Page)...');
     const resStep2 = await makeRequest('/setup/step-2');
     assert.strictEqual(resStep2.statusCode, 200);
-    assert.ok(resStep2.body.includes('Sambungkan Akun WhatsApp'), 'Halaman step-2 harus memuat judul scan QR');
+    assert.ok(resStep2.body.includes('Tautkan Akun WhatsApp'), 'Halaman step-2 harus memuat judul scan QR');
     console.log('  -> OK: Halaman Step 2 EJS rendered dengan sukses');
 
     // 5. Test POST /setup/step-3 (API Key AI)

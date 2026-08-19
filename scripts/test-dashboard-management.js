@@ -1,3 +1,4 @@
+process.env.NODE_ENV = 'test';
 const assert = require('assert');
 const http = require('http');
 
@@ -119,6 +120,10 @@ async function runDashboardTddTests() {
   // Test 3: Expenses CRUD (Mode Personal)
   console.log('\n[Test 3/5] Memeriksa Pengeluaran CRUD (GET, POST Create, POST Edit, POST Delete)...');
   try {
+    // Ubah mode ke personal agar halaman expenses tidak di-redirect ke /dashboard
+    saveConfig({ mode: 'personal' });
+    db.setSetting('mode', 'personal');
+
     // 3a. GET /dashboard/expenses
     const resExpList = await makeRequest('/dashboard/expenses');
     assert.strictEqual(resExpList.statusCode, 200, 'GET /dashboard/expenses harus return 200');

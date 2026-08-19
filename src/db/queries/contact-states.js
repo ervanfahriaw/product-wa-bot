@@ -123,6 +123,7 @@ module.exports = {
   getContactState,
   pauseContact,
   resumeContact,
+  unpauseContact: resumeContact,
   isContactPaused,
   getAllPausedContacts
 };

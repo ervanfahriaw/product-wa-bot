@@ -1,3 +1,4 @@
+process.env.NODE_ENV = 'test';
 const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
@@ -32,6 +33,12 @@ async function runE2eAuditTests() {
 
     const initialLogCount = db.getAllChatLogs(1000, 0).length;
     await handleIncomingMessage(mockMessage, { sendMessage: async () => true });
+    
+    // Tunggu antrean debounce buffer & panggilan API selesai diproses
+    const startTime = Date.now();
+    while (!replyResult && Date.now() - startTime < 5000) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
 
     assert.ok(replyResult, 'Bot harus selalu membalas pesan, tidak boleh silent-fail');
     const newLogs = db.getAllChatLogs(1000, 0);

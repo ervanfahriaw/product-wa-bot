@@ -238,6 +238,40 @@
         </div>
       </div>
 
+      <!-- 7b. Jam Operasional & Mode Luar Jam (Mode Bisnis) -->
+      <% if (config && config.mode === 'bisnis') { %>
+      <div class="py-5 border-b border-[#E4E4E7] space-y-4">
+        <div>
+          <label class="text-sm font-semibold text-[#18181B]">Jam Operasional & Mode Luar Jam</label>
+          <p class="text-xs text-[#71717A] mt-0.5">Atur jam buka toko dan perilaku bot saat di luar jam operasional.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="text-xs font-medium text-[#18181B]">Jam Buka</label>
+            <input type="time" name="business_hours_open" 
+                   value="<%= (config.business_hours || '').split('-')[0] || '08:00' %>"
+                   class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-[#18181B]">Jam Tutup</label>
+            <input type="time" name="business_hours_close" 
+                   value="<%= (config.business_hours || '').split('-')[1] || '17:00' %>"
+                   class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-[#18181B]">Mode Luar Jam</label>
+            <select name="out_of_hours_mode"
+                    class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white">
+              <option value="off" <%= (config.out_of_hours_mode || 'off') === 'off' ? 'selected' : '' %>>Nonaktif (bot tetap jawab)</option>
+              <option value="reply_only" <%= config.out_of_hours_mode === 'reply_only' ? 'selected' : '' %>>Balas Template (hemat token)</option>
+              <option value="full_ai" <%= config.out_of_hours_mode === 'full_ai' ? 'selected' : '' %>>Tetap AI + Disclaimer</option>
+            </select>
+          </div>
+        </div>
+        <p class="text-[11px] text-[#A1A1AA]">Kosongkan jam jika toko buka 24 jam. Mode "Balas Template" akan mengirim pesan luar jam tanpa memanggil AI (menghemat kuota).</p>
+      </div>
+      <% } %>
+
       <!-- 8. Timing & Debounce -->
       <div class="py-5 border-b border-[#E4E4E7] space-y-4">
         <div>
@@ -283,6 +317,85 @@
             <input type="range" name="customer_debounce_sec" min="1" max="15" step="1" x-model="customerDebounce"
                    class="w-full h-1.5 bg-[#E4E4E7] rounded-lg appearance-none cursor-pointer accent-[#18181B]">
             <p class="text-[11px] text-[#71717A]">Menunggu pelanggan selesai mengirim rangkaian bubble chat agar dibaca dan dibalas sekaligus.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 10. Follow-Up Otomatis (Mode Bisnis Only) -->
+      <div class="py-6 border-b border-[#E4E4E7] space-y-4" x-show="mode === 'bisnis'">
+        <div>
+          <label class="text-sm font-semibold text-[#18181B]">Follow-Up Otomatis (Anti-Spam)</label>
+          <p class="text-xs text-[#71717A] mt-0.5">Kirim pengingat sopan ke pelanggan yang bertanya tentang produk setelah selang waktu tertentu.</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Toggle Aktif/Nonaktif -->
+          <div>
+            <label class="block text-xs font-medium text-[#71717A] mb-1.5">Aktifkan Follow-Up</label>
+            <select name="follow_up_enabled" x-model="followUpEnabled"
+                    class="w-full px-3.5 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+              <option value="false">Nonaktif</option>
+              <option value="true">Aktif</option>
+            </select>
+          </div>
+
+          <!-- Jeda Waktu (Delay) -->
+          <div>
+            <label class="block text-xs font-medium text-[#71717A] mb-1.5">Jeda Kirim Follow-Up (Delay)</label>
+            <select name="follow_up_delay_hours" x-model="followUpDelayHours"
+                    class="w-full px-3.5 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+              <option value="24">24 Jam (Direkomendasikan)</option>
+              <option value="48">48 Jam</option>
+              <option value="72">72 Jam</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Template Pesan Follow-Up -->
+        <div>
+          <label class="block text-xs font-medium text-[#71717A] mb-1.5">Template Pesan Follow-Up</label>
+          <textarea name="follow_up_template" rows="3" x-model="followUpTemplate"
+                    class="w-full px-3.5 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"></textarea>
+          <p class="text-[10px] text-[#A1A1AA] mt-1.5">Gunakan tag <code class="bg-[#F4F4F5] px-1 py-0.5 rounded text-[#18181B] font-mono">{product_name}</code> untuk nama produk, dan <code class="bg-[#F4F4F5] px-1 py-0.5 rounded text-[#18181B] font-mono">{business_name}</code> untuk nama usaha.</p>
+        </div>
+
+        <!-- Daftar Blacklist Opt-Out -->
+        <div class="pt-4 border-t border-[#F4F4F5]">
+          <h4 class="text-xs font-bold text-[#18181B] uppercase tracking-wider mb-2">Daftar Blacklist Opt-Out Pelanggan</h4>
+          <p class="text-[11px] text-[#71717A] mb-3">Daftar pelanggan yang meminta tidak di-follow up lagi (menolak otomatis). Anda dapat menghapusnya jika mereka meminta bergabung kembali.</p>
+          
+          <div class="border border-[#E4E4E7] rounded-xl overflow-hidden bg-white text-xs max-h-48 overflow-y-auto">
+            <table class="w-full text-left text-[11px]">
+              <thead class="bg-[#F7F7F8] border-b border-[#E4E4E7] font-semibold text-[#71717A] whitespace-nowrap">
+                <tr>
+                  <th class="px-4 py-2">Kontak / Nomor WA</th>
+                  <th class="px-4 py-2">Waktu Keluar (Opt-Out)</th>
+                  <th class="px-4 py-2 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[#E4E4E7]">
+                <% if (typeof optouts !== 'undefined' && optouts && optouts.length > 0) { %>
+                  <% optouts.forEach(function(o) { %>
+                    <tr class="hover:bg-[#FAFAFA]">
+                      <td class="px-4 py-2 font-mono text-[#18181B] font-medium"><%= o.contact.split('@')[0] %></td>
+                      <td class="px-4 py-2 text-[#71717A]"><%= new Date(o.opted_out_at).toLocaleString('id-ID') %></td>
+                      <td class="px-4 py-2 text-right">
+                        <form method="POST" action="/dashboard/settings/follow-ups/optout/delete" class="inline" onsubmit="return confirm('Hapus nomor ini dari daftar opt-out?')">
+                          <input type="hidden" name="contact" value="<%= o.contact %>">
+                          <button type="submit" class="text-red-600 hover:text-red-800 font-semibold text-[10px]">
+                            Hapus
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                  <% }); %>
+                <% } else { %>
+                  <tr>
+                    <td colspan="3" class="px-4 py-4 text-center text-[#A1A1AA] italic">Belum ada pelanggan yang opt-out.</td>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -369,6 +482,9 @@
       maxDelay: <%= config.max_delay_sec || 12 %>,
       interBubbleDelay: <%= config.inter_bubble_delay || 2.5 %>,
       customerDebounce: <%= config.customer_debounce_sec || 5 %>,
+      followUpEnabled: '<%= config.follow_up_enabled ? "true" : "false" %>',
+      followUpDelayHours: '<%= config.follow_up_delay_hours || 24 %>',
+      followUpTemplate: `<%- (config.follow_up_template || "Halo Kak, kemarin sempat tanya tentang *{product_name}* ya. Varian ini masih ready lho Kak. Mau kami bantu proseskan pesanannya? 😊").replace(/`/g, "\\`").replace(/\\/g, "\\\\") %>`,
       showGemini: false,
       isTestingGemini: false,
       geminiTestResult: null,

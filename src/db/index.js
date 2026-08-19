@@ -9,6 +9,17 @@ const samplesQueries = require('./queries/samples');
 const businessDocsQueries = require('./queries/business-documents');
 const manualHandoversQueries = require('./queries/manual-handovers');
 const analyticsQueries = require('./queries/analytics');
+const notesQueries = require('./queries/notes');
+const todosQueries = require('./queries/todos');
+const budgetsQueries = require('./queries/budgets');
+const habitsQueries = require('./queries/habits');
+const eventsQueries = require('./queries/events');
+const journalsQueries = require('./queries/journals');
+const goalsQueries = require('./queries/goals');
+const customerProfilesQueries = require('./queries/customer-profiles');
+const faqsQueries = require('./queries/faqs');
+const ordersQueries = require('./queries/orders');
+const followUpsQueries = require('./queries/follow-ups');
 
 module.exports = {
   db,
@@ -21,5 +32,16 @@ module.exports = {
   ...samplesQueries,
   ...businessDocsQueries,
   ...manualHandoversQueries,
-  ...analyticsQueries
+  ...analyticsQueries,
+  ...notesQueries,
+  ...todosQueries,
+  ...budgetsQueries,
+  ...habitsQueries,
+  ...eventsQueries,
+  ...journalsQueries,
+  ...goalsQueries,
+  ...customerProfilesQueries,
+  ...faqsQueries,
+  ...ordersQueries,
+  ...followUpsQueries
 };

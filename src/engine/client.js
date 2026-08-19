@@ -19,6 +19,17 @@ if (!fs.existsSync(SESSION_DIR)) {
   fs.mkdirSync(SESSION_DIR, { recursive: true });
 }
 
+// Tangkap exception uncaught yang berasal dari whatsapp-web.js (LocalAuth.logout) saat EBUSY pada Windows
+process.on('uncaughtException', (err) => {
+  if (err && (err.code === 'EBUSY' || (err.message && err.message.includes('EBUSY'))) && (err.stack && err.stack.includes('session-wa-bot-main'))) {
+    console.warn('[Engine] Warning: Berkas sesi teruji/terkunci saat cleanup logout (EBUSY). Server tetap berjalan.');
+    return;
+  }
+  console.error('[UncaughtException]', err);
+  process.exit(1);
+});
+
+
 /**
  * Membersihkan file lock sisa proses Chromium sebelumnya yang macet
  */

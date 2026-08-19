@@ -1,0 +1,220 @@
+<%- include('../partials/header') %>
+
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]" x-data="customerManager()">
+  <!-- Sidebar -->
+  <%- include('../partials/sidebar', { activeMenu: 'customers', config, pendingHandoverCount }) %>
+
+  <!-- Main Content Panel -->
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-6">
+    <!-- Header & Actions -->
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Pelanggan</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">Data profil, preferensi, dan riwayat pelanggan yang pernah menghubungi bot.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#A1A1AA]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" x-model="searchQuery" @input="filterCustomers()" placeholder="Cari nama, tag, atau nomor..."
+                 class="pl-9 pr-3 py-1.5 text-xs border border-[#E4E4E7] rounded-full focus:outline-none focus:border-[#18181B] bg-white w-56">
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Summary -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7]">
+        <p class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold">Total Pelanggan</p>
+        <p class="text-xl font-bold text-[#18181B] mt-1"><%= customers.length %></p>
+      </div>
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7]">
+        <p class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold">Dengan Nama</p>
+        <p class="text-xl font-bold text-[#18181B] mt-1"><%= customers.filter(c => c.customer_name).length %></p>
+      </div>
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7]">
+        <p class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold">Total Order</p>
+        <p class="text-xl font-bold text-[#18181B] mt-1"><%= customers.reduce((sum, c) => sum + (c.total_orders || 0), 0) %></p>
+      </div>
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7]">
+        <p class="text-[10px] uppercase tracking-wider text-[#A1A1AA] font-semibold">Total Revenue</p>
+        <p class="text-xl font-bold text-[#18181B] mt-1">Rp<%= customers.reduce((sum, c) => sum + (c.total_spent || 0), 0).toLocaleString('id-ID') %></p>
+      </div>
+    </div>
+
+    <!-- Customer Table -->
+    <div class="border border-[#E4E4E7] rounded-2xl overflow-hidden bg-white">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs text-[#18181B]">
+          <thead class="bg-[#F7F7F8] border-b border-[#E4E4E7] text-[11px] font-semibold text-[#71717A] uppercase tracking-wider">
+            <tr>
+              <th class="px-5 py-3.5">Pelanggan</th>
+              <th class="px-5 py-3.5">Tags</th>
+              <th class="px-5 py-3.5 text-center">Orders</th>
+              <th class="px-5 py-3.5 text-right">Total Belanja</th>
+              <th class="px-5 py-3.5">Terakhir Chat</th>
+              <th class="px-5 py-3.5 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[#E4E4E7]" id="customerTableBody">
+            <% if (customers && customers.length > 0) { %>
+              <% customers.forEach(function(c) { %>
+                <tr class="hover:bg-[#FAFAFA] transition-colors customer-row"
+                    data-name="<%= (c.customer_name || '').toLowerCase() %>"
+                    data-tags="<%= (c.tags || '').toLowerCase() %>"
+                    data-contact="<%= c.contact.toLowerCase() %>">
+                  <td class="px-5 py-3">
+                    <div>
+                      <p class="font-semibold text-[#18181B]"><%= c.customer_name || '—' %></p>
+                      <p class="text-[11px] text-[#A1A1AA] font-mono"><%= c.contact.replace('@c.us', '') %></p>
+                    </div>
+                  </td>
+                  <td class="px-5 py-3">
+                    <% if (c.tags) { %>
+                      <% c.tags.split(',').forEach(function(tag) { %>
+                        <span class="inline-block px-2 py-0.5 text-[10px] font-medium rounded-full bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A] mr-1"><%= tag.trim() %></span>
+                      <% }); %>
+                    <% } else { %>
+                      <span class="text-[#A1A1AA]">—</span>
+                    <% } %>
+                  </td>
+                  <td class="px-5 py-3 text-center font-semibold"><%= c.total_orders || 0 %></td>
+                  <td class="px-5 py-3 text-right font-mono font-medium">Rp<%= (c.total_spent || 0).toLocaleString('id-ID') %></td>
+                  <td class="px-5 py-3 text-[#71717A]">
+                    <% if (c.last_contact_at) { %>
+                      <%= new Date(c.last_contact_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) %>
+                    <% } else { %>
+                      —
+                    <% } %>
+                  </td>
+                  <td class="px-5 py-3 text-right">
+                    <button @click="openEditModal('<%= c.contact %>', '<%= (c.customer_name || '').replace(/'/g, "\\'") %>', '<%= (c.tags || '').replace(/'/g, "\\'") %>', '<%= (c.favorite_products || '').replace(/'/g, "\\'") %>', '<%= (c.notes || '').replace(/'/g, "\\'") %>', <%= c.total_orders || 0 %>, <%= c.total_spent || 0 %>)"
+                            class="p-1.5 rounded-lg hover:bg-[#F4F4F5] text-[#71717A] hover:text-[#18181B] transition-colors">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="6" class="px-5 py-12 text-center text-[#A1A1AA]">
+                  <svg class="w-10 h-10 mx-auto mb-3 text-[#D4D4D8]" fill="none" stroke="currentColor" stroke-width="1.25" viewBox="0 0 24 24">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                  <p class="text-sm font-medium text-[#71717A]">Belum ada data pelanggan</p>
+                  <p class="text-xs text-[#A1A1AA] mt-1">Data pelanggan akan terisi otomatis saat mereka menghubungi bot.</p>
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Edit Customer Modal -->
+  <div x-show="showEditModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-[#E4E4E7]" @click.away="showEditModal = false">
+      <div class="flex justify-between items-center pb-3 border-b border-[#E4E4E7]">
+        <h3 class="text-sm font-semibold text-[#18181B]">Edit Profil Pelanggan</h3>
+        <button @click="showEditModal = false" class="text-[#71717A] hover:text-[#18181B] text-base font-bold">&times;</button>
+      </div>
+
+      <form method="POST" :action="'/dashboard/customers/' + encodeURIComponent(editContact) + '/update'" class="space-y-3">
+        <div>
+          <label class="text-xs font-medium text-[#18181B]">Nama Pelanggan</label>
+          <input type="text" name="customer_name" x-model="editName" placeholder="Kak Rina"
+                 class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-[#18181B]">Tags</label>
+          <input type="text" name="tags" x-model="editTags" placeholder="vip, langganan, reseller"
+                 class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white">
+          <p class="text-[10px] text-[#A1A1AA] mt-1">Pisahkan dengan koma. Contoh: vip, langganan</p>
+        </div>
+        <div>
+          <label class="text-xs font-medium text-[#18181B]">Produk Favorit</label>
+          <input type="text" name="favorite_products" x-model="editFavorites" placeholder="Kopi Susu, Matcha Latte"
+                 class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white">
+        </div>
+        <div>
+          <label class="text-xs font-medium text-[#18181B]">Catatan Khusus</label>
+          <textarea name="notes" x-model="editNotes" rows="3" placeholder="Alergi kacang, selalu minta extra shot..."
+                    class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white resize-none"></textarea>
+          <p class="text-[10px] text-[#A1A1AA] mt-1">Catatan ini akan dikirim ke AI saat pelanggan ini chat.</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-medium text-[#18181B]">Total Order</label>
+            <input type="number" name="total_orders" x-model="editOrders" min="0"
+                   class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white">
+          </div>
+          <div>
+            <label class="text-xs font-medium text-[#18181B]">Total Belanja (Rp)</label>
+            <input type="number" name="total_spent" x-model="editSpent" min="0"
+                   class="w-full mt-1 px-3 py-2 text-sm border border-[#E4E4E7] rounded-xl focus:outline-none focus:border-[#18181B] bg-white">
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-[#E4E4E7]">
+          <button type="button" @click="showEditModal = false"
+                  class="px-4 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors">
+            Batal
+          </button>
+          <button type="submit"
+                  class="px-5 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors">
+            Simpan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function customerManager() {
+  return {
+    searchQuery: '',
+    showEditModal: false,
+    editContact: '',
+    editName: '',
+    editTags: '',
+    editFavorites: '',
+    editNotes: '',
+    editOrders: 0,
+    editSpent: 0,
+
+    openEditModal(contact, name, tags, favorites, notes, orders, spent) {
+      this.editContact = contact;
+      this.editName = name;
+      this.editTags = tags;
+      this.editFavorites = favorites;
+      this.editNotes = notes;
+      this.editOrders = orders;
+      this.editSpent = spent;
+      this.showEditModal = true;
+    },
+
+    filterCustomers() {
+      const q = this.searchQuery.toLowerCase().trim();
+      document.querySelectorAll('.customer-row').forEach(row => {
+        const name = row.dataset.name || '';
+        const tags = row.dataset.tags || '';
+        const contact = row.dataset.contact || '';
+        const match = !q || name.includes(q) || tags.includes(q) || contact.includes(q);
+        row.style.display = match ? '' : 'none';
+      });
+    }
+  };
+}
+</script>
+
+<%- include('../partials/footer') %>

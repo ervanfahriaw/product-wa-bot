@@ -106,6 +106,17 @@ function deleteExpense(id) {
   return result.changes > 0;
 }
 
+/**
+ * Mengambil daftar kategori pengeluaran unik yang pernah dicatat.
+ * @returns {Array<string>}
+ */
+function getExpenseCategories() {
+  const rows = db.prepare("SELECT DISTINCT category FROM expenses WHERE category IS NOT NULL AND category != '' ORDER BY category ASC").all();
+  const defaultCats = ['Makan & Minum', 'Transportasi', 'Belanja', 'Tagihan & Utilitas', 'Hiburan', 'Lain-lain'];
+  const dbCats = rows.map(r => r.category);
+  return Array.from(new Set([...defaultCats, ...dbCats]));
+}
+
 module.exports = {
   getExpenseById,
   getAllExpenses,
@@ -113,5 +124,6 @@ module.exports = {
   getMonthlyExpenses,
   createExpense,
   updateExpense,
-  deleteExpense
+  deleteExpense,
+  getExpenseCategories
 };
