@@ -75,7 +75,11 @@ async function triggerHandoverActions(contact, messageBody, reason, client, conf
   console.log(`[BusinessHandler] Bot otomatis DIJEDA 2 jam untuk kontak ${contact}.`);
 
   // 2. Catat tiket antrean di tabel manual_handovers untuk dipantau di Inbox Dashboard
-  if (db.createHandoverTicket) {
+  if (db.appendOrUpdateHandoverTicket) {
+    try {
+      db.appendOrUpdateHandoverTicket(contact, messageBody, reason || 'Nego Harga / Permintaan Khusus / Komplain');
+    } catch (_) {}
+  } else if (db.createHandoverTicket) {
     try {
       db.createHandoverTicket({
         contact,
@@ -202,6 +206,48 @@ async function handleBusinessMessage(message, client) {
     // 0. Cek apakah kontak sedang dalam status Dijeda (Paused / Handover Owner)
     if (db.isContactPaused(contact)) {
       console.log(`[BusinessHandler] Kontak ${contact} sedang dalam status DIJEDA (Paused/Handover). Mengabaikan balasan otomatis.`);
+
+      // 1. Simpan pesan masuk ke tabel chat_logs agar selalu muncul di Web Controller Chat Logs & CRM
+      try {
+        db.createChatLog({
+          contact,
+          message_in: messageBody,
+          message_out: '(Status Dijeda / Handover - Menunggu respon manual admin)',
+          handled_by: 'human'
+        });
+      } catch (_) {}
+
+      // 2. Perbarui / tambahkan pesan baru ke Tiket Handover agar muncul di Inbox Handover Dashboard
+      try {
+        if (db.appendOrUpdateHandoverTicket) {
+          db.appendOrUpdateHandoverTicket(contact, messageBody, 'Pesan Lanjutan saat Status Dijeda');
+        }
+      } catch (_) {}
+
+      // 3. Update waktu interaksi terakhir di profil pelanggan (CRM)
+      try {
+        if (db.updateLastContact) db.updateLastContact(contact);
+      } catch (_) {}
+
+      // 4. Teruskan notifikasi pesan baru ke nomor owner (jika nomor owner bukan pengirim itu sendiri)
+      try {
+        const config = getConfig();
+        const ownerPhone = db.getSetting('owner_phone') || config.owner_phone;
+        if (ownerPhone && client && typeof client.sendMessage === 'function') {
+          const cleanPhone = normalizePhoneNumber(ownerPhone);
+          const targetJid = toWhatsAppJid(ownerPhone);
+          if (targetJid && !contact.includes(cleanPhone)) {
+            const followUpNotice = `🔔 *[PESAN BARU - HANDOVER AKTIF]*\n\nPelanggan (*${contact}*) mengirim pesan lanjutan:\n\n💬 "${messageBody}"\n\n_Status bot masih DIJEDA. Silakan balas langsung melalui WhatsApp Anda._`;
+            let finalJid = targetJid;
+            if (typeof client.getNumberId === 'function') {
+              const numberId = await client.getNumberId(cleanPhone).catch(() => null);
+              if (numberId && numberId._serialized) finalJid = numberId._serialized;
+            }
+            await client.sendMessage(finalJid, followUpNotice).catch(() => {});
+          }
+        }
+      } catch (_) {}
+
       return;
     }
 

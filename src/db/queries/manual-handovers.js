@@ -56,6 +56,27 @@ function createHandoverTicket({ contact, customer_name = null, trigger_message, 
 }
 
 /**
+ * Menambahkan atau memperbarui pesan pada tiket handover yang sedang aktif (pending).
+ * @param {string} contact 
+ * @param {string} newMessage 
+ * @param {string} [reason] 
+ * @returns {number} ID tiket
+ */
+function appendOrUpdateHandoverTicket(contact, newMessage, reason = 'Pesan Tambahan dari Pelanggan') {
+  const existing = db.prepare("SELECT * FROM manual_handovers WHERE contact = ? AND status = 'pending' ORDER BY id DESC LIMIT 1").get(contact);
+  if (existing) {
+    const updatedMessage = `${existing.trigger_message}\n💬 ${newMessage}`;
+    db.prepare("UPDATE manual_handovers SET trigger_message = ?, created_at = CURRENT_TIMESTAMP WHERE id = ?").run(updatedMessage, existing.id);
+    return existing.id;
+  }
+  return createHandoverTicket({
+    contact,
+    trigger_message: newMessage,
+    reason
+  });
+}
+
+/**
  * Menyelesaikan / menutup tiket handover manual.
  * @param {number} id 
  * @returns {boolean}
@@ -84,6 +105,7 @@ module.exports = {
   getAllHandovers,
   getPendingHandoverCount,
   createHandoverTicket,
+  appendOrUpdateHandoverTicket,
   resolveHandoverTicket,
   deleteHandoverTicket
 };

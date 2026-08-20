@@ -251,6 +251,27 @@ async function startSuite() {
     assert.strictEqual(db.isContactPaused(contactJid), false);
   });
 
+  runTest('TC-HND-03: appendOrUpdateHandoverTicket mengupdate pesan thread secara realtime', () => {
+    const contactJid = '6281277776666@c.us';
+    
+    // Pesan 1: Bikin tiket awal
+    const ticketId1 = db.appendOrUpdateHandoverTicket(contactJid, 'mahal banget ka 120k', 'Nego Harga');
+    assert.ok(ticketId1 > 0);
+
+    // Pesan 2: Pesan lanjutan saat paused
+    const ticketId2 = db.appendOrUpdateHandoverTicket(contactJid, '120k 2 pasang dapet ga', 'Pesan Lanjutan');
+    assert.strictEqual(ticketId1, ticketId2, 'Tiket harus di-append ke ID yang sama');
+
+    const handovers = db.getAllHandovers('pending');
+    const target = handovers.find(h => h.id === ticketId1);
+    assert.ok(target);
+    assert.ok(target.trigger_message.includes('mahal banget ka 120k'));
+    assert.ok(target.trigger_message.includes('120k 2 pasang dapet ga'));
+
+    // Bersihkan tiket tes
+    db.deleteHandoverTicket(ticketId1);
+  });
+
   // ==========================================
   // GRUP 7: Message Bubble Splitter & Anti-Ban
   // ==========================================
