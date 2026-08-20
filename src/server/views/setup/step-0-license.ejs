@@ -1,0 +1,103 @@
+<%- include('../partials/header') %>
+
+<%
+  const edition = typeof editionInfo !== 'undefined' ? editionInfo : { name: 'WhatsApp Bot Assistant', badgeText: 'License' };
+  const isBisnisEd = typeof isBusiness !== 'undefined' ? isBusiness : false;
+  const isPersonalEd = typeof isPersonal !== 'undefined' ? isPersonal : false;
+%>
+
+<div class="max-w-xl mx-auto py-12 px-4">
+  <div class="bg-white rounded-2xl border border-[#E4E4E7] p-8 space-y-6 shadow-sm">
+    
+    <div class="text-center space-y-2">
+      <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border bg-emerald-50 text-emerald-800 border-emerald-200">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span>Aktivasi Lisensi Resmi</span>
+      </div>
+      
+      <h1 class="text-2xl font-bold tracking-tight text-[#18181B]">
+        <%= isBisnisEd ? 'WA Bot Bisnis AI' : (isPersonalEd ? 'WA Asisten Pribadi AI' : 'WA Bot Digital') %>
+      </h1>
+      <p class="text-xs text-[#71717A] max-w-md mx-auto">
+        Masukkan kode lisensi resmi yang Anda dapatkan setelah pembelian di Lynk.id untuk mengaktifkan software di perangkat ini.
+      </p>
+    </div>
+
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="p-4 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-800 flex items-start space-x-2">
+        <svg class="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <div class="flex-1">
+          <p class="font-semibold mb-0.5">Aktivasi Gagal</p>
+          <p><%= error %></p>
+        </div>
+      </div>
+    <% } %>
+
+    <form action="/setup/license" method="POST" class="space-y-5">
+      <div>
+        <label class="block text-xs font-semibold text-[#18181B] mb-1.5">Kode Lisensi (License Key)</label>
+        <div class="relative">
+          <input type="text" 
+                 name="license_key" 
+                 required 
+                 placeholder="Contoh: WABOT-BIZ-XXXX-YYYY-ZZZZ"
+                 value="<%= typeof licenseKey !== 'undefined' ? licenseKey : '' %>"
+                 class="w-full px-4 py-2.5 uppercase font-mono text-sm border border-[#E4E4E7] rounded-xl text-[#18181B] placeholder:text-[#A1A1AA] focus:outline-none focus:border-[#18181B] transition-colors">
+        </div>
+        <p class="text-[11px] text-[#71717A] mt-1.5">
+          Format: <span class="font-mono font-semibold">WABOT-<%= isBisnisEd ? 'BIZ' : (isPersonalEd ? 'PERS' : 'XXX') %>-XXXX-YYYY-ZZZZ</span>
+        </p>
+      </div>
+
+      <!-- Info Box Hardware Fingerprint -->
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7] text-xs space-y-1.5">
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-[#71717A]">Hardware ID (HWID):</span>
+          <span class="font-mono font-semibold text-[#18181B] truncate max-w-[240px]">
+            <%= (typeof fingerprint !== 'undefined' && fingerprint.hwid) ? fingerprint.hwid.substring(0, 20) + '...' : 'Terdeteksi Otomatis' %>
+          </span>
+        </div>
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-[#71717A]">Perangkat Terdeteksi:</span>
+          <span class="text-[#18181B] font-medium">
+            <%= (typeof fingerprint !== 'undefined' && fingerprint.deviceName) ? fingerprint.deviceName : 'Komputer Lokal' %>
+          </span>
+        </div>
+        <p class="text-[10px] text-[#A1A1AA] pt-1 border-t border-[#E4E4E7]">
+          * 1 Lisensi resmi berlaku untuk 1 perangkat utama (Laptop/PC/VPS). Anda dapat memindahkan lisensi sewaktu-waktu melalui menu Pengaturan.
+        </p>
+      </div>
+
+      <!-- Optional Server URL toggle (untuk server lisensi kustom / self-hosted) -->
+      <div x-data="{ showAdvanced: false }" class="pt-1">
+        <button type="button" @click="showAdvanced = !showAdvanced" class="text-[11px] text-[#71717A] hover:text-[#18181B] flex items-center gap-1">
+          <span x-text="showAdvanced ? '− Sembunyikan Opsi Lanjutan' : '+ Opsi Server Aktivasi Lanjutan'"></span>
+        </button>
+        <div x-show="showAdvanced" x-transition class="mt-2 space-y-2">
+          <label class="block text-[11px] font-medium text-[#71717A]">URL Server Lisensi Kustom</label>
+          <input type="url" name="server_url" placeholder="https://license.wabot.internal"
+                 class="w-full px-3 py-1.5 text-xs border border-[#E4E4E7] rounded-lg text-[#18181B] focus:outline-none focus:border-[#18181B]">
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <button type="submit" 
+                class="w-full py-3 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-semibold tracking-wide transition-all shadow-sm">
+          Aktifkan & Lanjutkan ke Setup →
+        </button>
+      </div>
+    </form>
+
+    <div class="pt-4 border-t border-[#E4E4E7] text-center">
+      <p class="text-[11px] text-[#71717A]">
+        Belum memiliki lisensi? Dapatkan secara resmi di <span class="font-semibold text-[#18181B]">Lynk.id</span>
+      </p>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

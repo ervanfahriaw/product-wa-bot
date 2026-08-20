@@ -32,16 +32,23 @@ function getFaqById(id) {
  * @param {object} data
  * @returns {number} ID FAQ yang dibuat
  */
-function createFaq(data) {
+function createFaq(data = {}) {
+  const keywords = data.trigger_keywords || data.keywords || data.question || '';
+  const label = data.question_label || data.question || 'FAQ';
+  const answer = data.answer || '';
+  const category = data.category || 'Umum';
+  const isActive = typeof data.is_active !== 'undefined' ? data.is_active : 1;
+
   const stmt = db.prepare(`
-    INSERT INTO faqs (trigger_keywords, question_label, answer, is_active)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO faqs (trigger_keywords, question_label, answer, category, is_active)
+    VALUES (?, ?, ?, ?, ?)
   `);
   const result = stmt.run(
-    data.trigger_keywords,
-    data.question_label,
-    data.answer,
-    typeof data.is_active !== 'undefined' ? data.is_active : 1
+    keywords,
+    label,
+    answer,
+    category,
+    isActive
   );
   return result.lastInsertRowid;
 }

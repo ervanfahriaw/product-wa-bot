@@ -216,5 +216,6 @@ module.exports = {
   hasCheckedInToday,
   getCheckinCount,
   getHabitLogs,
-  calculateStreak
+  calculateStreak,
+  getHabitStreak: calculateStreak
 };

@@ -30,40 +30,62 @@ function getCustomerProfile(contact) {
 /**
  * Membuat atau memperbarui profil pelanggan (UPSERT).
  * Hanya field yang disediakan yang akan diupdate — field yang tidak disediakan tetap.
- * @param {string} contact 
- * @param {object} data 
+ * @param {string|object} contactOrData 
+ * @param {object} [data] 
  */
-function upsertCustomerProfile(contact, data = {}) {
+function upsertCustomerProfile(contactOrData, data = {}) {
+  let contact = '';
+  let payload = {};
+
+  if (typeof contactOrData === 'object' && contactOrData !== null) {
+    contact = contactOrData.contact || '';
+    payload = { ...contactOrData };
+  } else {
+    contact = contactOrData;
+    payload = { ...data };
+  }
+
   if (!contact) return;
+
+  const customerName = payload.customer_name || payload.name || null;
+  const leadStatus = payload.customer_status || payload.lead_status || 'new';
 
   const existing = getCustomerProfile(contact);
 
   if (!existing) {
     // INSERT baru
     const stmt = db.prepare(`
-      INSERT INTO customer_profiles (contact, customer_name, tags, favorite_products, notes, total_orders, total_spent, first_contact_at, last_contact_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO customer_profiles (contact, customer_name, customer_status, tags, favorite_products, notes, total_orders, total_spent, first_contact_at, last_contact_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
     stmt.run(
       contact,
-      data.customer_name || null,
-      data.tags || null,
-      data.favorite_products || null,
-      data.notes || null,
-      data.total_orders || 0,
-      data.total_spent || 0
+      customerName,
+      leadStatus,
+      payload.tags || null,
+      payload.favorite_products || null,
+      payload.notes || null,
+      Number(payload.total_orders) || 0,
+      Number(payload.total_spent) || 0
     );
   } else {
     // UPDATE hanya field yang disediakan
     const updates = [];
     const values = [];
 
-    if (typeof data.customer_name !== 'undefined') { updates.push('customer_name = ?'); values.push(data.customer_name); }
-    if (typeof data.tags !== 'undefined') { updates.push('tags = ?'); values.push(data.tags); }
-    if (typeof data.favorite_products !== 'undefined') { updates.push('favorite_products = ?'); values.push(data.favorite_products); }
-    if (typeof data.notes !== 'undefined') { updates.push('notes = ?'); values.push(data.notes); }
-    if (typeof data.total_orders !== 'undefined') { updates.push('total_orders = ?'); values.push(data.total_orders); }
-    if (typeof data.total_spent !== 'undefined') { updates.push('total_spent = ?'); values.push(data.total_spent); }
+    if (typeof payload.customer_name !== 'undefined' || typeof payload.name !== 'undefined') { 
+      updates.push('customer_name = ?'); 
+      values.push(customerName); 
+    }
+    if (typeof payload.customer_status !== 'undefined' || typeof payload.lead_status !== 'undefined') { 
+      updates.push('customer_status = ?'); 
+      values.push(leadStatus); 
+    }
+    if (typeof payload.tags !== 'undefined') { updates.push('tags = ?'); values.push(payload.tags); }
+    if (typeof payload.favorite_products !== 'undefined') { updates.push('favorite_products = ?'); values.push(payload.favorite_products); }
+    if (typeof payload.notes !== 'undefined') { updates.push('notes = ?'); values.push(payload.notes); }
+    if (typeof payload.total_orders !== 'undefined') { updates.push('total_orders = ?'); values.push(Number(payload.total_orders) || 0); }
+    if (typeof payload.total_spent !== 'undefined') { updates.push('total_spent = ?'); values.push(Number(payload.total_spent) || 0); }
 
     if (updates.length > 0) {
       updates.push('updated_at = CURRENT_TIMESTAMP');

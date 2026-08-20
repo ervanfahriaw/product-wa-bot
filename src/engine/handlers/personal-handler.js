@@ -1,24 +1,39 @@
 const db = require('../../db');
 const { getConfig } = require('../../config');
-const { generateReply } = require('../../ai');
+const ai = require('../../ai');
 const { splitIntoBubbles, sendMultiBubbleMessages } = require('../bubble-sender');
+const { normalizeCategory, isSameCategory } = require('../../utils/categories');
+const { detectPreferenceUpdatesFromText, saveUserPreferences } = require('../../utils/user-preferences');
 
 /**
  * Ekstraksi nilai nominal dan kategori pengeluaran dari teks kalimat bebas (Fallback / Rule-based Parser).
+ * Dilengkapi exclusion guard agar perubahan budget / penghapusan / percakapan tidak keliru dicatat sebagai transaksi baru.
  * @param {string} text 
  * @returns {{category: string, amount: number, note: string}|null}
  */
 function extractExpenseFromText(text = '') {
   const lower = text.toLowerCase().trim();
 
-  // Pattern pencarian nominal (cth: 20rb, 20.000, 20k, 1jt, 50000)
+  // 1. Exclusion Guards: Jangan ekstrak jika ini adalah perintah non-transaksi, komplain, curhat, negasi, musibah, atau pertanyaan
+  if (/(?:budget|anggaran|limit|batas|pindah|recategorize|hapus|delete|batalkan|koreksi|ubah|salah|goal|target|tugas|todo|catat|note|jurnal|diary|curhat|carita|cerita|reminder|ingatkan|tunda|snooze|katanya|kenapa|kok|sisa|berapa|sudah di|dari\s+\d+|jadi\s+\d+|set\s+ke|di\s+set|atur\s+ke|malah|hanya\s+minta|masukan\s+ke|tebisa|teu\s+bisa|ga\s+bisa|gak\s+bisa|ngga\s+bisa|tidak\s+bisa|belum|can\s+dibayar|teu\s+boga|ga\s+ada\s+duit|dipenta|ditagih|utang|hutang|pinjam|nginjeum|cilaka|kacilakaan|kecelakaan|tabrakan|nabrak|darurat|rusak|bocor|gugup|baper|stres|stress|kesal|marah|sia|anying|anjing|goblok|teu\s+guna|apa\s+itu|artinya)/i.test(lower)) {
+    return null;
+  }
+
+  // 2. Pattern pencarian nominal (cth: 20rb, 20.000, 20k, 1jt, 50000, 20 k)
   const regex = /(?:rp\.?\s*)?(\d+(?:[.,]\d+)?)\s*(rb|ribu|k|jt|juta)?(?:\b|$)/i;
   const match = lower.match(regex);
-
   if (!match) return null;
 
+  // 3. Pastikan ada kata transaksi / pengeluaran atau kata kunci kategori yang dikenali
+  const hasTransactionVerb = /(?:beli|meuli|bayar|mayar|keluar|habis|sewa|nyewa|topup|tf|transfer|jajan|ngopi|makan|minum|dahar|sarapan|lunch|dinner|tambal|tambal\s+ban|isi\s+bensin|bensin|pertalite|pertamax|parkir|ojol|grab|gojek|ongkir|ongkos|servis|service|ganti\s+oli|belanja|pesan|order|tiket|tagihan|iuran|bpjs|listrik|pulsa|kuota|wifi|obat|vitamin|dokter|gym|buku|kaos|sepatu)/i.test(lower);
+
+  // Jika tidak ada kata aksi transaksi atau kalimat terlalu panjang (> 10 kata), jangan diekstrak otomatis
+  if (!hasTransactionVerb || lower.split(/\s+/).length > 10) {
+    return null;
+  }
+
   let baseNum = parseFloat(match[1].replace(',', '.'));
-  const unit = (match[2] || '').toLowerCase();
+  const unit = (match[2] || '').toLowerCase().trim();
 
   if (unit === 'rb' || unit === 'ribu' || unit === 'k') {
     baseNum *= 1000;
@@ -26,19 +41,7 @@ function extractExpenseFromText(text = '') {
     baseNum *= 1000000;
   }
 
-  // Cari kategori berdasarkan kata kunci umum
-  let category = 'Lain-lain';
-  if (/makan|minum|kopi|lunch|dinner|sarapan|snack|resto|cafe|boba/i.test(lower)) {
-    category = 'Makanan & Minuman';
-  } else if (/bensin|pertalite|pertamax|parkir|toll|ojol|grab|gojek|transport/i.test(lower)) {
-    category = 'Transportasi';
-  } else if (/listrik|air|pdam|wifi|pulsa|kuota|indihome|token/i.test(lower)) {
-    category = 'Tagihan & Utilitas';
-  } else if (/belanja|baju|sepatu|shopee|tokped|lazada|supermarket|indomaret|alfamart/i.test(lower)) {
-    category = 'Belanja';
-  } else if (/obat|dokter|apotek|vitamin|klinik|sakit/i.test(lower)) {
-    category = 'Kesehatan';
-  }
+  const category = normalizeCategory(lower);
 
   return {
     category,
@@ -109,11 +112,14 @@ async function handlePersonalMessage(message, client) {
   try {
     const config = getConfig();
 
-    // 1. Simulasikan jeda manusiawi & status typing untuk anti-banned
+    // 1. Deteksi & simpan preferensi panggilan/nama secara otomatis
+    detectPreferenceUpdatesFromText(messageBody);
+
+    // 2. Simulasikan jeda manusiawi & status typing untuk anti-banned
     await simulateHumanTyping(message);
 
-    // 2. Dapatkan respons AI dengan RAG context + riwayat chat
-    const aiResult = await generateReply({
+    // 3. Dapatkan respons AI dengan RAG context + riwayat chat
+    const aiResult = await ai.generateReply({
       message: messageBody,
       mode: 'personal',
       contact
@@ -123,33 +129,103 @@ async function handlePersonalMessage(message, client) {
     const aiIntent = parseAiIntent(finalReply);
     const textExtraction = extractExpenseFromText(messageBody);
 
-    // 3. Pemrosesan Pencatatan Pengeluaran
-    if (aiIntent?.intent === 'record_expense' || (!aiIntent && textExtraction)) {
-      const category = aiIntent?.category || textExtraction?.category || 'Lain-lain';
-      const amount = Number(aiIntent?.amount || textExtraction?.amount);
-      const note = aiIntent?.note || textExtraction?.note || messageBody;
+    // 4. Update preferensi jika ada intent AI
+    if (aiIntent?.intent === 'set_user_preference') {
+      saveUserPreferences({
+        userName: aiIntent.user_name || aiIntent.call_user_as,
+        callUserAs: aiIntent.call_user_as || aiIntent.user_name,
+        assistantName: aiIntent.assistant_name,
+        disallowKak: Boolean(aiIntent.disallow_kak)
+      });
+    }
 
-      if (amount > 0 && amount < 100000000000) {
-        db.createExpense({ category, amount, note });
-        
-        // Buat balasan konfirmasi terstruktur jika AI belum menyertakannya
-        if (!finalReply.includes(amount.toLocaleString('id-ID')) && !finalReply.includes('Dicatat')) {
-          finalReply = `✅ *Pengeluaran Dicatat:*\n- Kategori: ${category}\n- Nominal: Rp${amount.toLocaleString('id-ID')}\n- Catatan: ${note}\n\nData telah tersimpan di rekap keuangan lokal.`;
-        } else {
-          // Bersihkan blok JSON dari pesan WhatsApp jika ada
-          finalReply = finalReply.replace(/```json[\s\S]*?```/g, '').replace(/\{[\s\S]*?"intent"[\s\S]*?\}/g, '').trim();
+    // 5. Pemrosesan Pencatatan Pengeluaran Baru
+    if (aiIntent?.intent === 'record_expense' || (!aiIntent && textExtraction)) {
+      // Guard: Pastikan bukan cerita musibah / negasi / belum bayar / curhat
+      const isNegatedOrStory = /(?:tebisa|teu\s+bisa|ga\s+bisa|gak\s+bisa|tidak\s+bisa|belum|can\s+dibayar|teu\s+boga|ga\s+ada\s+duit|dipenta|ditagih|utang|hutang|pinjam|nginjeum|cilaka|kacilakaan|kecelakaan|tabrakan|nabrak|darurat|bocor)/i.test(messageBody);
+
+      if (!isNegatedOrStory) {
+        const rawCategory = aiIntent?.category || textExtraction?.category || 'Lain-lain';
+        const category = normalizeCategory(rawCategory);
+        const amount = Number(aiIntent?.amount || textExtraction?.amount);
+        const note = aiIntent?.note || textExtraction?.note || messageBody;
+
+        if (amount > 0 && amount < 100000000000) {
+          db.createExpense({ category, amount, note });
+          
+          // Buat balasan konfirmasi terstruktur jika AI belum menyertakannya
+          if (!finalReply.includes(amount.toLocaleString('id-ID')) && !finalReply.includes('Dicatat')) {
+            finalReply = `✅ *Pengeluaran Dicatat:*\n- Kategori: ${category}\n- Nominal: Rp${amount.toLocaleString('id-ID')}\n- Catatan: ${note}\n\nData telah tersimpan di rekap keuangan lokal.`;
+          }
         }
       }
     }
 
+    // 6. Pemrosesan Rekategorisasi / Pindah Pengeluaran
+    if (aiIntent?.intent === 'recategorize_expense') {
+      const fromCat = aiIntent.from_category || aiIntent.from || '';
+      const toCat = aiIntent.to_category || aiIntent.to || '';
+
+      if (fromCat && toCat && db.recategorizeExpenses) {
+        const result = db.recategorizeExpenses(fromCat, toCat);
+        if (result.affected > 0) {
+          finalReply = `🔄 *Kategori Pengeluaran Dipindahkan:*\n- Dari: *${result.from}*\n- Menjadi: *${result.to}*\n- Transaksi disesuaikan: ${result.affected} catatan\n\nRekap keuangan & budget telah diperbarui! ✨`;
+        } else {
+          finalReply = `ℹ️ Tidak menemukan transaksi pengeluaran lama pada kategori "${fromCat}". Kategori target "${normalizeCategory(toCat)}" sudah siap digunakan!`;
+        }
+      }
+    }
+
+    // 7. Pemrosesan Hapus Pengeluaran / Undo
+    if (aiIntent?.intent === 'delete_expense' || aiIntent?.intent === 'undo_expense') {
+      let deleted = null;
+      if (aiIntent.amount || aiIntent.keyword || aiIntent.category) {
+        const res = db.deleteExpenseByKeywordOrAmount({
+          amount: aiIntent.amount,
+          keyword: aiIntent.keyword,
+          category: aiIntent.category
+        });
+        if (res.success && res.deletedExpenses.length > 0) {
+          deleted = res.deletedExpenses[0];
+        }
+      } else if (db.deleteLastExpense) {
+        const res = db.deleteLastExpense();
+        if (res.success) deleted = res.deletedExpense;
+      }
+
+      if (deleted) {
+        finalReply = `🗑️ *Pengeluaran Berhasil Dihapus:*\n- Kategori: ${deleted.category}\n- Nominal: Rp${Number(deleted.amount).toLocaleString('id-ID')}\n- Catatan: ${deleted.note || '-'}\n\nRekap keuangan telah diperbarui.`;
+      } else {
+        finalReply = '❌ Tidak menemukan transaksi pengeluaran yang sesuai untuk dihapus.';
+      }
+    }
+
+    // 8. Pemrosesan Koreksi / Edit Pengeluaran
+    if (aiIntent?.intent === 'edit_expense') {
+      const last = db.getLastExpense ? db.getLastExpense() : null;
+      if (last && db.updateExpense) {
+        db.updateExpense(last.id, {
+          category: aiIntent.new_category || last.category,
+          amount: aiIntent.new_amount || last.amount,
+          note: aiIntent.new_note || last.note
+        });
+        const updatedAmt = aiIntent.new_amount || last.amount;
+        const updatedCat = aiIntent.new_category ? normalizeCategory(aiIntent.new_category) : last.category;
+        finalReply = `✏️ *Pengeluaran Berhasil Dikoreksi:*\n- Kategori: ${updatedCat}\n- Nominal: Rp${Number(updatedAmt).toLocaleString('id-ID')}\n- Catatan: ${aiIntent.new_note || last.note}\n\nData telah disesuaikan di database! 👍`;
+      } else {
+        finalReply = '❌ Tidak ada catatan pengeluaran sebelumnya yang bisa dikoreksi.';
+      }
+    }
+
     // 4. Pemrosesan Pembuatan Reminder (satu kali DAN berulang)
-    if (aiIntent?.intent === 'set_reminder' && aiIntent.trigger_at) {
+    if (aiIntent?.intent === 'set_reminder' && (aiIntent.trigger_at || aiIntent.event_date)) {
       const recurrenceType = aiIntent.recurrence_type || null;
-      const reminderLabel = aiIntent.message || messageBody;
+      const reminderLabel = aiIntent.message || aiIntent.title || messageBody;
+      const triggerTime = aiIntent.trigger_at || aiIntent.event_date;
       
       db.createReminder({
         message: reminderLabel,
-        trigger_at: aiIntent.trigger_at,
+        trigger_at: triggerTime,
         is_recurring: recurrenceType ? 1 : 0,
         sent: 0,
         label: reminderLabel.toLowerCase().substring(0, 100),
@@ -159,10 +235,10 @@ async function handlePersonalMessage(message, client) {
       if (recurrenceType) {
         const typeLabel = recurrenceType === 'daily' ? 'setiap hari' 
           : recurrenceType === 'weekly' ? 'setiap minggu' : 'setiap bulan';
-        const timeOnly = aiIntent.trigger_at.substring(11, 16);
-        finalReply = `⏰ *Pengingat Berulang Disimpan:*\n🔄 "${reminderLabel}" — ${typeLabel} jam ${timeOnly}\nMulai: ${aiIntent.trigger_at}\n\nBot akan mengirimkan pesan secara ${typeLabel} pada waktu yang ditentukan.`;
+        const timeOnly = triggerTime.substring(11, 16);
+        finalReply = `⏰ *Pengingat Berulang Disimpan:*\n🔄 "${reminderLabel}" — ${typeLabel} jam ${timeOnly}\nMulai: ${triggerTime}\n\nBot akan mengirimkan pesan secara ${typeLabel} pada waktu yang ditentukan.`;
       } else {
-        finalReply = `⏰ *Pengingat Disimpan:*\n"${reminderLabel}" pada ${aiIntent.trigger_at}.\nBot akan mengirimkan pesan saat waktunya tiba.`;
+        finalReply = `⏰ *Pengingat Disimpan:*\n"${reminderLabel}" pada ${triggerTime}.\nBot akan mengirimkan pesan pengingat ke WhatsApp saat waktunya tiba! 🔔`;
       }
     }
 
@@ -212,15 +288,18 @@ async function handlePersonalMessage(message, client) {
 
     // ========== NOTES (Catatan Cepat) ==========
 
-    // 8. Simpan Catatan
+    // 8. Simpan Catatan (Hanya jika bukan umpatan / keluhan / pertanyaan definisi)
     if (aiIntent?.intent === 'save_note') {
-      const title = aiIntent.title || null;
-      const content = aiIntent.content || messageBody;
-      const tags = aiIntent.tags || null;
+      const isInsultOrComplaint = /(?:teu\s+guna|goblok|anjing|anying|sia|kampret|bangsat|tai|bego|tolol|muka\s+kamu|apa\s+itu|artinya)/i.test(messageBody);
+      if (!isInsultOrComplaint) {
+        const title = aiIntent.title || null;
+        const content = aiIntent.content || messageBody;
+        const tags = aiIntent.tags || null;
 
-      if (content && content.trim()) {
-        db.createNote({ title, content, tags });
-        finalReply = `📝 *Catatan Disimpan:*\n${title ? `📌 "${title}"\n` : ''}${content}\n${tags ? `🏷️ Tags: ${tags}` : ''}\n\n_Chat "daftar catatan" untuk lihat semua._`;
+        if (content && content.trim()) {
+          db.createNote({ title, content, tags });
+          finalReply = `📝 *Catatan Disimpan:*\n${title ? `📌 "${title}"\n` : ''}${content}\n${tags ? `🏷️ Tags: ${tags}` : ''}\n\n_Chat "daftar catatan" untuk lihat semua._`;
+        }
       }
     }
 
@@ -323,7 +402,7 @@ async function handlePersonalMessage(message, client) {
 
     // 16. Set Budget
     if (aiIntent?.intent === 'set_budget' && aiIntent.category && aiIntent.monthly_limit) {
-      const category = aiIntent.category;
+      const category = normalizeCategory(aiIntent.category);
       const limit = Number(aiIntent.monthly_limit);
       const alertPercent = Number(aiIntent.alert_at_percent) || 80;
 
@@ -344,11 +423,12 @@ async function handlePersonalMessage(message, client) {
         // Filter by specific category if provided
         let filtered = statuses;
         if (aiIntent.category && aiIntent.intent === 'check_budget') {
-          filtered = statuses.filter(s => s.category.toLowerCase().includes(aiIntent.category.toLowerCase()));
+          filtered = statuses.filter(s => isSameCategory(s.category, aiIntent.category));
         }
 
         if (filtered.length === 0) {
-          finalReply = `❌ Tidak ada budget untuk kategori "${aiIntent.category}".`;
+          const normQuery = normalizeCategory(aiIntent.category);
+          finalReply = `❌ Tidak ada budget untuk kategori "${normQuery}". Coba atur dengan chat "budget ${normQuery} [jumlah]".`;
         } else {
           const lines = filtered.map((s, i) => {
             const statusIcon = s.status === 'over' ? '🔴' : s.status === 'warning' ? '🟡' : '🟢';
@@ -364,7 +444,13 @@ async function handlePersonalMessage(message, client) {
       const budget = db.getBudgetByCategory ? db.getBudgetByCategory(aiIntent.category) : null;
       if (budget) {
         db.deleteBudget(budget.id);
-        finalReply = `🗑️ Budget "${budget.category}" (Rp${budget.monthly_limit.toLocaleString('id-ID')}/bulan) berhasil dihapus.`;
+        let transferMsg = '';
+        const moveToCat = aiIntent.move_to_category || aiIntent.move_to;
+        if (moveToCat && db.recategorizeExpenses) {
+          const recat = db.recategorizeExpenses(budget.category, moveToCat);
+          transferMsg = `\n🔄 Pengeluaran sebelumnya (${recat.affected} transaksi) telah dialihkan ke kategori *${recat.to}*.`;
+        }
+        finalReply = `🗑️ Budget "${budget.category}" (Rp${budget.monthly_limit.toLocaleString('id-ID')}/bulan) berhasil dihapus.${transferMsg}`;
       } else {
         finalReply = `❌ Tidak menemukan budget untuk kategori "${aiIntent.category}".`;
       }
@@ -485,18 +571,67 @@ async function handlePersonalMessage(message, client) {
 
     // ========== EVENT SCHEDULER ==========
 
-    // 25. Buat Jadwal/Acara
-    if (aiIntent?.intent === 'create_event' && aiIntent.title && aiIntent.event_date) {
-      if (db.createEvent) {
+    // 25. Buat Jadwal/Acara (atau konversi otomatis ke Reminder jika user minta "ingatkan")
+    if (aiIntent?.intent === 'create_event' && (aiIntent.title || aiIntent.message) && (aiIntent.event_date || aiIntent.trigger_at)) {
+      const title = aiIntent.title || aiIntent.message || messageBody;
+      const eventDate = aiIntent.event_date || aiIntent.trigger_at;
+      const isReminderPhrasing = /(?:ingatkan|ingetin|reminder|tolong ingatkan|jangan lupa|alarm)/i.test(messageBody);
+
+      if (isReminderPhrasing) {
+        // User secara jelas meminta untuk diingatkan melalui pesan WhatsApp -> Jadwalkan Reminder
+        const recurrenceType = aiIntent.recurrence_type || null;
+        db.createReminder({
+          message: title,
+          trigger_at: eventDate,
+          is_recurring: recurrenceType ? 1 : 0,
+          sent: 0,
+          label: title.toLowerCase().substring(0, 100),
+          recurrence_type: recurrenceType
+        });
+
+        if (recurrenceType) {
+          const typeLabel = recurrenceType === 'daily' ? 'setiap hari' : recurrenceType === 'weekly' ? 'setiap minggu' : 'setiap bulan';
+          finalReply = `⏰ *Pengingat Berulang Disimpan:*\n🔄 "${title}" — ${typeLabel}\nMulai: ${eventDate}\n\nBot akan mengirimkan pesan pengingat ke WhatsApp tepat waktu! 🔔`;
+        } else {
+          finalReply = `⏰ *Pengingat Disimpan:*\n"${title}" pada ${eventDate}.\nBot akan mengirimkan pesan pengingat ke WhatsApp saat waktunya tiba! 🔔`;
+        }
+      } else if (db.createEvent) {
+        // User mencatat agenda / jadwal acara di kalender
+        const remindMins = Number(aiIntent.remind_before_minutes) || 30;
         db.createEvent({
-          title: aiIntent.title,
-          event_date: aiIntent.event_date,
+          title,
+          event_date: eventDate,
           location: aiIntent.location || null,
           description: aiIntent.description || null,
-          remind_before_minutes: aiIntent.remind_before_minutes || 30
+          remind_before_minutes: remindMins
         });
+
+        // Buat pengingat otomatis di tabel reminders sebelum acara dimulai
+        try {
+          const evTime = new Date(eventDate);
+          if (!isNaN(evTime.getTime())) {
+            const remindTime = new Date(evTime.getTime() - remindMins * 60000);
+            const y = remindTime.getFullYear();
+            const m = String(remindTime.getMonth() + 1).padStart(2, '0');
+            const d = String(remindTime.getDate()).padStart(2, '0');
+            const h = String(remindTime.getHours()).padStart(2, '0');
+            const min = String(remindTime.getMinutes()).padStart(2, '0');
+            const s = String(remindTime.getSeconds()).padStart(2, '0');
+            const triggerAt = `${y}-${m}-${d} ${h}:${min}:${s}`;
+
+            db.createReminder({
+              message: `[Jadwal Acara Sebentar Lagi]: ${title}${aiIntent.location ? ` di ${aiIntent.location}` : ''}`,
+              trigger_at: triggerAt,
+              is_recurring: 0,
+              sent: 0,
+              label: `event_${title}`.toLowerCase().substring(0, 100),
+              recurrence_type: null
+            });
+          }
+        } catch (_) {}
+
         const loc = aiIntent.location ? `\n📍 Lokasi: ${aiIntent.location}` : '';
-        finalReply = `📅 *Jadwal Ditambahkan:*\n📌 "${aiIntent.title}"\n🕐 ${aiIntent.event_date}${loc}\n🔔 Pengingat: ${aiIntent.remind_before_minutes || 30} menit sebelumnya\n\n_Chat "daftar jadwal" untuk lihat semua._`;
+        finalReply = `📅 *Jadwal Ditambahkan:*\n📌 "${title}"\n🕐 ${eventDate}${loc}\n🔔 Pengingat: ${remindMins} menit sebelumnya\n\n_Chat "daftar jadwal" untuk lihat semua._`;
       }
     }
 
@@ -528,9 +663,10 @@ async function handlePersonalMessage(message, client) {
 
     // ========== DAILY JOURNAL ==========
 
-    // 28. Tulis Jurnal
+    // 28. Tulis Jurnal (Hanya jika pengguna eksplisit minta jurnal / bukan protes curhat)
     if (aiIntent?.intent === 'write_journal' && aiIntent.content) {
-      if (db.createJournal) {
+      const isCasualVentOrProtest = /(?:ai\s+sia|naon\s+ngadon\s+nulis|rek\s+curhat|mau\s+curhat|jangan\s+nulis|tong\s+nulis|tong\s+dicatet|curhat\s+saja|ngobrol\s+aja|kacilakaan|cilaka|tabrakan)/i.test(messageBody);
+      if (!isCasualVentOrProtest && db.createJournal) {
         db.createJournal({
           content: aiIntent.content,
           mood: aiIntent.mood || null,
@@ -688,6 +824,13 @@ async function handlePersonalMessage(message, client) {
     if (aiIntent?.intent === 'export_data') {
       const type = aiIntent.type || 'all';
       finalReply = `📥 *Export Data*\n\nUntuk download data ${type} dalam format CSV, silakan buka dashboard:\n\n🌐 *http://localhost:3000/dashboard/export*\n\nDi sana kamu bisa pilih dan download data yang kamu butuhkan.`;
+    }
+
+    // Bersihkan blok JSON intent yang mungkin tersisa dalam balasan WhatsApp
+    finalReply = finalReply.replace(/```json[\s\S]*?```/g, '').replace(/\{[\s\S]*?"intent"[\s\S]*?\}/g, '').trim();
+
+    if (!finalReply) {
+      finalReply = 'Siap, sudah dicatat dan diperbarui ya! 👍';
     }
 
     // Pecah pesan panjang menjadi gelembung chat alami & kirim bertahap

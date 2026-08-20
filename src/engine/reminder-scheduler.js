@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const db = require('../db');
 const { getConfig } = require('../config');
+const { toWhatsAppJid } = require('../utils/phone');
 
 let reminderCronJob = null;
 
@@ -70,8 +71,8 @@ async function checkAndSendReminders(client) {
     const ownerPhone = db.getSetting('owner_phone') || config.owner_phone;
     if (!ownerPhone) return;
 
-    const cleanPhone = ownerPhone.replace(/[^0-9]/g, '');
-    const targetJid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@c.us`;
+    const targetJid = toWhatsAppJid(ownerPhone);
+    if (!targetJid) return;
 
     const pendingList = db.getPendingReminders();
     if (!pendingList || pendingList.length === 0) return;
@@ -106,8 +107,28 @@ async function checkAndSendReminders(client) {
         console.error(`[Scheduler] Gagal mengirim reminder #${reminder.id}:`, err.message);
       }
     }
+
+    // Periksa jadwal acara (events) yang mendekati waktu mulai
+    if (db.getEventsToNotify && db.markEventNotified) {
+      const eventsToNotify = db.getEventsToNotify();
+      if (eventsToNotify && eventsToNotify.length > 0) {
+        for (const ev of eventsToNotify) {
+          const loc = ev.location ? `\n📍 *Lokasi:* ${ev.location}` : '';
+          const desc = ev.description ? `\n📝 *Keterangan:* ${ev.description}` : '';
+          const evText = `📅 *[PENGINGAT JADWAL ACARA]*\n\n📌 *Acara:* ${ev.title}\n🕒 *Waktu Mulai:* ${ev.event_date}${loc}${desc}\n\n_Jadwal ini akan segera dimulai! Jangan sampai terlewat._`;
+
+          try {
+            await client.sendMessage(targetJid, evText);
+            db.markEventNotified(ev.id);
+            console.log(`[Scheduler] Notifikasi event #${ev.id} "${ev.title}" berhasil dikirim ke ${targetJid}.`);
+          } catch (err) {
+            console.error(`[Scheduler] Gagal kirim notifikasi event #${ev.id}:`, err.message);
+          }
+        }
+      }
+    }
   } catch (error) {
-    console.error('[Scheduler] Error saat memeriksa pending reminders:', error.message);
+    console.error('[Scheduler] Error saat memeriksa pending reminders & events:', error.message);
   }
 }
 

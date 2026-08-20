@@ -1,8 +1,10 @@
 const fs = require('fs');
 const path = require('path');
+const { EDITIONS, getEditionDefinition } = require('./editions');
+const { CONFIG_DIR } = require('../utils/paths');
 
-const CONFIG_DIR = path.resolve(__dirname, '../../config');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
+const EDITION_FILE_PATH = path.join(CONFIG_DIR, 'edition.json');
 
 const DEFAULT_CONFIG = {
   port: 3000,
@@ -41,20 +43,101 @@ function ensureConfigDir() {
 }
 
 /**
+ * Mendapatkan identitas edisi aktif saat ini.
+ * Prioritas:
+ * 1. Environment variable: process.env.EDITION
+ * 2. File config/edition.json
+ * 3. Default: 'all' (Dual Edition)
+ * @returns {string} 'bisnis' | 'personal' | 'all'
+ */
+function getEdition() {
+  if (process.env.EDITION) {
+    const envEd = process.env.EDITION.toLowerCase().trim();
+    if (EDITIONS[envEd]) return envEd;
+  }
+
+  try {
+    if (fs.existsSync(EDITION_FILE_PATH)) {
+      const editionData = JSON.parse(fs.readFileSync(EDITION_FILE_PATH, 'utf-8'));
+      if (editionData && editionData.edition && EDITIONS[editionData.edition.toLowerCase()]) {
+        return editionData.edition.toLowerCase();
+      }
+    }
+  } catch (_) {}
+
+  return 'all';
+}
+
+/**
+ * Mendapatkan metadata edisi aktif.
+ * @returns {object}
+ */
+function getEditionInfo() {
+  return getEditionDefinition(getEdition());
+}
+
+/**
+ * Memeriksa apakah software berjalan sebagai Edisi Bisnis khusus.
+ * @returns {boolean}
+ */
+function isBusinessEdition() {
+  return getEdition() === 'bisnis';
+}
+
+/**
+ * Memeriksa apakah software berjalan sebagai Edisi Personal khusus.
+ * @returns {boolean}
+ */
+function isPersonalEdition() {
+  return getEdition() === 'personal';
+}
+
+/**
+ * Memeriksa apakah software berjalan sebagai Dual / All Edition.
+ * @returns {boolean}
+ */
+function isDualEdition() {
+  return getEdition() === 'all';
+}
+
+/**
+ * Memeriksa apakah suatu fitur tersedia di edisi yang sedang aktif.
+ * @param {string} featureKey 
+ * @returns {boolean}
+ */
+function isFeatureAvailable(featureKey) {
+  const info = getEditionInfo();
+  if (info.features === '*' || (Array.isArray(info.features) && info.features.includes(featureKey))) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Membaca konfigurasi saat ini dari file config.json.
+ * Jika edisi terkunci (bisnis/personal), mode otomatis disesuaikan.
  * @returns {object}
  */
 function getConfig() {
+  const editionInfo = getEditionInfo();
+  let config = { ...DEFAULT_CONFIG };
+
   try {
     ensureConfigDir();
     if (fs.existsSync(CONFIG_PATH)) {
       const rawData = fs.readFileSync(CONFIG_PATH, 'utf-8');
-      return { ...DEFAULT_CONFIG, ...JSON.parse(rawData) };
+      config = { ...DEFAULT_CONFIG, ...JSON.parse(rawData) };
     }
   } catch (error) {
     console.error('[Config] Gagal membaca config.json:', error.message);
   }
-  return { ...DEFAULT_CONFIG };
+
+  // Jika edisi terkunci, paksa nilai mode sesuai edisi
+  if (editionInfo.isModeLocked && editionInfo.defaultMode) {
+    config.mode = editionInfo.defaultMode;
+  }
+
+  return config;
 }
 
 /**
@@ -65,8 +148,15 @@ function getConfig() {
 function saveConfig(newConfig) {
   try {
     ensureConfigDir();
+    const editionInfo = getEditionInfo();
     const current = getConfig();
     const updated = { ...current, ...newConfig };
+
+    // Pastikan mode tetap terkunci jika pada edisi khusus
+    if (editionInfo.isModeLocked && editionInfo.defaultMode) {
+      updated.mode = editionInfo.defaultMode;
+    }
+
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(updated, null, 2), 'utf-8');
     return true;
   } catch (error) {
@@ -84,13 +174,24 @@ function isSetupComplete() {
     return false;
   }
   const config = getConfig();
-  return Boolean(config.is_setup_completed && config.mode && config.gemini_api_key);
+  const editionInfo = getEditionInfo();
+  const effectiveMode = editionInfo.isModeLocked ? editionInfo.defaultMode : config.mode;
+  return Boolean(config.is_setup_completed && effectiveMode && config.gemini_api_key);
 }
 
 module.exports = {
   CONFIG_PATH,
+  EDITION_FILE_PATH,
   DEFAULT_CONFIG,
+  EDITIONS,
+  getEdition,
+  getEditionInfo,
+  isBusinessEdition,
+  isPersonalEdition,
+  isDualEdition,
+  isFeatureAvailable,
   getConfig,
   saveConfig,
   isSetupComplete
 };
+

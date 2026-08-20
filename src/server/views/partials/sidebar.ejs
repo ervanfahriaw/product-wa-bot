@@ -1,8 +1,11 @@
 <%
-  const businessName = (config && config.business_name) ? config.business_name : 'Companion';
-  const initials = businessName.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'CO';
-  const ownerName = (config && config.owner_phone) ? config.owner_phone : 'Admin';
-  const ownerInitial = ownerName.substring(0, 1).toUpperCase() || 'A';
+  const edition = typeof editionInfo !== 'undefined' ? editionInfo : { name: 'WA Bot Assistant', shortName: 'WA Bot', theme: { badgeText: 'Edition', badgeClass: 'bg-zinc-100 text-zinc-800 border-zinc-200' } };
+  const isBisnis = (typeof isBusiness !== 'undefined') ? isBusiness : (config && config.mode === 'bisnis');
+  const isPerson = (typeof isPersonal !== 'undefined') ? isPersonal : (config && config.mode === 'personal');
+  const businessName = (config && config.business_name) ? config.business_name : (isBisnis ? 'Toko Saya' : (edition.shortName || 'Asisten Saya'));
+  const initials = businessName.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || (isBisnis ? 'TK' : 'PA');
+  const ownerName = (config && config.owner_phone) ? config.owner_phone : (isBisnis ? 'Owner Toko' : 'Pengguna');
+  const ownerInitial = ownerName.substring(0, 1).toUpperCase() || 'U';
   const currentMenu = typeof activeMenu !== 'undefined' ? activeMenu : 'dashboard';
   const pendingCount = typeof pendingHandoverCount !== 'undefined' ? pendingHandoverCount : 0;
 %>
@@ -11,16 +14,22 @@
 <aside class="w-full md:w-60 bg-white border-r border-[#E4E4E7] flex flex-col justify-between p-4 flex-shrink-0 min-h-[640px]">
   <div class="space-y-4">
     <!-- Workspace Header -->
-    <div class="flex items-center justify-between px-2 py-1">
-      <div class="flex items-center space-x-2.5">
-        <div class="w-7 h-7 rounded-lg bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-xs font-bold text-[#18181B]">
-          <%= initials %>
+    <div class="space-y-2 px-1">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-xs font-bold text-[#18181B] shadow-sm">
+            <%= initials %>
+          </div>
+          <div class="flex flex-col min-w-0">
+            <span class="text-sm font-semibold text-[#18181B] truncate max-w-[130px] leading-tight"><%= businessName %></span>
+            <span class="text-[10px] text-[#71717A] truncate"><%= edition.shortName || (isBisnis ? 'WA Bot Bisnis' : 'WA Asisten Pribadi') %></span>
+          </div>
         </div>
-        <span class="text-sm font-semibold text-[#18181B] truncate max-w-[120px]"><%= businessName %></span>
       </div>
-      <svg class="w-4 h-4 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-        <polyline points="6 9 12 15 18 9"></polyline>
-      </svg>
+      <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium border <%= edition.theme ? edition.theme.badgeClass : 'bg-zinc-100 text-zinc-800 border-zinc-200' %>">
+        <span class="w-1.5 h-1.5 rounded-full <%= isBisnis ? 'bg-emerald-500' : 'bg-indigo-500' %>"></span>
+        <span><%= edition.theme ? edition.theme.badgeText : (isBisnis ? 'Bisnis Edition' : 'Personal Edition') %></span>
+      </div>
     </div>
 
     <!-- Quick Status / View Link -->
@@ -50,7 +59,7 @@
         <span>Dashboard</span>
       </a>
 
-      <% if (config && config.mode === 'bisnis') { %>
+      <% if (isBisnis) { %>
         <!-- Analisis Bisnis & AI Insights (Khusus Mode Bisnis) -->
         <a href="/dashboard/analytics" 
            class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'analytics' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">

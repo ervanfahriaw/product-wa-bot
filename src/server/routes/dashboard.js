@@ -1,7 +1,15 @@
 const express = require('express');
 const router = express.Router();
 
-const { getConfig, saveConfig } = require('../../config');
+const {
+  getConfig,
+  saveConfig,
+  getEditionInfo,
+  isBusinessEdition,
+  isPersonalEdition,
+  isDualEdition,
+  isFeatureAvailable
+} = require('../../config');
 const { getStatus } = require('../../engine');
 const { syncProductsFromSheets } = require('../../engine/sheets-sync');
 const { handleFileUpload } = require('../../utils/multipart-parser');
@@ -10,11 +18,21 @@ const db = require('../../db');
 const { validateKey } = require('../../ai');
 const { computeBusinessAnalytics, generateAiBusinessInsights, getLatestStoredInsight } = require('../../analytics');
 
+const { checkLocalLicense, getDeviceFingerprint } = require('../../utils/license-client');
+
 // Middleware parsing upload
 router.use(handleFileUpload);
 
 // Middleware injeksi global variables untuk view sidebar & dashboard
 router.use((req, res, next) => {
+  const config = getConfig();
+  res.locals.config = config;
+  res.locals.editionInfo = getEditionInfo();
+  res.locals.isBusiness = isBusinessEdition() || config.mode === 'bisnis';
+  res.locals.isPersonal = isPersonalEdition() || config.mode === 'personal';
+  res.locals.isDual = isDualEdition();
+  res.locals.licenseInfo = checkLocalLicense();
+  res.locals.fingerprint = getDeviceFingerprint();
   res.locals.pendingHandoverCount = db.getPendingHandoverCount ? db.getPendingHandoverCount() : 0;
   res.locals.todayAiCount = db.getTodayAiMessageCount ? db.getTodayAiMessageCount() : 0;
   next();
@@ -312,6 +330,9 @@ router.get('/business-profile', (req, res) => {
 // ============================================================
 // CUSTOMERS CRM (Mode Bisnis)
 // ============================================================
+router.get('/crm', (req, res) => res.redirect('/dashboard/customers'));
+router.get('/inbox', (req, res) => res.redirect('/dashboard/handover-inbox'));
+
 router.get('/customers', (req, res) => {
   const config = getConfig();
   if (config.mode !== 'bisnis') return res.redirect('/dashboard');

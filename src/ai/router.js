@@ -8,22 +8,36 @@ const { callGrok, validateGrokKey } = require('./providers/grok');
 
 const PROMPT_DIR = path.resolve(__dirname, 'prompts');
 
+const { getUserPreferences } = require('../utils/user-preferences');
+
 /**
  * Menghasilkan instruksi persona dan gaya bahasa tambahan sesuai preferensi config.
  * @param {object} config 
+ * @param {'bisnis'|'personal'} [mode='bisnis']
  * @returns {string}
  */
-function buildPersonalityPrompt(config = {}) {
+function buildPersonalityPrompt(config = {}, mode = 'bisnis') {
   const instructions = [];
+  const isPersonal = mode === 'personal';
+  const userPrefs = isPersonal ? getUserPreferences() : {};
 
-  // 1. Gaya Bicara / Tone
+  // 1. Gaya Bicara / Tone & Panggilan
   const tone = config.tone_style || 'ramah';
-  if (tone === 'santai') {
-    instructions.push('- GAYA BICARA: Santai, gaul, akrab, luwes, dan kekinian layaknya mengobrol santai dengan teman di WhatsApp. Sapa dengan "Kak".');
+  
+  if (isPersonal && (userPrefs.callUserAs || userPrefs.disallowKak)) {
+    const greetingName = userPrefs.callUserAs || userPrefs.userName || 'kamu';
+    instructions.push(`- GAYA BICARA & SAPAAN: Akrab, suportif, dan solutif. Sapa pengguna dengan nama/panggilan "${greetingName}". JANGAN SEKALI-KALI menggunakan sapaan "Kak" atau "Kakak".`);
+    if (userPrefs.assistantName) {
+      instructions.push(`- IDENTITAS ASISTEN: Nama Anda adalah "${userPrefs.assistantName}". Posisikan diri Anda sebagai "${userPrefs.assistantName}".`);
+    }
+  } else if (tone === 'santai') {
+    const sapaan = isPersonal ? 'Sapa secara santai/akrab atau dengan "kamu"' : 'Sapa dengan "Kak"';
+    instructions.push(`- GAYA BICARA: Santai, gaul, akrab, luwes, dan kekinian layaknya mengobrol santai dengan teman di WhatsApp. ${sapaan}.`);
   } else if (tone === 'formal') {
-    instructions.push('- GAYA BICARA: Formal, baku, sangat santun, profesional, dan terstruktur rapi khas customer service resmi.');
+    instructions.push('- GAYA BICARA: Formal, baku, sangat santun, profesional, dan terstruktur rapi.');
   } else {
-    instructions.push('- GAYA BICARA: Hangat, ramah, sopan, dan bersahabat khas admin toko online yang melayani dengan tulus. Sapa dengan "Kak" atau "Kakak".');
+    const sapaan = isPersonal ? 'Sapa dengan ramah dan hangat' : 'Sapa dengan "Kak" atau "Kakak"';
+    instructions.push(`- GAYA BICARA: Hangat, ramah, sopan, dan bersahabat. ${sapaan}.`);
   }
 
   // 2. Panjang Jawaban
@@ -31,7 +45,7 @@ function buildPersonalityPrompt(config = {}) {
   if (length === 'ringkas') {
     instructions.push('- PANJANG BALASAN: Ringkas, padat, dan to the point (maksimal 1-2 kalimat/paragraf singkat). Langsung ke inti tanpa basa-basi panjang.');
   } else if (length === 'detail') {
-    instructions.push('- PANJANG BALASAN: Lengkap dan detail. Jelaskan keunggulan produk, detail rasa/manfaat, dan panduan langkah demi langkah secara jelas.');
+    instructions.push('- PANJANG BALASAN: Lengkap dan detail. Jelaskan informasi secara runtut dan jelas.');
   } else {
     instructions.push('- PANJANG BALASAN: Sedang dan proporsional. Berikan informasi yang cukup dan to the point tanpa bertele-tele.');
   }
@@ -69,7 +83,7 @@ function loadSystemPrompt(mode, config = {}) {
     console.error('[AI Router] Gagal membaca system prompt:', err.message);
   }
 
-  return baseContent + buildPersonalityPrompt(config);
+  return baseContent + buildPersonalityPrompt(config, mode);
 }
 
 /**

@@ -1,8 +1,9 @@
 const db = require('../connection');
+const { normalizeCategory } = require('../../utils/categories');
 
 /**
  * Set atau update budget untuk kategori tertentu.
- * Jika kategori sudah ada, update limit-nya. Jika belum, buat baru.
+ * Jika kategori sudah ada (berdasarkan pencocokan kanonikal), update limit-nya.
  * @param {object} budget
  * @param {string} budget.category
  * @param {number} budget.monthly_limit
@@ -10,30 +11,53 @@ const db = require('../connection');
  * @returns {number} ID budget
  */
 function setBudget({ category, monthly_limit, alert_at_percent = 80 }) {
-  const existing = db.prepare('SELECT id FROM budgets WHERE LOWER(category) = LOWER(?)').get(category.trim());
+  const normCat = normalizeCategory(category);
+  const existing = getBudgetByCategory(category) || getBudgetByCategory(normCat);
   
   if (existing) {
     db.prepare(`
-      UPDATE budgets SET monthly_limit = ?, alert_at_percent = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE budgets SET category = ?, monthly_limit = ?, alert_at_percent = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(monthly_limit, alert_at_percent, existing.id);
+    `).run(normCat, monthly_limit, alert_at_percent, existing.id);
     return existing.id;
   }
 
   const result = db.prepare(`
     INSERT INTO budgets (category, monthly_limit, alert_at_percent)
     VALUES (?, ?, ?)
-  `).run(category.trim(), monthly_limit, alert_at_percent);
+  `).run(normCat, monthly_limit, alert_at_percent);
   return result.lastInsertRowid;
 }
 
 /**
- * Ambil budget berdasarkan kategori (case-insensitive).
+ * Ambil budget berdasarkan kategori (dengan pencocokan kanonikal dan case-insensitive).
  * @param {string} category
  * @returns {object|null}
  */
 function getBudgetByCategory(category) {
-  return db.prepare('SELECT * FROM budgets WHERE LOWER(category) = LOWER(?) AND is_active = 1').get(category.trim()) || null;
+  if (!category) return null;
+  const normCat = normalizeCategory(category);
+  const rawCat = category.trim();
+
+  // 1. Cek langsung dengan nama kanonikal atau raw input
+  const direct = db.prepare(`
+    SELECT * FROM budgets 
+    WHERE (LOWER(category) = LOWER(?) OR LOWER(category) = LOWER(?)) 
+      AND is_active = 1
+    ORDER BY id DESC LIMIT 1
+  `).get(rawCat, normCat);
+
+  if (direct) return direct;
+
+  // 2. Cek apakah ada budget aktif yang namanya cocok secara kanonikal
+  const allActive = getAllBudgets();
+  for (const b of allActive) {
+    if (normalizeCategory(b.category) === normCat) {
+      return b;
+    }
+  }
+
+  return null;
 }
 
 /**

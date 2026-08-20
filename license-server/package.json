@@ -1,0 +1,13 @@
+{
+  "name": "wabot-license-server",
+  "version": "1.0.0",
+  "description": "Lightweight License & Activation Server for WA Bot Commercial Products",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "generate": "node cli.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

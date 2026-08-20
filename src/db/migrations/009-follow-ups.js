@@ -27,11 +27,25 @@ function up() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS follow_up_optouts (
       contact TEXT PRIMARY KEY,
+      reason TEXT,
       opted_out_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
-  console.log('[Migration 009] Tabel follow_ups & follow_up_optouts berhasil dibuat.');
+  // Pastikan kolom baru ada jika tabel dibuat dari versi lama
+  const optoutCols = db.pragma('table_info(follow_up_optouts)').map(c => c.name);
+  if (!optoutCols.includes('opted_out_at')) {
+    try {
+      db.exec('ALTER TABLE follow_up_optouts ADD COLUMN opted_out_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+    } catch (_) {}
+  }
+  if (!optoutCols.includes('reason')) {
+    try {
+      db.exec('ALTER TABLE follow_up_optouts ADD COLUMN reason TEXT');
+    } catch (_) {}
+  }
+
+  console.log('[Migration 009] Tabel follow_ups & follow_up_optouts berhasil dibuat/dimigrasi.');
 }
 
 function down() {

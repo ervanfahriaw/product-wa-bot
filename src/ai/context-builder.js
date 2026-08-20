@@ -90,34 +90,55 @@ function buildBusinessContext(message) {
   return resultContext;
 }
 
+const { isSameCategory, normalizeCategory } = require('../utils/categories');
+const { buildUserProfileContext } = require('../utils/user-preferences');
+
 /**
- * Membangun konteks data pengeluaran untuk Mode Personal.
- * @param {string} message 
+ * Membangun konteks data pengeluaran realtime untuk Mode Personal.
+ * Selalu melampirkan ringkasan bulan ini dan 10 transaksi terakhir agar AI selalu akurat.
+ * @param {string} [message] 
  * @returns {string}
  */
-function buildExpenseContext(message) {
-  const lower = (message || '').toLowerCase();
-  const isRekap = lower.includes('rekap') || lower.includes('laporan') || lower.includes('total') || lower.includes('pengeluaran');
+function buildExpenseContext(message = '') {
+  try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
 
-  if (!isRekap) {
-    return '[DATA PENGELUARAN DARI DATABASE]: Mode pencatatan siap menerima input.';
+    const monthlyExpenses = db.getMonthlyExpenses ? db.getMonthlyExpenses(year, month) : [];
+    const recentExpenses = db.getRecentExpenses ? db.getRecentExpenses(10) : [];
+
+    if ((!monthlyExpenses || monthlyExpenses.length === 0) && (!recentExpenses || recentExpenses.length === 0)) {
+      return `[DATA PENGELUARAN DATABASE (Bulan ${month}/${year})]:\nBelum ada catatan pengeluaran bulan ini.`;
+    }
+
+    const totalMonth = monthlyExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    
+    // Grouping by category
+    const catMap = {};
+    for (const item of monthlyExpenses) {
+      const cat = item.category || 'Lain-lain';
+      catMap[cat] = (catMap[cat] || 0) + (Number(item.amount) || 0);
+    }
+    const catSummary = Object.entries(catMap)
+      .map(([cat, amt]) => `  • ${cat}: Rp${amt.toLocaleString('id-ID')}`)
+      .join('\n');
+
+    // 5 Transaksi terakhir
+    const recentLines = recentExpenses.slice(0, 8).map(e => 
+      `  - [ID:${e.id}] ${e.created_at.substring(0, 16)} | *${e.category}* | Rp${Number(e.amount).toLocaleString('id-ID')} (${e.note || '-'})`
+    );
+
+    return `[DATA PENGELUARAN REALTIME DATABASE (Bulan ${month}/${year})]:
+Total Pengeluaran Bulan Ini: Rp${totalMonth.toLocaleString('id-ID')} (${monthlyExpenses.length} transaksi)
+Rincian per Kategori:
+${catSummary || '  (Belum ada data)'}
+
+Transaksi Terakhir Dicatat:
+${recentLines.join('\n') || '  (Belum ada transaksi)'}`;
+  } catch (err) {
+    return '[DATA PENGELUARAN]: Mode pencatatan siap.';
   }
-
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-
-  const monthlyExpenses = db.getMonthlyExpenses(year, month);
-  if (!monthlyExpenses || monthlyExpenses.length === 0) {
-    return `[DATA PENGELUARAN DARI DATABASE]: Belum ada data pengeluaran yang dicatat untuk bulan ${month}/${year}.`;
-  }
-
-  const total = monthlyExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-  const items = monthlyExpenses.map(e => 
-    `- ${e.created_at.substring(0, 10)} | ${e.category} | Rp${Number(e.amount).toLocaleString('id-ID')} (${e.note || '-'})`
-  );
-
-  return `[DATA PENGELUARAN DARI DATABASE (Bulan ${month}/${year})]:\nTotal: Rp${total.toLocaleString('id-ID')}\nRincian:\n${items.join('\n')}`;
 }
 
 /**
@@ -131,12 +152,10 @@ function buildRemindersContext(message) {
     lower.includes('ingatkan') || lower.includes('daftar') || lower.includes('tunda') ||
     lower.includes('snooze') || lower.includes('batalkan') || lower.includes('cancel');
 
-  if (!isReminderQuery) return '';
-
   try {
     const activeReminders = db.getActiveReminders ? db.getActiveReminders() : [];
     if (!activeReminders || activeReminders.length === 0) {
-      return '[DAFTAR PENGINGAT AKTIF]: Tidak ada pengingat yang sedang aktif saat ini.';
+      return isReminderQuery ? '[DAFTAR PENGINGAT AKTIF]: Tidak ada pengingat yang sedang aktif saat ini.' : '';
     }
 
     const lines = activeReminders.map((r, i) => {
@@ -163,21 +182,19 @@ function buildNotesContext(message) {
   const isNoteQuery = lower.includes('catatan') || lower.includes('note') || lower.includes('catat') || 
     lower.includes('simpan') || lower.includes('cari') || lower.includes('resi') || lower.includes('password');
 
-  if (!isNoteQuery) return '';
-
   try {
-    const allNotes = db.getAllNotes ? db.getAllNotes(20) : [];
+    const allNotes = db.getAllNotes ? db.getAllNotes(10) : [];
     if (!allNotes || allNotes.length === 0) {
-      return '[DAFTAR CATATAN]: Belum ada catatan yang tersimpan.';
+      return isNoteQuery ? '[DAFTAR CATATAN]: Belum ada catatan yang tersimpan.' : '';
     }
 
     const lines = allNotes.map((n, i) => {
       const title = n.title || '(tanpa judul)';
       const tags = n.tags ? ` [${n.tags}]` : '';
-      return `${i + 1}. "${title}": ${n.content.substring(0, 100)}${tags}`;
+      return `${i + 1}. "${title}": ${n.content.substring(0, 80)}${tags}`;
     });
 
-    return `[DAFTAR CATATAN (${allNotes.length} catatan)]:\n${lines.join('\n')}`;
+    return `[DAFTAR CATATAN TERSIMPAN (${allNotes.length} catatan)]:\n${lines.join('\n')}`;
   } catch (_) {
     return '';
   }
@@ -189,22 +206,16 @@ function buildNotesContext(message) {
  * @returns {string}
  */
 function buildTodosContext(message) {
-  const lower = (message || '').toLowerCase();
-  const isTodoQuery = lower.includes('tugas') || lower.includes('todo') || lower.includes('selesai') || 
-    lower.includes('done') || lower.includes('daftar tugas');
-
-  if (!isTodoQuery) return '';
-
   try {
     const activeTodos = db.getActiveTodos ? db.getActiveTodos() : [];
     if (!activeTodos || activeTodos.length === 0) {
-      return '[DAFTAR TUGAS AKTIF]: Tidak ada tugas yang sedang berjalan.';
+      return '';
     }
 
     const lines = activeTodos.map((t, i) => {
       const prio = t.priority === 'urgent' ? '🔴' : t.priority === 'low' ? '🔵' : '⚪';
       const due = t.due_date ? ` (deadline: ${t.due_date})` : '';
-      return `${i + 1}. ${prio} ${t.task}${due}`;
+      return `${i + 1}. ${prio} [ID:${t.id}] ${t.task}${due}`;
     });
 
     return `[DAFTAR TUGAS AKTIF (${activeTodos.length} tugas)]:\n${lines.join('\n')}`;
@@ -214,21 +225,16 @@ function buildTodosContext(message) {
 }
 
 /**
- * Membangun konteks status budget untuk Mode Personal.
- * @param {string} message 
+ * Membangun konteks status budget realtime untuk Mode Personal.
+ * Selalu menyertakan seluruh budget aktif dan persentase penggunaan riil.
+ * @param {string} [message] 
  * @returns {string}
  */
-function buildBudgetContext(message) {
-  const lower = (message || '').toLowerCase();
-  const isBudgetQuery = lower.includes('budget') || lower.includes('anggaran') || lower.includes('batas') ||
-    lower.includes('limit') || lower.includes('sisa anggaran');
-
-  if (!isBudgetQuery) return '';
-
+function buildBudgetContext(message = '') {
   try {
     const allBudgets = db.getAllBudgets ? db.getAllBudgets() : [];
     if (!allBudgets || allBudgets.length === 0) {
-      return '[DAFTAR BUDGET]: Belum ada anggaran yang diatur.';
+      return '[STATUS BUDGET BULAN INI]: Belum ada anggaran yang diatur.';
     }
 
     const now = new Date();
@@ -238,15 +244,15 @@ function buildBudgetContext(message) {
 
     const lines = allBudgets.map((b, i) => {
       const spent = monthlyExpenses
-        .filter(e => e.category && e.category.toLowerCase() === b.category.toLowerCase())
+        .filter(e => e.category && isSameCategory(e.category, b.category))
         .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
       const percent = b.monthly_limit > 0 ? Math.round((spent / b.monthly_limit) * 100) : 0;
       const remaining = b.monthly_limit - spent;
       const status = percent >= 100 ? '🔴 OVER' : percent >= b.alert_at_percent ? '🟡 WARNING' : '🟢 AMAN';
-      return `${i + 1}. ${b.category}: Rp${spent.toLocaleString('id-ID')}/Rp${b.monthly_limit.toLocaleString('id-ID')} (${percent}%) ${status} — sisa Rp${remaining.toLocaleString('id-ID')}`;
+      return `${i + 1}. *${b.category}*: Rp${spent.toLocaleString('id-ID')} / Rp${b.monthly_limit.toLocaleString('id-ID')} (${percent}%) ${status} — Sisa: Rp${remaining.toLocaleString('id-ID')}`;
     });
 
-    return `[DAFTAR BUDGET BULAN INI (${allBudgets.length} anggaran)]:\n${lines.join('\n')}`;
+    return `[STATUS BUDGET BULAN INI (${allBudgets.length} kategori)]:\n${lines.join('\n')}`;
   } catch (_) {
     return '';
   }
@@ -258,17 +264,9 @@ function buildBudgetContext(message) {
  * @returns {string}
  */
 function buildHabitsContext(message) {
-  const lower = (message || '').toLowerCase();
-  const isHabitQuery = lower.includes('habit') || lower.includes('kebiasaan') || lower.includes('streak') ||
-    lower.includes('checkin') || lower.includes('check-in') || lower.includes('track');
-
-  if (!isHabitQuery) return '';
-
   try {
     const activeHabits = db.getActiveHabits ? db.getActiveHabits() : [];
-    if (!activeHabits || activeHabits.length === 0) {
-      return '[DAFTAR KEBIASAAN]: Belum ada kebiasaan yang dilacak.';
-    }
+    if (!activeHabits || activeHabits.length === 0) return '';
 
     const lines = activeHabits.map((h, i) => {
       const streak = db.calculateStreak ? db.calculateStreak(h.id) : { current: 0, best: 0 };
@@ -284,14 +282,27 @@ function buildHabitsContext(message) {
 }
 
 /**
- * Membangun konteks gabungan untuk Mode Personal.
+ * Membangun konteks gabungan lengkap untuk Mode Personal.
  * @param {string} message 
+ * @param {string} [contact] 
  * @returns {string}
  */
-function buildPersonalContext(message) {
+function buildPersonalContext(message, contact = null) {
   const parts = [];
-  parts.push(buildExpenseContext(message));
 
+  // 1. Injeksi Waktu WIB & Tanggal Hari Ini
+  const timeCtx = buildTimeAndCustomerContext(contact);
+  if (timeCtx) parts.push(timeCtx);
+
+  // 2. Injeksi Profil & Preferensi Pengguna (Nama, Panggilan, Bot Name)
+  const userProfileCtx = buildUserProfileContext();
+  if (userProfileCtx) parts.push(userProfileCtx);
+
+  // 3. Injeksi Data Keuangan Realtime (Expenses & Budgets)
+  parts.push(buildExpenseContext(message));
+  parts.push(buildBudgetContext(message));
+
+  // 4. Injeksi Reminders, Notes, Todos, Habits, Events, Goals
   const reminderCtx = buildRemindersContext(message);
   if (reminderCtx) parts.push(reminderCtx);
 
@@ -300,9 +311,6 @@ function buildPersonalContext(message) {
 
   const todosCtx = buildTodosContext(message);
   if (todosCtx) parts.push(todosCtx);
-
-  const budgetCtx = buildBudgetContext(message);
-  if (budgetCtx) parts.push(budgetCtx);
 
   const habitsCtx = buildHabitsContext(message);
   if (habitsCtx) parts.push(habitsCtx);
@@ -635,7 +643,7 @@ function buildContext(message, mode = 'bisnis', contact = null) {
 
     const dataContext = mode === 'bisnis' 
       ? buildBusinessContext(message) 
-      : buildPersonalContext(message);
+      : buildPersonalContext(message, contact);
     parts.push(dataContext);
 
     const sampleContext = buildFewShotSamplesContext();

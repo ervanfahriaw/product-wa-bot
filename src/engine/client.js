@@ -11,8 +11,7 @@ const {
 } = require('./status');
 const { handleIncomingMessage } = require('./handlers/message-handler');
 const { startReminderScheduler, stopReminderScheduler } = require('./reminder-scheduler');
-
-const SESSION_DIR = path.resolve(__dirname, 'session');
+const { SESSION_DIR } = require('../utils/paths');
 
 // Pastikan folder session ada
 if (!fs.existsSync(SESSION_DIR)) {

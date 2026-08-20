@@ -1,5 +1,5 @@
 const db = require('../db');
-const { getConfig } = require('../config');
+const { isSameCategory, normalizeCategory } = require('../utils/categories');
 
 /**
  * Cek apakah pengeluaran di kategori tertentu sudah mendekati atau melebihi budget.
@@ -11,9 +11,11 @@ const { getConfig } = require('../config');
  */
 async function checkBudgetAfterExpense(category, client, contact) {
   try {
-    // Cari budget untuk kategori ini
+    // Cari budget untuk kategori ini (dengan pencocokan kanonikal)
     const budget = db.getBudgetByCategory ? db.getBudgetByCategory(category) : null;
     if (!budget) return null;
+
+    const normCategory = normalizeCategory(category);
 
     // Hitung total pengeluaran bulan ini untuk kategori ini
     const now = new Date();
@@ -22,7 +24,7 @@ async function checkBudgetAfterExpense(category, client, contact) {
     
     const monthlyExpenses = db.getMonthlyExpenses ? db.getMonthlyExpenses(year, month) : [];
     const categoryTotal = monthlyExpenses
-      .filter(e => e.category && e.category.toLowerCase() === category.toLowerCase())
+      .filter(e => e.category && (isSameCategory(e.category, category) || isSameCategory(e.category, budget.category)))
       .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
     const percent = Math.round((categoryTotal / budget.monthly_limit) * 100);
@@ -32,9 +34,9 @@ async function checkBudgetAfterExpense(category, client, contact) {
     let warningMsg = null;
 
     if (percent >= 100) {
-      warningMsg = `🚨 *OVER BUDGET!*\n\n📊 Kategori: *${category}*\n💸 Terpakai: Rp${categoryTotal.toLocaleString('id-ID')} / Rp${budget.monthly_limit.toLocaleString('id-ID')}\n📈 Status: *${percent}%* — Melebihi anggaran!\n\n_Pertimbangkan untuk mengurangi pengeluaran di kategori ini._`;
+      warningMsg = `🚨 *OVER BUDGET!*\n\n📊 Kategori: *${budget.category}*\n💸 Terpakai: Rp${categoryTotal.toLocaleString('id-ID')} / Rp${budget.monthly_limit.toLocaleString('id-ID')}\n📈 Status: *${percent}%* — Melebihi anggaran!\n\n_Pertimbangkan untuk mengurangi pengeluaran di kategori ini._`;
     } else if (percent >= budget.alert_at_percent) {
-      warningMsg = `⚠️ *Peringatan Budget*\n\n📊 Kategori: *${category}*\n💸 Terpakai: Rp${categoryTotal.toLocaleString('id-ID')} / Rp${budget.monthly_limit.toLocaleString('id-ID')}\n📈 Status: *${percent}%*\n💰 Sisa: Rp${remaining.toLocaleString('id-ID')} untuk ${daysLeft} hari lagi\n\n_Hati-hati ya, budget hampir habis!_`;
+      warningMsg = `⚠️ *Peringatan Budget*\n\n📊 Kategori: *${budget.category}*\n💸 Terpakai: Rp${categoryTotal.toLocaleString('id-ID')} / Rp${budget.monthly_limit.toLocaleString('id-ID')}\n📈 Status: *${percent}%*\n💰 Sisa: Rp${remaining.toLocaleString('id-ID')} untuk ${daysLeft} hari lagi\n\n_Hati-hati ya, budget hampir habis!_`;
     }
 
     // Kirim warning ke WhatsApp jika perlu
@@ -71,7 +73,7 @@ function getAllBudgetStatus() {
 
     return budgets.map(b => {
       const spent = monthlyExpenses
-        .filter(e => e.category && e.category.toLowerCase() === b.category.toLowerCase())
+        .filter(e => e.category && isSameCategory(e.category, b.category))
         .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
       const percent = b.monthly_limit > 0 ? Math.round((spent / b.monthly_limit) * 100) : 0;
       const remaining = b.monthly_limit - spent;

@@ -9,6 +9,7 @@ const db = require('../../db');
 const { getConfig } = require('../../config');
 const { generateReply } = require('../../ai');
 const { checkOutOfHours, extractCustomerNameFromReply } = require('../../ai/context-builder');
+const { toWhatsAppJid, normalizePhoneNumber } = require('../../utils/phone');
 
 const HANDOVER_KEYWORDS = [
   // Negosiasi / Tawar harga
@@ -21,7 +22,9 @@ const HANDOVER_KEYWORDS = [
   'salah kirim', 'kurang barang', 'tidak sesuai', 'kecewa', 'penipu',
   // Permintaan admin / manusia
   'bicara dengan admin', 'bicara dengan manusia', 'bicara dengan pemilik', 'bicara sama owner', 'ngomong sama owner',
+  'bicara sama admin', 'ngomong sama admin', 'chat admin', 'hubungi admin', 'sambungkan admin', 'bicara langsung',
   'admin asli', 'orang asli', 'hubungkan ke admin', 'hubungkan ke owner', 'owner toko', 'sambungkan ke admin', 'mau admin',
+  'admin manusia', 'bantuan manusia', 'cs manusia', 'operator asli',
   // Pembayaran / Rekening khusus
   'minta nomor rekening', 'nomor rekening', 'rekening transfer', 'rekening pribadi'
 ];
@@ -30,7 +33,8 @@ const NEGO_PATTERNS = [
   /\b\d+\s*(k|rb|ribu)?\s*(dapet|bisa|boleh|dapet gak|dapet ga|angkut|bungkus|gas)\b/i,
   /\b(bisa|boleh|dapet)\s*\d+\s*(k|rb|ribu)\b/i,
   /\b(harga|budget|dana)\s*(cuma|hanya|pas|ada)?\s*\d+\s*(k|rb|ribu)\b/i,
-  /\b(kurangin|turunin)\s*(jadi|ke)?\s*\d+\s*(k|rb|ribu)\b/i
+  /\b(kurangin|turunin)\s*(jadi|ke)?\s*\d+\s*(k|rb|ribu)\b/i,
+  /(bicara|ngomong|tanya|hubungi|chat|sambung)\s*(langsung)?\s*(sama|dengan|ke)?\s*(admin|owner|pemilik|manusia|cs|operator)/i
 ];
 
 /**
@@ -85,12 +89,9 @@ async function triggerHandoverActions(contact, messageBody, reason, client, conf
   // 3. Kirim notifikasi ke nomor owner
   const ownerPhone = db.getSetting('owner_phone') || config.owner_phone;
   if (ownerPhone && client && typeof client.sendMessage === 'function') {
-    let cleanPhone = ownerPhone.replace(/[^0-9]/g, '');
-    if (cleanPhone.startsWith('0')) {
-      cleanPhone = '62' + cleanPhone.slice(1);
-    }
-    if (cleanPhone.length >= 9) {
-      const targetJid = cleanPhone.includes('@') ? cleanPhone : `${cleanPhone}@c.us`;
+    const cleanPhone = normalizePhoneNumber(ownerPhone);
+    const targetJid = toWhatsAppJid(ownerPhone);
+    if (targetJid && cleanPhone.length >= 9) {
       const handoverNotice = `🔔 *[NOTIFIKASI HANDOVER - WA BOT]*\n\nPelanggan (*${contact}*) membutuhkan penanganan langsung oleh Pemilik / Admin Toko:\n\n💬 *Pesan Pelanggan:* "${messageBody}"\n⚠️ *Status:* ${reason || 'Nego Harga / Permintaan Khusus / Komplain'}\n\n👉 *Bot telah OTOMATIS DIJEDA (PAUSED)* untuk kontak ini selama 2 jam agar obrolan manual Anda tidak tertimpa bot.\nSilakan buka WhatsApp Anda dan balas langsung pelanggan ini.`;
       
       try {

@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-
-const UPLOADS_DIR = path.resolve(__dirname, '../../data/uploads');
+const { UPLOADS_DIR } = require('./paths');
 
 function ensureUploadsDir() {
   if (!fs.existsSync(UPLOADS_DIR)) {

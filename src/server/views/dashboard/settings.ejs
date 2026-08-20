@@ -15,25 +15,25 @@
 
       <!-- Quick Action: Status Badge -->
       <div>
-        <template x-if="statusState === 'READY'">
+        <template x-if="statusState === 'ready' || statusState === 'READY'">
           <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#F4F4F5] border border-[#E4E4E7] text-[#18181B]">
             <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
             <span>Online</span>
           </span>
         </template>
-        <template x-if="statusState === 'QR_READY'">
+        <template x-if="statusState === 'qr_ready' || statusState === 'QR_READY'">
           <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 border border-amber-200 text-amber-900">
             <span class="w-2 h-2 rounded-full bg-amber-500 mr-2 animate-pulse"></span>
             <span>Scan QR</span>
           </span>
         </template>
-        <template x-if="statusState === 'CONNECTING' || statusState === 'INITIALIZING'">
+        <template x-if="statusState === 'connecting' || statusState === 'CONNECTING' || statusState === 'initializing' || statusState === 'INITIALIZING'">
           <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-[#F4F4F5] border border-[#E4E4E7] text-[#71717A]">
             <span class="w-2 h-2 rounded-full bg-indigo-500 mr-2 animate-ping"></span>
             <span>Menghubungkan...</span>
           </span>
         </template>
-        <template x-if="statusState === 'DISCONNECTED' || statusState === 'AUTH_FAILURE'">
+        <template x-if="statusState === 'disconnected' || statusState === 'DISCONNECTED' || statusState === 'auth_failure' || statusState === 'AUTH_FAILURE'">
           <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-50 border border-red-200 text-red-900">
             <span class="w-2 h-2 rounded-full bg-red-500 mr-2"></span>
             <span>Terputus</span>
@@ -89,27 +89,83 @@
       </div>
     </div>
 
+    <!-- 1b. Informasi Lisensi Resmi & Perangkat -->
+    <% if (typeof licenseInfo !== 'undefined' && licenseInfo && licenseInfo.isValid) { %>
+    <div class="py-6 border-b border-[#E4E4E7] space-y-3">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-semibold text-[#18181B]">Status Lisensi Resmi</label>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+              AKTIF ✅
+            </span>
+          </div>
+          <p class="text-xs text-[#71717A] mt-0.5">Software terkunci dan terdaftar resmi untuk perangkat ini.</p>
+        </div>
+        
+        <form action="/setup/license/deactivate" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin melepas lisensi dari perangkat ini? Bot akan terkunci hingga diaktifkan kembali.')">
+          <button type="submit" 
+                  class="px-3.5 py-1.5 rounded-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-medium transition-colors flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Pindah Perangkat / Deaktivasi</span>
+          </button>
+        </form>
+      </div>
+
+      <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7] text-xs space-y-1.5">
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-[#71717A]">Kode Lisensi:</span>
+          <span class="font-mono font-bold text-[#18181B]"><%= licenseInfo.data.licenseKey %></span>
+        </div>
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-[#71717A]">Terdaftar Untuk:</span>
+          <span class="font-medium text-[#18181B]"><%= licenseInfo.data.buyerEmail || licenseInfo.data.buyerName || 'Pembeli Resmi Lynk.id' %></span>
+        </div>
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-[#71717A]">Hardware ID (HWID):</span>
+          <span class="font-mono text-[#71717A] truncate max-w-[200px] sm:max-w-xs"><%= licenseInfo.data.hwid %></span>
+        </div>
+      </div>
+    </div>
+    <% } %>
+
     <!-- Main Settings Form -->
     <form action="/dashboard/settings" method="POST" class="space-y-6 pt-2">
-      <!-- 2. Mode Bot Switcher -->
+      <!-- 2. Mode Bot / Edition Info -->
+      <%
+        const isLocked = typeof editionInfo !== 'undefined' && editionInfo.isModeLocked;
+        const editionName = typeof editionInfo !== 'undefined' ? editionInfo.name : 'WA Bot Assistant';
+      %>
       <div class="py-5 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <label class="text-sm font-semibold text-[#18181B]">Mode Operasional</label>
-          <p class="text-xs text-[#71717A] mt-0.5">Pilih peran utama bot untuk customer service bisnis atau asisten pribadi.</p>
+          <label class="text-sm font-semibold text-[#18181B]">Edisi & Mode Operasional</label>
+          <p class="text-xs text-[#71717A] mt-0.5"><%= isLocked ? 'Edisi produk aktif pada sistem Anda.' : 'Pilih peran utama bot untuk customer service bisnis atau asisten pribadi.' %></p>
         </div>
-        <div class="inline-flex p-1 bg-[#F4F4F5] rounded-full border border-[#E4E4E7]">
-          <button type="button" @click="mode = 'bisnis'"
-                  class="px-4 py-1.5 text-xs font-medium rounded-full transition-all"
-                  :class="mode === 'bisnis' ? 'bg-[#18181B] text-white shadow-sm' : 'text-[#71717A] hover:text-[#18181B]'">
-            Mode Bisnis
-          </button>
-          <button type="button" @click="mode = 'personal'"
-                  class="px-4 py-1.5 text-xs font-medium rounded-full transition-all"
-                  :class="mode === 'personal' ? 'bg-[#18181B] text-white shadow-sm' : 'text-[#71717A] hover:text-[#18181B]'">
-            Mode Personal
-          </button>
-          <input type="hidden" name="mode" :value="mode">
-        </div>
+        <% if (isLocked) { %>
+          <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold border <%= (typeof editionInfo !== 'undefined' && editionInfo.theme) ? editionInfo.theme.badgeClass : 'bg-zinc-100 text-zinc-800 border-zinc-200' %>">
+            <span class="w-2 h-2 rounded-full <%= (typeof editionInfo !== 'undefined' && editionInfo.defaultMode === 'bisnis') ? 'bg-emerald-500' : 'bg-indigo-500' %>"></span>
+            <span><%= editionName %></span>
+            <input type="hidden" name="mode" value="<%= editionInfo.defaultMode %>">
+          </div>
+        <% } else { %>
+          <div class="inline-flex p-1 bg-[#F4F4F5] rounded-full border border-[#E4E4E7]">
+            <button type="button" @click="mode = 'bisnis'"
+                    class="px-4 py-1.5 text-xs font-medium rounded-full transition-all"
+                    :class="mode === 'bisnis' ? 'bg-[#18181B] text-white shadow-sm' : 'text-[#71717A] hover:text-[#18181B]'">
+              Mode Bisnis
+            </button>
+            <button type="button" @click="mode = 'personal'"
+                    class="px-4 py-1.5 text-xs font-medium rounded-full transition-all"
+                    :class="mode === 'personal' ? 'bg-[#18181B] text-white shadow-sm' : 'text-[#71717A] hover:text-[#18181B]'">
+              Mode Personal
+            </button>
+            <input type="hidden" name="mode" :value="mode">
+          </div>
+        <% } %>
       </div>
 
       <!-- 3. Business Name (Only in Business Mode) -->
@@ -424,14 +480,14 @@
 
       <!-- QR Display Box -->
       <div class="flex flex-col items-center justify-center min-h-[240px] bg-[#F7F7F8] rounded-xl p-4 border border-[#E4E4E7]">
-        <template x-if="qrCodeDataUrl && statusState === 'QR_READY'">
+        <template x-if="qrCodeDataUrl && (statusState === 'qr_ready' || statusState === 'QR_READY')">
           <div class="space-y-3">
             <img :src="qrCodeDataUrl" alt="QR Code WhatsApp" class="w-52 h-52 rounded-lg border border-[#E4E4E7] bg-white p-2 mx-auto">
             <p class="text-xs text-[#71717A]">Arahkan kamera WhatsApp smartphone ke QR Code ini</p>
           </div>
         </template>
 
-        <template x-if="statusState === 'READY'">
+        <template x-if="statusState === 'ready' || statusState === 'READY' || statusState === 'authenticated' || statusState === 'AUTHENTICATED'">
           <div class="space-y-2 py-6">
             <div class="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
               <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -443,7 +499,7 @@
           </div>
         </template>
 
-        <template x-if="statusState !== 'QR_READY' && statusState !== 'READY'">
+        <template x-if="!(qrCodeDataUrl && (statusState === 'qr_ready' || statusState === 'QR_READY')) && statusState !== 'ready' && statusState !== 'READY' && statusState !== 'authenticated' && statusState !== 'AUTHENTICATED'">
           <div class="space-y-3 py-6">
             <div class="w-8 h-8 border-2 border-[#18181B] border-t-transparent rounded-full animate-spin mx-auto"></div>
             <p class="text-xs text-[#71717A]" x-text="modalStatusText || 'Menyiapkan sesi...'"></p>
@@ -489,9 +545,9 @@
       isTestingGemini: false,
       geminiTestResult: null,
 
-      statusState: '<%= (status && status.state) ? status.state : "DISCONNECTED" %>',
-      accountInfo: <%- JSON.stringify((status && status.info) ? status.info : {}) %>,
-      qrCodeDataUrl: '<%= (status && status.qrCodeDataUrl) ? status.qrCodeDataUrl : "" %>',
+      statusState: '<%= (typeof status !== "undefined" && status && status.state) ? status.state : "disconnected" %>',
+      accountInfo: <%- JSON.stringify((typeof status !== "undefined" && status && status.info) ? status.info : {}) %>,
+      qrCodeDataUrl: '<%= (typeof status !== "undefined" && status && status.qrCodeDataUrl) ? status.qrCodeDataUrl : "" %>',
       showQrModal: false,
       isResetting: false,
       modalStatusText: '',
@@ -506,10 +562,13 @@
           const res = await fetch('/api/status');
           const json = await res.json();
           if (json.success && json.data) {
-            this.statusState = json.data.state;
+            this.statusState = (json.data.state || '').toLowerCase();
             this.accountInfo = json.data.info || {};
             this.qrCodeDataUrl = json.data.qrCodeDataUrl || '';
-            if (manual && this.statusState === 'READY') {
+            if (this.qrCodeDataUrl && this.statusState === 'qr_ready') {
+              this.isResetting = false;
+            }
+            if (manual && (this.statusState === 'ready' || this.statusState === 'authenticated')) {
               alert('Status WhatsApp: Tersambung Aktif sebagai ' + (this.accountInfo.pushname || 'User') + ' (' + (this.accountInfo.phone || '') + ')');
             }
           }
@@ -518,26 +577,29 @@
 
       async startScanModal() {
         this.showQrModal = true;
-        this.isResetting = true;
         this.modalStatusText = 'Menyiapkan sesi & memuat QR Code baru...';
+        await this.checkStatus(false);
 
-        try {
-          await fetch('/api/reset-session', { method: 'POST' });
-        } catch (err) {
-          console.error(err);
-        } finally {
-          this.isResetting = false;
+        if (this.statusState !== 'qr_ready' || !this.qrCodeDataUrl) {
+          this.isResetting = true;
+          try {
+            await fetch('/api/reset-session', { method: 'POST' });
+          } catch (err) {
+            console.error(err);
+          } finally {
+            this.isResetting = false;
+          }
         }
 
         if (this.pollInterval) clearInterval(this.pollInterval);
         this.pollInterval = setInterval(async () => {
           await this.checkStatus(false);
-          if (this.statusState === 'READY') {
+          if (this.statusState === 'ready' || this.statusState === 'authenticated') {
             setTimeout(() => {
               this.closeScanModal();
             }, 1500);
           }
-        }, 1500);
+        }, 1200);
       },
 
       closeScanModal() {

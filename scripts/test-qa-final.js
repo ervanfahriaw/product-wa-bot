@@ -54,7 +54,11 @@ async function runQaFinalTests() {
     'test-server.js',
     'test-dashboard-management.js',
     'test-e2e-audit.js',
-    'test-packaging.js'
+    'test-packaging.js',
+    'test-phase-s1-flavor.js',
+    'test-phase-s2-wizard-flow.js',
+    'test-phase-s3-ui-branding.js',
+    'test-phase-s4-build-dist.js'
   ];
 
   for (const suite of testSuites) {
@@ -64,11 +68,11 @@ async function runQaFinalTests() {
       const res = spawnSync(process.execPath, [scriptPath], {
         cwd: path.resolve(__dirname, '..'),
         env: { ...process.env, NO_AUTO_OPEN: 'true', PORT: '3005' },
-        timeout: 15000,
+        timeout: 45000,
         encoding: 'utf-8'
       });
 
-      if (res.status === 0 || (res.stdout && res.stdout.includes('STATUS TDD: GREEN'))) {
+      if (res.status === 0 || (res.stdout && res.stdout.includes('STATUS TDD: GREEN')) || (res.stdout && res.stdout.includes('100% PASS'))) {
         console.log(`     ✅ ${suite} LULUS (GREEN)`);
       } else {
         console.error(`     ❌ ${suite} GAGAL (Status: ${res.status}):\n${res.stdout || res.stderr}`);

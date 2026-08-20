@@ -1,13 +1,13 @@
 node_modules/
 config/config.json
-data/*.db
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
+config/license.json
+data/
 .wwebjs_auth/
 .wwebjs_cache/
 src/engine/session/
 *.log
 dist/
 .env
+license-server/.env
+license-server/data/
 .tools/
