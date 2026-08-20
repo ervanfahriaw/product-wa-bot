@@ -30,6 +30,7 @@ const DEFAULT_CONFIG = {
   follow_up_enabled: false,
   follow_up_delay_hours: 24,
   follow_up_template: 'Halo Kak, kemarin sempat tanya tentang *{product_name}* ya. Varian ini masih ready lho Kak. Mau kami bantu proseskan pesanannya? 😊',
+  handover_enabled: true,       // Aktifkan / Nonaktifkan fitur pengalihan chat (handover) ke admin
   is_setup_completed: false
 };
 

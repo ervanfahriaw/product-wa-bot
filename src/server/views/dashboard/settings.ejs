@@ -192,6 +192,29 @@
         </div>
       </div>
 
+      <!-- 4b. Fitur Handover / Pengalihan ke Admin (Khusus Mode Bisnis) -->
+      <div class="py-5 border-b border-[#E4E4E7] space-y-3" x-show="mode === 'bisnis'">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center space-x-2">
+              <label class="text-sm font-semibold text-[#18181B]">Fitur Handover (Pengalihan ke Admin)</label>
+              <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full"
+                    :class="handoverEnabled === 'true' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-zinc-100 text-zinc-600 border border-zinc-200'"
+                    x-text="handoverEnabled === 'true' ? 'AKTIF' : 'NONAKTIF'"></span>
+            </div>
+            <p class="text-xs text-[#71717A] mt-0.5">Otomatis jeda bot dan kirim notifikasi ke nomor WhatsApp pemilik saat pelanggan menawar harga, komplain, atau meminta admin.</p>
+          </div>
+          <div class="w-full sm:w-72">
+            <select name="handover_enabled" x-model="handoverEnabled"
+                    class="w-full px-3.5 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B] transition-colors">
+              <option value="true">Aktif (Alihkan Nego/Komplain ke Admin)</option>
+              <option value="false">Nonaktif (AI Jawab Sendiri 100% Tanpa Jeda)</option>
+            </select>
+          </div>
+        </div>
+        <p class="text-[11px] text-[#A1A1AA]">Saat dinonaktifkan, bot AI tidak akan menjeda obrolan atau meneruskan notifikasi, melainkan langsung menjelaskan dengan sopan bahwa harga sudah nett/pas dan melayani pelanggan secara mandiri.</p>
+      </div>
+
       <!-- 5. Gemini API Key & Model -->
       <div class="py-5 border-b border-[#E4E4E7] space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -538,6 +561,7 @@
       maxDelay: <%= config.max_delay_sec || 12 %>,
       interBubbleDelay: <%= config.inter_bubble_delay || 2.5 %>,
       customerDebounce: <%= config.customer_debounce_sec || 5 %>,
+      handoverEnabled: '<%= config.handover_enabled === false ? "false" : "true" %>',
       followUpEnabled: '<%= config.follow_up_enabled ? "true" : "false" %>',
       followUpDelayHours: '<%= config.follow_up_delay_hours || 24 %>',
       followUpTemplate: `<%- (config.follow_up_template || "Halo Kak, kemarin sempat tanya tentang *{product_name}* ya. Varian ini masih ready lho Kak. Mau kami bantu proseskan pesanannya? 😊").replace(/`/g, "\\`").replace(/\\/g, "\\\\") %>`,

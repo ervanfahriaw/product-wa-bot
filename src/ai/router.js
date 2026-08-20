@@ -83,7 +83,15 @@ function loadSystemPrompt(mode, config = {}) {
     console.error('[AI Router] Gagal membaca system prompt:', err.message);
   }
 
-  return baseContent + buildPersonalityPrompt(config, mode);
+  let handoverInstruction = '';
+  if (mode === 'bisnis' || mode === 'business') {
+    const isHandoverOn = config.handover_enabled !== false;
+    if (!isHandoverOn) {
+      handoverInstruction = '\n\n## ⚠️ Status Fitur Handover: NONAKTIF\n- Fitur pengalihan ke admin/pemilik toko (handover) saat ini sedang NONAKTIF di pengaturan.\n- Anda sebagai AI wajib menangani seluruh percakapan secara mandiri, tuntas, dan sopan.\n- Jika pelanggan menawar harga (nego), sampaikan dengan ramah bahwa harga kami sudah pas/nett sesuai kualitas terbaik dan belum bisa ditawar, tanpa menawarkan pengalihan ke admin.\n- DILARANG menyertakan tag [HANDOVER_REQUIRED].';
+    }
+  }
+
+  return baseContent + buildPersonalityPrompt(config, mode) + handoverInstruction;
 }
 
 /**

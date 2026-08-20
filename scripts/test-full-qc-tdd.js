@@ -13,7 +13,7 @@ process.env.NO_DELAY = 'true';
 const db = require('../src/db');
 const { getConfig, updateConfig } = require('../src/config');
 const { splitIntoBubbles } = require('../src/engine/bubble-sender');
-const { isHandoverTriggered } = require('../src/engine/handlers/business-handler');
+const { isHandoverTriggered, isHandoverEnabled } = require('../src/engine/handlers/business-handler');
 const { checkOutOfHours } = require('../src/ai/context-builder');
 const { getHwid } = require('../src/utils/hwid');
 const { 
@@ -270,6 +270,26 @@ async function startSuite() {
 
     // Bersihkan tiket tes
     db.deleteHandoverTicket(ticketId1);
+  });
+
+  runTest('TC-HND-04: Toggle Handover ON/OFF mengaktifkan dan menonaktifkan trigger secara akurat', () => {
+    // 1. Saat handover_enabled = true / on
+    db.setSetting('handover_enabled', 'true');
+    assert.strictEqual(isHandoverEnabled(), true);
+    assert.strictEqual(isHandoverTriggered('bisa nego tipis gak kak?'), true);
+    assert.strictEqual(isHandoverTriggered('minta nomor rekening'), true);
+
+    // 2. Saat handover_enabled = false / off
+    db.setSetting('handover_enabled', 'false');
+    assert.strictEqual(isHandoverEnabled(), false);
+    assert.strictEqual(isHandoverTriggered('bisa nego tipis gak kak?'), false);
+    assert.strictEqual(isHandoverTriggered('minta nomor rekening'), false);
+    assert.strictEqual(isHandoverTriggered('mau bicara langsung sama admin dong'), false);
+
+    // 3. Kembalikan ke default true
+    db.setSetting('handover_enabled', 'true');
+    assert.strictEqual(isHandoverEnabled(), true);
+    assert.strictEqual(isHandoverTriggered('bisa nego tipis gak kak?'), true);
   });
 
   // ==========================================

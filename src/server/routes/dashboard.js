@@ -577,13 +577,19 @@ router.post('/settings', (req, res) => {
     out_of_hours_mode,
     follow_up_enabled,
     follow_up_delay_hours,
-    follow_up_template
+    follow_up_template,
+    handover_enabled
   } = req.body;
 
   const updates = {};
   if (mode && ['bisnis', 'personal'].includes(mode)) {
     updates.mode = mode;
     db.setSetting('mode', mode);
+  }
+  if (typeof handover_enabled !== 'undefined') {
+    const isHandoverOn = handover_enabled === 'true' || handover_enabled === '1' || handover_enabled === true || handover_enabled === 'on';
+    updates.handover_enabled = isHandoverOn;
+    db.setSetting('handover_enabled', isHandoverOn ? 'true' : 'false');
   }
   if (typeof business_name !== 'undefined') {
     updates.business_name = business_name.trim();

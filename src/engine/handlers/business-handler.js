@@ -38,12 +38,32 @@ const NEGO_PATTERNS = [
 ];
 
 /**
+ * Memeriksa apakah fitur Handover sedang aktif di pengaturan.
+ * @param {object} [config] 
+ * @returns {boolean}
+ */
+function isHandoverEnabled(config = null) {
+  const setting = db.getSetting ? db.getSetting('handover_enabled') : null;
+  if (setting !== null && setting !== undefined && setting !== '') {
+    return setting === 'true' || setting === '1' || setting === 'on' || setting === true;
+  }
+  const cfg = config || getConfig();
+  return cfg.handover_enabled !== false;
+}
+
+/**
  * Menentukan apakah pesan membutuhkan pengalihan ke manusia (human handover).
  * @param {string} messageText 
  * @param {boolean} isAiHandover 
+ * @param {object|null} [config]
  * @returns {boolean}
  */
-function isHandoverTriggered(messageText = '', isAiHandover = false) {
+function isHandoverTriggered(messageText = '', isAiHandover = false, config = null) {
+  // Jika fitur Handover dinonaktifkan di pengaturan, jangan pernah trigger handover
+  if (!isHandoverEnabled(config)) {
+    return false;
+  }
+
   if (isAiHandover) return true;
   const lower = (messageText || '').toLowerCase().trim();
   if (!lower) return false;
@@ -348,7 +368,7 @@ async function handleBusinessMessage(message, client) {
     } catch (_) {}
 
     // 3. Cek apakah pesan memerlukan Human Handover (Nego Harga / Komplain / Minta Admin)
-    if (isHandoverTriggered(messageBody)) {
+    if (isHandoverTriggered(messageBody, false, config)) {
       const handoverReply = 'Baik Kak, terkait penawaran/permintaan Kakak ini, pesan sudah kami teruskan ke admin/pemilik toko ya. Mohon ditunggu sebentar, admin kami akan segera membalas langsung di sini. Terima kasih atas kesabarannya 🙏';
 
       await simulateHumanTyping(message, 1000, 2000);
@@ -425,8 +445,8 @@ async function handleBusinessMessage(message, client) {
       }
     }
 
-    // 8. Cek & Notifikasi jika AI menandai handoverRequired
-    const needsAiHandover = Boolean(aiResult.handoverRequired);
+    // 8. Cek & Notifikasi jika AI menandai handoverRequired (hanya jika fitur handover aktif)
+    const needsAiHandover = isHandoverEnabled(config) && Boolean(aiResult.handoverRequired);
     if (needsAiHandover) {
       await triggerHandoverActions(contact, messageBody, 'Permintaan Eskalasi AI', client, config);
     }
@@ -467,5 +487,6 @@ async function handleBusinessMessage(message, client) {
 module.exports = {
   handleBusinessMessage,
   isHandoverTriggered,
+  isHandoverEnabled,
   findProductImageToSend
 };
