@@ -12,6 +12,7 @@ const {
 const { handleIncomingMessage } = require('./handlers/message-handler');
 const { startReminderScheduler, stopReminderScheduler } = require('./reminder-scheduler');
 const { SESSION_DIR } = require('../utils/paths');
+const { findSystemBrowserExecutable } = require('../utils/browser-locator');
 
 // Pastikan folder session ada
 if (!fs.existsSync(SESSION_DIR)) {
@@ -77,24 +78,34 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
   setStatus(ENGINE_STATUS.CONNECTING);
 
   try {
+    const detectedExecutable = findSystemBrowserExecutable();
+    if (detectedExecutable) {
+      console.log(`[Engine] Menggunakan browser sistem: ${detectedExecutable}`);
+    } else {
+      console.warn('[Engine] Perhatian: Chrome/Edge tidak ditemukan di path standar, mencoba fallback internal.');
+    }
+
+    const puppeteerConfig = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu'
+      ],
+      ...(detectedExecutable ? { executablePath: detectedExecutable } : {}),
+      ...customPuppeteerOptions
+    };
+
     clientInstance = new Client({
       authStrategy: new LocalAuth({
         dataPath: SESSION_DIR,
         clientId: 'wa-bot-main'
       }),
-      puppeteer: {
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu'
-        ],
-        ...customPuppeteerOptions
-      }
+      puppeteer: puppeteerConfig
     });
 
     // Event: QR Code Generated
