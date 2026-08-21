@@ -27,32 +27,34 @@ function getSetupContext(extra = {}) {
   };
 }
 
-// Step 0: Aktivasi Lisensi Lynk.id
+// Step 1: Aktivasi Lisensi Lynk.id
 router.get('/license', (req, res) => {
-  const isBusiness = isBusinessEdition();
-  const isPersonal = isPersonalEdition();
   const fingerprint = getDeviceFingerprint();
-
-  let pageTitle = 'Aktivasi Lisensi Resmi';
-  if (isBusiness) pageTitle = 'Aktivasi Lisensi WA Bot Bisnis AI';
-  else if (isPersonal) pageTitle = 'Aktivasi Lisensi WA Asisten Pribadi AI';
+  const localLic = checkLocalLicense();
+  const currentKey = (localLic && localLic.data && localLic.data.licenseKey) ? localLic.data.licenseKey : '';
 
   res.render('setup/step-0-license', getSetupContext({
-    title: pageTitle,
+    title: 'Langkah 1: Aktivasi Lisensi Lynk.id',
+    currentStep: 1,
     fingerprint,
+    isLicensed: localLic.isValid,
+    licenseData: localLic.data || null,
     error: null,
-    licenseKey: ''
+    licenseKey: currentKey
   }));
 });
 
 router.post('/license', async (req, res) => {
   const { license_key, server_url } = req.body || {};
   const fingerprint = getDeviceFingerprint();
+  const localLic = checkLocalLicense();
 
   if (!license_key || !license_key.trim()) {
     return res.render('setup/step-0-license', getSetupContext({
-      title: 'Aktivasi Lisensi Resmi',
+      title: 'Langkah 1: Aktivasi Lisensi Lynk.id',
+      currentStep: 1,
       fingerprint,
+      isLicensed: localLic.isValid,
       error: 'Harap masukkan kode lisensi resmi dari Lynk.id.',
       licenseKey: ''
     }));
@@ -65,8 +67,10 @@ router.post('/license', async (req, res) => {
     return res.redirect('/setup/step-1');
   } else {
     return res.render('setup/step-0-license', getSetupContext({
-      title: 'Aktivasi Lisensi Resmi',
+      title: 'Langkah 1: Aktivasi Lisensi Lynk.id',
+      currentStep: 1,
       fingerprint,
+      isLicensed: localLic.isValid,
       error: result.message || 'Gagal mengaktifkan lisensi. Pastikan kode lisensi benar dan koneksi internet stabil.',
       licenseKey: license_key
     }));
@@ -79,7 +83,7 @@ router.post('/license/deactivate', async (req, res) => {
   return res.redirect('/setup/license');
 });
 
-// Step 1: Profil Bisnis & Toko
+// Step 2: Profil Bisnis & Toko
 router.get('/', (req, res) => {
   const lic = checkLocalLicense();
   if (!lic.isValid) {
@@ -90,8 +94,8 @@ router.get('/', (req, res) => {
 
 router.get('/step-1', (req, res) => {
   res.render('setup/step-1-mode', getSetupContext({
-    title: 'Langkah 1: Profil Toko & Bisnis',
-    currentStep: 1,
+    title: 'Langkah 2: Profil Toko & Bisnis',
+    currentStep: 2,
     error: null
   }));
 });
@@ -105,8 +109,8 @@ router.post('/step-1', (req, res) => {
 
   if (!bName) {
     return res.render('setup/step-1-mode', getSetupContext({
-      title: 'Langkah 1: Profil Toko & Bisnis',
-      currentStep: 1,
+      title: 'Langkah 2: Profil Toko & Bisnis',
+      currentStep: 2,
       config: { ...getConfig(), business_name, owner_phone },
       error: 'Nama Brand / Toko wajib diisi.'
     }));

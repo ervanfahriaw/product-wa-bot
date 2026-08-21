@@ -89,49 +89,66 @@
       </div>
     </div>
 
-    <!-- 1b. Informasi Lisensi Resmi & Perangkat -->
-    <% if (typeof licenseInfo !== 'undefined' && licenseInfo && licenseInfo.isValid) { %>
+    <!-- 1b. Informasi & Pengelolaan Lisensi Resmi -->
     <div class="py-6 border-b border-[#E4E4E7] space-y-3">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div class="flex items-center gap-2">
-            <label class="text-sm font-semibold text-[#18181B]">Status Lisensi Resmi</label>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-              AKTIF ✅
-            </span>
+            <label class="text-sm font-semibold text-[#18181B]">Status Lisensi Lynk.id</label>
+            <% if (typeof licenseInfo !== 'undefined' && licenseInfo && licenseInfo.isValid) { %>
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                AKTIF TERDAFTAR
+              </span>
+            <% } else { %>
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                BELUM TERAKTIVASI
+              </span>
+            <% } %>
           </div>
-          <p class="text-xs text-[#71717A] mt-0.5">Software terkunci dan terdaftar resmi untuk perangkat ini.</p>
+          <p class="text-xs text-[#71717A] mt-0.5">Software resmi terikat pada identitas hardware perangkat ini.</p>
         </div>
         
-        <form action="/setup/license/deactivate" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin melepas lisensi dari perangkat ini? Bot akan terkunci hingga diaktifkan kembali.')">
-          <button type="submit" 
-                  class="px-3.5 py-1.5 rounded-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-medium transition-colors flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-            <span>Pindah Perangkat / Deaktivasi</span>
-          </button>
-        </form>
+        <% if (typeof licenseInfo !== 'undefined' && licenseInfo && licenseInfo.isValid) { %>
+          <form action="/setup/license/deactivate" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin melepas lisensi dari perangkat ini? Bot akan terkunci hingga diaktifkan kembali.')">
+            <button type="submit" 
+                    class="px-3.5 py-1.5 rounded-full border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 text-xs font-medium transition-colors flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+              <span>Pindah Perangkat / Deaktivasi</span>
+            </button>
+          </form>
+        <% } else { %>
+          <a href="/setup/license" 
+             class="px-4 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors">
+            Aktivasi Lisensi Lynk.id →
+          </a>
+        <% } %>
       </div>
 
       <div class="p-3.5 rounded-xl bg-[#F7F7F8] border border-[#E4E4E7] text-xs space-y-1.5">
         <div class="flex justify-between items-center text-[11px]">
           <span class="text-[#71717A]">Kode Lisensi:</span>
-          <span class="font-mono font-bold text-[#18181B]"><%= licenseInfo.data.licenseKey %></span>
-        </div>
-        <div class="flex justify-between items-center text-[11px]">
-          <span class="text-[#71717A]">Terdaftar Untuk:</span>
-          <span class="font-medium text-[#18181B]"><%= licenseInfo.data.buyerEmail || licenseInfo.data.buyerName || 'Pembeli Resmi Lynk.id' %></span>
+          <span class="font-mono font-bold text-[#18181B]">
+            <%= (typeof licenseInfo !== 'undefined' && licenseInfo && licenseInfo.data && licenseInfo.data.licenseKey) ? licenseInfo.data.licenseKey : 'Belum Ada' %>
+          </span>
         </div>
         <div class="flex justify-between items-center text-[11px]">
           <span class="text-[#71717A]">Hardware ID (HWID):</span>
-          <span class="font-mono text-[#71717A] truncate max-w-[200px] sm:max-w-xs"><%= licenseInfo.data.hwid %></span>
+          <span class="font-mono text-[#71717A] truncate max-w-[200px] sm:max-w-xs">
+            <%= (typeof fingerprint !== 'undefined' && fingerprint.hwid) ? fingerprint.hwid : ((typeof licenseInfo !== 'undefined' && licenseInfo && licenseInfo.data) ? licenseInfo.data.hwid : 'Terdeteksi Otomatis') %>
+          </span>
+        </div>
+        <div class="flex justify-between items-center text-[11px]">
+          <span class="text-[#71717A]">Perangkat:</span>
+          <span class="font-medium text-[#18181B]">
+            <%= (typeof fingerprint !== 'undefined' && fingerprint.deviceName) ? fingerprint.deviceName : 'Komputer Lokal' %>
+          </span>
         </div>
       </div>
     </div>
-    <% } %>
 
     <!-- Main Settings Form -->
     <form action="/dashboard/settings" method="POST" class="space-y-6 pt-2">
