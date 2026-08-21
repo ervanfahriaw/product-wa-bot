@@ -147,54 +147,66 @@ async function triggerHandoverActions(contact, messageBody, reason, client, conf
 
 const { BASE_DIR, UPLOADS_DIR } = require('../../utils/paths');
 const { resolveCustomerInfo, formatCustomerDisplay } = require('../../utils/contact-resolver');
+const { 
+  normalizeImageUrl, 
+  downloadAndCacheImage, 
+  resolveProductImageResource 
+} = require('../../utils/image-downloader');
 
 /**
- * Menyelesaikan path fisik file gambar produk dari database.
+ * Menyelesaikan path fisik atau URL gambar produk dari database.
  * @param {string} imagePath 
- * @returns {string|null} Full absolute path jika file ada, atau null
+ * @returns {string|null} Path lokal atau URL yang dinormalisasi
  */
 function resolveProductImagePath(imagePath) {
   if (!imagePath) return null;
-  const cleanName = path.basename(imagePath);
-  const candidates = [
-    imagePath,
-    path.isAbsolute(imagePath) ? imagePath : path.join(BASE_DIR, imagePath),
-    path.join(UPLOADS_DIR, cleanName),
-    path.resolve(__dirname, '../../../', imagePath),
-    path.join(BASE_DIR, 'data', 'uploads', cleanName)
-  ];
-
-  for (const c of candidates) {
-    if (c && fs.existsSync(c)) {
-      return c;
-    }
+  const res = resolveProductImageResource(imagePath);
+  if (res) {
+    return res.isUrl ? res.url : res.fullPath;
   }
   return null;
 }
 
 /**
- * Menghasilkan objek MessageMedia yang siap dikirim oleh WhatsApp Web.
- * @param {string} filePath 
- * @returns {object|null}
+ * Menghasilkan objek MessageMedia yang siap dikirim oleh WhatsApp Web,
+ * mendukung baik file lokal di disk maupun tautan URL remote (Google Drive / HTTP).
+ * @param {string} filePathOrUrl 
+ * @returns {Promise<object|null>}
  */
-function createMessageMediaFromFile(filePath) {
-  if (!filePath || !fs.existsSync(filePath)) return null;
+async function createMessageMediaFromFile(filePathOrUrl) {
+  if (!filePathOrUrl) return null;
+
+  let localPath = filePathOrUrl;
+
+  // Jika berupa URL, unduh & simpan ke cache lokal terlebih dahulu
+  if (filePathOrUrl.startsWith('http://') || filePathOrUrl.startsWith('https://')) {
+    try {
+      const cached = await downloadAndCacheImage(filePathOrUrl);
+      if (cached && fs.existsSync(cached)) {
+        localPath = cached;
+      }
+    } catch (err) {
+      console.warn('[BusinessHandler] Gagal mengunduh gambar remote:', err.message);
+    }
+  }
+
+  if (!localPath || !fs.existsSync(localPath)) return null;
 
   if (MessageMedia && typeof MessageMedia.fromFilePath === 'function') {
     try {
-      return MessageMedia.fromFilePath(filePath);
+      return MessageMedia.fromFilePath(localPath);
     } catch (_) {}
   }
 
   // Fallback membaca base64 manual jika instance helper whatsapp-web.js belum ready
   try {
-    const base64Data = fs.readFileSync(filePath, { encoding: 'base64' });
-    const ext = path.extname(filePath).toLowerCase();
+    const base64Data = fs.readFileSync(localPath, { encoding: 'base64' });
+    const ext = path.extname(localPath).toLowerCase();
     let mime = 'image/jpeg';
     if (ext === '.png') mime = 'image/png';
     else if (ext === '.webp') mime = 'image/webp';
     else if (ext === '.gif') mime = 'image/gif';
-    const filename = path.basename(filePath);
+    const filename = path.basename(localPath);
 
     if (MessageMedia) {
       return new MessageMedia(mime, base64Data, filename);
@@ -208,10 +220,10 @@ function createMessageMediaFromFile(filePath) {
 
 /**
  * Mencari apakah ada produk relevan dengan gambar yang perlu dikirim.
- * Mendukung pencocokan kata luwes (fuzzy overlap) dan riwayat obrolan pelanggan.
+ * Mendukung file lokal, link gambar Google Drive/URL, dan riwayat obrolan pelanggan.
  * @param {string} messageText 
  * @param {string} [contact]
- * @returns {{product: object, fullPath: string}|null}
+ * @returns {{product: object, fullPath: string|null, url: string|null, isUrl: boolean}|null}
  */
 function findProductImageToSend(messageText = '', contact = null) {
   const lower = messageText.toLowerCase();
@@ -225,13 +237,18 @@ function findProductImageToSend(messageText = '', contact = null) {
   const products = db.getAllProducts();
   if (products.length === 0) return null;
 
-  // Filter hanya produk yang memiliki file gambar fisik yang valid
+  // Filter produk yang memiliki file gambar lokal atau link gambar valid
   const productsWithImage = [];
   for (const prod of products) {
     if (prod.image_path) {
-      const fullPath = resolveProductImagePath(prod.image_path);
-      if (fullPath) {
-        productsWithImage.push({ product: prod, fullPath });
+      const res = resolveProductImageResource(prod.image_path);
+      if (res) {
+        productsWithImage.push({ 
+          product: prod, 
+          fullPath: res.fullPath || null, 
+          url: res.url || null,
+          isUrl: res.isUrl
+        });
       }
     }
   }
@@ -563,7 +580,7 @@ async function handleBusinessMessage(message, client) {
     const imgInfo = findProductImageToSend(messageBody, contact);
     if (imgInfo && client) {
       try {
-        const media = createMessageMediaFromFile(imgInfo.fullPath);
+        const media = await createMessageMediaFromFile(imgInfo.fullPath || imgInfo.url);
         if (media) {
           const caption = `📸 *${imgInfo.product.name}*\n💰 Rp${Number(imgInfo.product.price).toLocaleString('id-ID')}`;
           let sent = false;

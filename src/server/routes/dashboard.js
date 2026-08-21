@@ -77,8 +77,8 @@ router.get('/products', (req, res) => {
 });
 
 router.post('/products', (req, res) => {
-  const { sku, name, category, price, stock, description, product_knowledge } = req.body;
-  const image_path = req.file ? req.file.path : (req.body.image_path ? req.body.image_path.trim() : null);
+  const { sku, name, category, price, stock, description, product_knowledge, related_products } = req.body;
+  const image_path = req.file ? req.file.path : (req.body.image_path ? req.body.image_path.trim() : (req.body.image ? req.body.image.trim() : null));
 
   if (name && name.trim()) {
     db.createProduct({
@@ -89,7 +89,8 @@ router.post('/products', (req, res) => {
       stock: Number(stock) || 0,
       description: description ? description.trim() : '',
       product_knowledge: product_knowledge ? product_knowledge.trim() : '',
-      image_path: image_path || null
+      image_path: image_path || null,
+      related_products: related_products || null
     });
   }
   return res.redirect('/dashboard/products');
@@ -97,9 +98,9 @@ router.post('/products', (req, res) => {
 
 router.post('/products/:id/edit', (req, res) => {
   const { id } = req.params;
-  const { sku, name, category, price, stock, description, product_knowledge } = req.body;
+  const { sku, name, category, price, stock, description, product_knowledge, related_products } = req.body;
   const existing = db.getProductById ? db.getProductById(Number(id)) : null;
-  let image_path = req.file ? req.file.path : (req.body.image_path !== undefined && req.body.image_path !== '' ? req.body.image_path.trim() : (existing ? existing.image_path : null));
+  let image_path = req.file ? req.file.path : (req.body.image_path !== undefined && req.body.image_path !== '' ? req.body.image_path.trim() : (req.body.image !== undefined && req.body.image !== '' ? req.body.image.trim() : (existing ? existing.image_path : null)));
 
   if (name && name.trim()) {
     db.updateProduct(Number(id), {
@@ -110,7 +111,8 @@ router.post('/products/:id/edit', (req, res) => {
       stock: Number(stock) || 0,
       description: description ? description.trim() : '',
       product_knowledge: product_knowledge ? product_knowledge.trim() : '',
-      image_path: image_path || null
+      image_path: image_path || null,
+      related_products: related_products || (existing ? existing.related_products : null)
     });
   }
   return res.redirect('/dashboard/products');
