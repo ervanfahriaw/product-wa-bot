@@ -92,6 +92,23 @@ function resolveHandoverTicket(id) {
 }
 
 /**
+ * Menyelesaikan tiket handover pending berdasarkan kontak pelanggan.
+ * @param {string} contact 
+ * @returns {boolean}
+ */
+function resolveHandoverByContact(contact) {
+  if (!contact) return false;
+  const clean = contact.replace(/[^0-9]/g, '');
+  const stmt = db.prepare(`
+    UPDATE manual_handovers 
+    SET status = 'resolved', resolved_at = CURRENT_TIMESTAMP
+    WHERE status = 'pending' AND (contact = ? OR contact LIKE ?)
+  `);
+  const result = stmt.run(contact, `%${clean}%`);
+  return result.changes > 0;
+}
+
+/**
  * Menghapus tiket handover.
  * @param {number} id 
  * @returns {boolean}
@@ -107,5 +124,6 @@ module.exports = {
   createHandoverTicket,
   appendOrUpdateHandoverTicket,
   resolveHandoverTicket,
+  resolveHandoverByContact,
   deleteHandoverTicket
 };

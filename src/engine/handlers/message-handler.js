@@ -1,6 +1,7 @@
 const { getConfig } = require('../../config');
 const db = require('../../db');
 const { handleBusinessMessage } = require('./business-handler');
+const { isOwnerMessage, handleOwnerCommand } = require('./owner-command-handler');
 const { enqueueIncomingMessage } = require('../message-buffer');
 
 /**
@@ -10,6 +11,14 @@ const { enqueueIncomingMessage } = require('../message-buffer');
  */
 async function processAggregatedMessage(message, client) {
   try {
+    // 0. Cek apakah pesan berasal dari owner/admin dan berisi perintah manajemen bot
+    if (isOwnerMessage(message)) {
+      const handled = await handleOwnerCommand(message, client);
+      if (handled) {
+        return;
+      }
+    }
+
     const config = getConfig();
     const activeMode = db.getSetting('mode') || config.mode;
 

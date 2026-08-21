@@ -115,8 +115,15 @@ async function triggerHandoverActions(contact, messageBody, reason, client, conf
   if (ownerPhone && client && typeof client.sendMessage === 'function') {
     const cleanPhone = normalizePhoneNumber(ownerPhone);
     const targetJid = toWhatsAppJid(ownerPhone);
+    const cleanCustomer = normalizePhoneNumber(contact) || contact;
+
     if (targetJid && cleanPhone.length >= 9) {
-      const handoverNotice = `🔔 *[NOTIFIKASI HANDOVER - WA BOT]*\n\nPelanggan (*${contact}*) membutuhkan penanganan langsung oleh Pemilik / Admin Toko:\n\n💬 *Pesan Pelanggan:* "${messageBody}"\n⚠️ *Status:* ${reason || 'Nego Harga / Permintaan Khusus / Komplain'}\n\n👉 *Bot telah OTOMATIS DIJEDA (PAUSED)* untuk kontak ini selama 2 jam agar obrolan manual Anda tidak tertimpa bot.\nSilakan buka WhatsApp Anda dan balas langsung pelanggan ini.`;
+      const handoverNotice = `🔔 *[NOTIFIKASI HANDOVER - WA BOT]*\n\n` +
+        `Pelanggan (*${cleanCustomer}*) membutuhkan penanganan langsung oleh Admin / Owner:\n\n` +
+        `💬 *Pesan Pelanggan:* "${messageBody}"\n` +
+        `⚠️ *Status:* ${reason || 'Nego Harga / Permintaan Khusus / Komplain'}\n\n` +
+        `👉 *Bot telah OTOMATIS DIJEDA (PAUSED)* untuk kontak ini selama 2 jam agar obrolan manual Anda tidak tertimpa bot.\n\n` +
+        `💡 *Kontrol via WA:* Balas chat ini dengan \`!aktifkan ${cleanCustomer}\` atau \`!selesai\` jika sudah selesai melayani agar bot aktif kembali.`;
       
       try {
         let finalJid = targetJid;
