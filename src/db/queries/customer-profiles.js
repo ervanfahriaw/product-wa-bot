@@ -55,13 +55,15 @@ function upsertCustomerProfile(contactOrData, data = {}) {
   if (!existing) {
     // INSERT baru
     const stmt = db.prepare(`
-      INSERT INTO customer_profiles (contact, customer_name, customer_status, tags, favorite_products, notes, total_orders, total_spent, first_contact_at, last_contact_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO customer_profiles (contact, customer_name, customer_status, phone_number, lid_jid, tags, favorite_products, notes, total_orders, total_spent, first_contact_at, last_contact_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
     stmt.run(
       contact,
       customerName,
       leadStatus,
+      payload.phone_number || null,
+      payload.lid_jid || null,
       payload.tags || null,
       payload.favorite_products || null,
       payload.notes || null,
@@ -81,6 +83,8 @@ function upsertCustomerProfile(contactOrData, data = {}) {
       updates.push('customer_status = ?'); 
       values.push(leadStatus); 
     }
+    if (typeof payload.phone_number !== 'undefined') { updates.push('phone_number = ?'); values.push(payload.phone_number); }
+    if (typeof payload.lid_jid !== 'undefined') { updates.push('lid_jid = ?'); values.push(payload.lid_jid); }
     if (typeof payload.tags !== 'undefined') { updates.push('tags = ?'); values.push(payload.tags); }
     if (typeof payload.favorite_products !== 'undefined') { updates.push('favorite_products = ?'); values.push(payload.favorite_products); }
     if (typeof payload.notes !== 'undefined') { updates.push('notes = ?'); values.push(payload.notes); }

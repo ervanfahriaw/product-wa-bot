@@ -1,6 +1,7 @@
 const db = require('../../db');
 const { getConfig, saveConfig } = require('../../config');
 const { normalizePhoneNumber, toWhatsAppJid } = require('../../utils/phone');
+const { findLidForPhoneNumber, formatIndonesianPhone } = require('../../utils/contact-resolver');
 
 /**
  * Memeriksa apakah pesan masuk berasal dari nomor Owner / Pemilik Toko.
@@ -120,16 +121,28 @@ async function handleOwnerCommand(message, client) {
     const target = parsed.targetNumber;
     const targetJid = toWhatsAppJid(target);
 
-    // Unpause baik format JID @c.us maupun @lid
+    // Unpause format JID @c.us, @lid, dan mapping JID asli dari customer_profiles
     db.resumeContact(targetJid);
     db.resumeContact(`${target}@c.us`);
     db.resumeContact(`${target}@lid`);
-    if (db.resolveHandoverByContact) {
-      db.resolveHandoverByContact(target);
+    db.resumeContact(target);
+
+    const mappedLid = findLidForPhoneNumber(target);
+    if (mappedLid) {
+      db.resumeContact(mappedLid);
+      if (db.resolveHandoverByContact) {
+        db.resolveHandoverByContact(mappedLid);
+      }
     }
 
+    if (db.resolveHandoverByContact) {
+      db.resolveHandoverByContact(target);
+      db.resolveHandoverByContact(targetJid);
+    }
+
+    const pretty = formatIndonesianPhone(target) || target;
     const replyMsg = `✅ *[BOT DIAKTIFKAN KEMBALI]*\n\n` +
-      `Bot WhatsApp telah *DIAKTIFKAN* kembali untuk nomor: *${target}*.\n` +
+      `Bot WhatsApp telah *DIAKTIFKAN* kembali untuk nomor: *${pretty}* (${target}).\n` +
       `Tiket handover ditandai *Selesai*. Pesan berikutnya dari pelanggan ini akan langsung dijawab otomatis oleh AI.`;
 
     await sendReply(replyMsg);

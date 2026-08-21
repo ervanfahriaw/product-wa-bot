@@ -30,6 +30,8 @@ function up() {
     const existingCols = new Set(tableInfo.map(c => c.name));
     if (!existingCols.has('tags')) db.exec("ALTER TABLE customer_profiles ADD COLUMN tags TEXT");
     if (!existingCols.has('customer_status')) db.exec("ALTER TABLE customer_profiles ADD COLUMN customer_status TEXT DEFAULT 'new'");
+    if (!existingCols.has('phone_number')) db.exec("ALTER TABLE customer_profiles ADD COLUMN phone_number TEXT");
+    if (!existingCols.has('lid_jid')) db.exec("ALTER TABLE customer_profiles ADD COLUMN lid_jid TEXT");
     if (!existingCols.has('favorite_products')) db.exec("ALTER TABLE customer_profiles ADD COLUMN favorite_products TEXT");
     if (!existingCols.has('notes')) db.exec("ALTER TABLE customer_profiles ADD COLUMN notes TEXT");
     if (!existingCols.has('total_orders')) db.exec("ALTER TABLE customer_profiles ADD COLUMN total_orders INTEGER DEFAULT 0");

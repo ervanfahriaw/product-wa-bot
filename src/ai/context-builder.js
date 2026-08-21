@@ -52,10 +52,14 @@ function buildBusinessContext(message) {
     return '[DATA PRODUK & STOK DARI DATABASE]: Katalog produk saat ini masih kosong.';
   }
 
+  const { resolveProductImagePath } = require('../engine/handlers/business-handler');
+
   const lines = productsToDisplay.map(p => {
     let line = `- [${p.sku ? p.sku + ' - ' : ''}${p.name}] | Kategori: ${p.category || 'Umum'} | Harga: Rp${Number(p.price).toLocaleString('id-ID')} | Stok: ${p.stock} unit`;
     if (p.description) line += ` | Deskripsi: ${p.description}`;
     if (p.product_knowledge) line += ` | Product Knowledge/Manfaat/Bahan: ${p.product_knowledge}`;
+    const hasPhoto = Boolean(p.image_path && resolveProductImagePath && resolveProductImagePath(p.image_path));
+    line += ` | Foto Produk: ${hasPhoto ? 'Tersedia di sistem (akan otomatis dikirimkan ke chat)' : 'Belum tersedia'}`;
     return line;
   });
 

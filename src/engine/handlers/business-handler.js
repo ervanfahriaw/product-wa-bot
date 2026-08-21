@@ -115,15 +115,18 @@ async function triggerHandoverActions(contact, messageBody, reason, client, conf
   if (ownerPhone && client && typeof client.sendMessage === 'function') {
     const cleanPhone = normalizePhoneNumber(ownerPhone);
     const targetJid = toWhatsAppJid(ownerPhone);
-    const cleanCustomer = normalizePhoneNumber(contact) || contact;
+
+    const customerInfo = await resolveCustomerInfo(null, contact);
+    const customerDisplay = customerInfo.formattedDisplay || contact;
+    const unpauseTarget = customerInfo.phoneNumber || normalizePhoneNumber(contact) || contact;
 
     if (targetJid && cleanPhone.length >= 9) {
       const handoverNotice = `🔔 *[NOTIFIKASI HANDOVER - WA BOT]*\n\n` +
-        `Pelanggan (*${cleanCustomer}*) membutuhkan penanganan langsung oleh Admin / Owner:\n\n` +
+        `Pelanggan (*${customerDisplay}*) membutuhkan penanganan langsung oleh Admin / Owner:\n\n` +
         `💬 *Pesan Pelanggan:* "${messageBody}"\n` +
         `⚠️ *Status:* ${reason || 'Nego Harga / Permintaan Khusus / Komplain'}\n\n` +
         `👉 *Bot telah OTOMATIS DIJEDA (PAUSED)* untuk kontak ini selama 2 jam agar obrolan manual Anda tidak tertimpa bot.\n\n` +
-        `💡 *Kontrol via WA:* Balas chat ini dengan \`!aktifkan ${cleanCustomer}\` atau \`!selesai\` jika sudah selesai melayani agar bot aktif kembali.`;
+        `💡 *Kontrol via WA:* Balas chat ini dengan \`!aktifkan ${unpauseTarget}\` atau \`!selesai\` jika sudah selesai melayani agar bot aktif kembali.`;
       
       try {
         let finalJid = targetJid;
@@ -134,7 +137,7 @@ async function triggerHandoverActions(contact, messageBody, reason, client, conf
           }
         }
         await client.sendMessage(finalJid, handoverNotice);
-        console.log(`[BusinessHandler] Notifikasi handover terkirim ke owner (${finalJid}).`);
+        console.log(`[BusinessHandler] Notifikasi handover terkirim ke owner (${finalJid}) untuk pelanggan ${customerDisplay}.`);
       } catch (hErr) {
         console.error('[BusinessHandler] Gagal mengirim notifikasi handover ke owner:', hErr.message);
       }
@@ -143,6 +146,7 @@ async function triggerHandoverActions(contact, messageBody, reason, client, conf
 }
 
 const { BASE_DIR, UPLOADS_DIR } = require('../../utils/paths');
+const { resolveCustomerInfo, formatCustomerDisplay } = require('../../utils/contact-resolver');
 
 /**
  * Menyelesaikan path fisik file gambar produk dari database.
@@ -169,11 +173,47 @@ function resolveProductImagePath(imagePath) {
 }
 
 /**
+ * Menghasilkan objek MessageMedia yang siap dikirim oleh WhatsApp Web.
+ * @param {string} filePath 
+ * @returns {object|null}
+ */
+function createMessageMediaFromFile(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return null;
+
+  if (MessageMedia && typeof MessageMedia.fromFilePath === 'function') {
+    try {
+      return MessageMedia.fromFilePath(filePath);
+    } catch (_) {}
+  }
+
+  // Fallback membaca base64 manual jika instance helper whatsapp-web.js belum ready
+  try {
+    const base64Data = fs.readFileSync(filePath, { encoding: 'base64' });
+    const ext = path.extname(filePath).toLowerCase();
+    let mime = 'image/jpeg';
+    if (ext === '.png') mime = 'image/png';
+    else if (ext === '.webp') mime = 'image/webp';
+    else if (ext === '.gif') mime = 'image/gif';
+    const filename = path.basename(filePath);
+
+    if (MessageMedia) {
+      return new MessageMedia(mime, base64Data, filename);
+    }
+    return { mimetype: mime, data: base64Data, filename };
+  } catch (err) {
+    console.error('[BusinessHandler] Gagal membuat MessageMedia:', err.message);
+    return null;
+  }
+}
+
+/**
  * Mencari apakah ada produk relevan dengan gambar yang perlu dikirim.
+ * Mendukung pencocokan kata luwes (fuzzy overlap) dan riwayat obrolan pelanggan.
  * @param {string} messageText 
+ * @param {string} [contact]
  * @returns {{product: object, fullPath: string}|null}
  */
-function findProductImageToSend(messageText = '') {
+function findProductImageToSend(messageText = '', contact = null) {
   const lower = messageText.toLowerCase();
   const isAskingImage = lower.includes('foto') || lower.includes('gambar') || 
                         lower.includes('lihat') || lower.includes('liat') ||
@@ -185,32 +225,79 @@ function findProductImageToSend(messageText = '') {
   const products = db.getAllProducts();
   if (products.length === 0) return null;
 
-  // 1. Cek pencocokan spesifik nama produk atau SKU yang memiliki gambar
+  // Filter hanya produk yang memiliki file gambar fisik yang valid
+  const productsWithImage = [];
   for (const prod of products) {
     if (prod.image_path) {
-      const prodName = prod.name.toLowerCase();
-      const prodSku = (prod.sku || '').toLowerCase();
-      const isMentioned = lower.includes(prodName) || (prodSku && lower.includes(prodSku));
-
-      if (isMentioned) {
-        const fullPath = resolveProductImagePath(prod.image_path);
-        if (fullPath) {
-          return { product: prod, fullPath };
-        }
+      const fullPath = resolveProductImagePath(prod.image_path);
+      if (fullPath) {
+        productsWithImage.push({ product: prod, fullPath });
       }
     }
   }
 
-  // 2. Jika pesan menanyakan foto/gambar umum ("boleh liat fotonya?", "minta foto dong")
-  if (isAskingImage) {
-    for (const prod of products) {
-      if (prod.image_path) {
-        const fullPath = resolveProductImagePath(prod.image_path);
-        if (fullPath) {
-          return { product: prod, fullPath };
-        }
+  if (productsWithImage.length === 0) return null;
+
+  // 1. Cek pencocokan kata-kata dalam nama produk (Fuzzy Word Overlap Scoring)
+  const queryWords = lower.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
+  let bestMatch = null;
+  let highestScore = 0;
+
+  for (const item of productsWithImage) {
+    const prodName = item.product.name.toLowerCase();
+    const prodSku = (item.product.sku || '').toLowerCase();
+    const prodWords = prodName.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
+
+    // Jika SKU cocok langsung
+    if (prodSku && lower.includes(prodSku)) {
+      return item;
+    }
+
+    // Hitung berapa kata dari nama produk yang muncul dalam pesan
+    let score = 0;
+    for (const pw of prodWords) {
+      if (queryWords.includes(pw) || lower.includes(pw)) {
+        score++;
       }
     }
+
+    // Jika seluruh frasa nama produk ada di query
+    if (lower.includes(prodName)) {
+      score += 10;
+    }
+
+    if (score > highestScore) {
+      highestScore = score;
+      bestMatch = item;
+    }
+  }
+
+  if (highestScore > 0 && bestMatch) {
+    return bestMatch;
+  }
+
+  // 2. Jika pesan menanyakan foto, tapi tidak menyebut nama produk spesifik:
+  //    Cek riwayat obrolan terakhir (chat_logs) pelanggan untuk mengetahui produk apa yang sedang dibahas!
+  if (isAskingImage && contact) {
+    try {
+      if (db.getChatLogsByContact) {
+        const recentLogs = db.getChatLogsByContact(contact, 5);
+        if (recentLogs && recentLogs.length > 0) {
+          const combinedHistory = recentLogs.map(l => `${l.message_in} ${l.message_out}`).join(' ').toLowerCase();
+
+          for (const item of productsWithImage) {
+            const prodName = item.product.name.toLowerCase();
+            const prodWords = prodName.split(/\s+/).filter(w => w.length >= 3);
+            if (combinedHistory.includes(prodName) || prodWords.some(pw => combinedHistory.includes(pw))) {
+              return item;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Fallback: Jika umum ("minta foto katalog"), ambil produk pertama yang punya gambar
+    return productsWithImage[0];
   }
 
   return null;
@@ -473,13 +560,32 @@ async function handleBusinessMessage(message, client) {
     });
 
     // 7. Cek apakah perlu kirim gambar produk
-    const imgInfo = findProductImageToSend(messageBody);
-    if (imgInfo && client && MessageMedia) {
+    const imgInfo = findProductImageToSend(messageBody, contact);
+    if (imgInfo && client) {
       try {
-        const media = MessageMedia.fromFilePath(imgInfo.fullPath);
-        await client.sendMessage(contact, media, {
-          caption: `Foto produk: *${imgInfo.product.name}* (Rp${Number(imgInfo.product.price).toLocaleString('id-ID')})`
-        });
+        const media = createMessageMediaFromFile(imgInfo.fullPath);
+        if (media) {
+          const caption = `📸 *${imgInfo.product.name}*\n💰 Rp${Number(imgInfo.product.price).toLocaleString('id-ID')}`;
+          let sent = false;
+
+          if (typeof client.sendMessage === 'function') {
+            try {
+              await client.sendMessage(contact, media, { caption });
+              sent = true;
+            } catch (_) {}
+          }
+
+          if (!sent && message && typeof message.reply === 'function') {
+            try {
+              await message.reply(media, undefined, { caption });
+              sent = true;
+            } catch (_) {}
+          }
+
+          if (sent) {
+            console.log(`[BusinessHandler] Berhasil mengirim foto produk "${imgInfo.product.name}" ke ${contact}`);
+          }
+        }
       } catch (mediaErr) {
         console.error('[BusinessHandler] Gagal mengirim media gambar:', mediaErr.message);
       }
@@ -528,5 +634,7 @@ module.exports = {
   handleBusinessMessage,
   isHandoverTriggered,
   isHandoverEnabled,
-  findProductImageToSend
+  findProductImageToSend,
+  resolveProductImagePath,
+  createMessageMediaFromFile
 };
