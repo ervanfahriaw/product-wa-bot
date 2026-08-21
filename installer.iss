@@ -72,17 +72,17 @@ Name: "{app}\data\uploads"
 
 [Icons]
 ; Shortcut di Desktop
-Name: "{autodesktop}\WA Bot Controller"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\Jalankan_Bot.vbs"""; WorkingDir: "{app}"; IconFilename: "{sys}\shell32.dll"; IconIndex: 220; Tasks: desktopicon
+Name: "{autodesktop}\WA Bot Controller"; Filename: "{app}\start.bat"; WorkingDir: "{app}"; IconFilename: "{sys}\shell32.dll"; IconIndex: 220; Tasks: desktopicon
 
 ; Shortcut di Start Menu Program
-Name: "{group}\Buka WA Bot Controller"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\Jalankan_Bot.vbs"""; WorkingDir: "{app}"; IconFilename: "{sys}\shell32.dll"; IconIndex: 220
+Name: "{group}\Buka WA Bot Controller"; Filename: "{app}\start.bat"; WorkingDir: "{app}"; IconFilename: "{sys}\shell32.dll"; IconIndex: 220
 Name: "{group}\Hentikan WA Bot"; Filename: "{sys}\wscript.exe"; Parameters: """{app}\Hentikan_Bot.vbs"""; WorkingDir: "{app}"; IconFilename: "{sys}\shell32.dll"; IconIndex: 131
 Name: "{group}\Buka Folder Data"; Filename: "explorer.exe"; Parameters: """{app}"""; WorkingDir: "{app}"
 Name: "{group}\Uninstall WA Bot"; Filename: "{uninstallexe}"
 
 [Run]
 ; Opsi centang otomatis di halaman akhir instalasi untuk langsung menjalankan bot
-Filename: "{sys}\wscript.exe"; Parameters: """{app}\Jalankan_Bot.vbs"""; WorkingDir: "{app}"; Description: "Jalankan WA Bot sekarang (Buka Dashboard Browser)"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\start.bat"; WorkingDir: "{app}"; Description: "Jalankan WA Bot sekarang (Buka Dashboard Browser)"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 ; Matikan bot terlebih dahulu sebelum proses uninstall berjalan

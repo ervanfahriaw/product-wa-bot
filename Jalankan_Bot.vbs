@@ -11,19 +11,20 @@ Set fso = CreateObject("Scripting.FileSystemObject")
 strCurrentDir = fso.GetParentFolderName(WScript.ScriptFullName)
 WshShell.CurrentDirectory = strCurrentDir
 
-' Cek apakah node.exe bawaan (.tools) tersedia, atau gunakan node global
-strNodeExe = strCurrentDir & "\.tools\node-v20.18.0-win-x64\node.exe"
-If fso.FileExists(strNodeExe) Then
-    strCmd = """" & strNodeExe & """ """ & strCurrentDir & "\src\server\index.js"""
+' Setup environment PATH untuk node portabel
+strTools = strCurrentDir & "\.tools\node-v20.18.0-win-x64"
+strPath = WshShell.Environment("PROCESS")("PATH")
+If fso.FolderExists(strTools) Then
+    WshShell.Environment("PROCESS")("PATH") = strTools & ";" & strPath
+    strNodeExe = strTools & "\node.exe"
 Else
-    strCmd = "node """ & strCurrentDir & "\src\server\index.js"""
+    strNodeExe = "node"
 End If
 
-' Jalankan server di background (0 = Hidden window, False = Don't wait for completion)
+' Jalankan server Node.js
+strCmd = """" & strNodeExe & """ """ & strCurrentDir & "\src\server\index.js"""
 WshShell.Run strCmd, 0, False
 
-' Beri jeda 2 detik agar server siap mendengarkan port 3000
-WScript.Sleep 2000
-
-' Buka dashboard di browser bawaan pengguna
+' Beri jeda 2.5 detik lalu buka dashboard di browser bawaan
+WScript.Sleep 2500
 WshShell.Run "http://localhost:3000"
