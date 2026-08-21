@@ -135,6 +135,32 @@ async function triggerHandoverActions(contact, messageBody, reason, client, conf
   }
 }
 
+const { BASE_DIR, UPLOADS_DIR } = require('../../utils/paths');
+
+/**
+ * Menyelesaikan path fisik file gambar produk dari database.
+ * @param {string} imagePath 
+ * @returns {string|null} Full absolute path jika file ada, atau null
+ */
+function resolveProductImagePath(imagePath) {
+  if (!imagePath) return null;
+  const cleanName = path.basename(imagePath);
+  const candidates = [
+    imagePath,
+    path.isAbsolute(imagePath) ? imagePath : path.join(BASE_DIR, imagePath),
+    path.join(UPLOADS_DIR, cleanName),
+    path.resolve(__dirname, '../../../', imagePath),
+    path.join(BASE_DIR, 'data', 'uploads', cleanName)
+  ];
+
+  for (const c of candidates) {
+    if (c && fs.existsSync(c)) {
+      return c;
+    }
+  }
+  return null;
+}
+
 /**
  * Mencari apakah ada produk relevan dengan gambar yang perlu dikirim.
  * @param {string} messageText 
@@ -143,33 +169,40 @@ async function triggerHandoverActions(contact, messageBody, reason, client, conf
 function findProductImageToSend(messageText = '') {
   const lower = messageText.toLowerCase();
   const isAskingImage = lower.includes('foto') || lower.includes('gambar') || 
-                        lower.includes('lihat') || lower.includes('katalog') || 
-                        lower.includes('model') || lower.includes('bentuk');
+                        lower.includes('lihat') || lower.includes('liat') ||
+                        lower.includes('katalog') || lower.includes('model') || 
+                        lower.includes('bentuk') || lower.includes('spill') ||
+                        lower.includes('penampakan') || lower.includes('contoh') ||
+                        lower.includes('pic') || lower.includes('pict');
 
   const products = db.getAllProducts();
   if (products.length === 0) return null;
 
+  // 1. Cek pencocokan spesifik nama produk atau SKU yang memiliki gambar
   for (const prod of products) {
-    if (prod.image_path && lower.includes(prod.name.toLowerCase())) {
-      const fullPath = path.isAbsolute(prod.image_path) 
-        ? prod.image_path 
-        : path.resolve(__dirname, '../../../', prod.image_path);
-      
-      if (fs.existsSync(fullPath)) {
-        return { product: prod, fullPath };
+    if (prod.image_path) {
+      const prodName = prod.name.toLowerCase();
+      const prodSku = (prod.sku || '').toLowerCase();
+      const isMentioned = lower.includes(prodName) || (prodSku && lower.includes(prodSku));
+
+      if (isMentioned) {
+        const fullPath = resolveProductImagePath(prod.image_path);
+        if (fullPath) {
+          return { product: prod, fullPath };
+        }
       }
     }
   }
 
+  // 2. Jika pesan menanyakan foto/gambar umum ("boleh liat fotonya?", "minta foto dong")
   if (isAskingImage) {
-    const prodWithImg = products.find(p => p.image_path && fs.existsSync(
-      path.isAbsolute(p.image_path) ? p.image_path : path.resolve(__dirname, '../../../', p.image_path)
-    ));
-    if (prodWithImg) {
-      const fullPath = path.isAbsolute(prodWithImg.image_path)
-        ? prodWithImg.image_path
-        : path.resolve(__dirname, '../../../', prodWithImg.image_path);
-      return { product: prodWithImg, fullPath };
+    for (const prod of products) {
+      if (prod.image_path) {
+        const fullPath = resolveProductImagePath(prod.image_path);
+        if (fullPath) {
+          return { product: prod, fullPath };
+        }
+      }
     }
   }
 
