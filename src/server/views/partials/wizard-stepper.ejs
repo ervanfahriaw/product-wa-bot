@@ -1,16 +1,3 @@
-<%
-  const isBisnis = typeof isBusiness !== 'undefined' ? isBusiness : (typeof config !== 'undefined' && config.mode === 'bisnis');
-  const isPerson = typeof isPersonal !== 'undefined' ? isPersonal : (typeof config !== 'undefined' && config.mode === 'personal');
-  
-  let step1Label = 'Mode';
-  if (isBisnis) step1Label = 'Profil';
-  else if (isPerson) step1Label = 'Profil';
-
-  let step4Label = 'Data Awal';
-  if (isBisnis) step4Label = 'Katalog';
-  else if (isPerson) step4Label = 'Anggaran';
-%>
-
 <div class="mb-8 max-w-lg mx-auto">
   <div class="flex items-center justify-between relative">
     <div class="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-[1px] bg-[#E4E4E7] -z-0"></div>
@@ -24,7 +11,7 @@
         1
       </div>
       <span class="text-[11px] font-medium mt-1.5 <%= currentStep === 1 ? 'text-[#18181B] font-semibold' : 'text-[#71717A]' %>">
-        <%= step1Label %>
+        Profil Bisnis
       </span>
     </div>
 
@@ -57,7 +44,7 @@
         4
       </div>
       <span class="text-[11px] font-medium mt-1.5 <%= currentStep === 4 ? 'text-[#18181B] font-semibold' : 'text-[#71717A]' %>">
-        <%= step4Label %>
+        Katalog Produk
       </span>
     </div>
   </div>

@@ -136,40 +136,20 @@
     <!-- Main Settings Form -->
     <form action="/dashboard/settings" method="POST" class="space-y-6 pt-2">
       <!-- 2. Mode Bot / Edition Info -->
-      <%
-        const isLocked = typeof editionInfo !== 'undefined' && editionInfo.isModeLocked;
-        const editionName = typeof editionInfo !== 'undefined' ? editionInfo.name : 'WA Bot Assistant';
-      %>
       <div class="py-5 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <label class="text-sm font-semibold text-[#18181B]">Edisi & Mode Operasional</label>
-          <p class="text-xs text-[#71717A] mt-0.5"><%= isLocked ? 'Edisi produk aktif pada sistem Anda.' : 'Pilih peran utama bot untuk customer service bisnis atau asisten pribadi.' %></p>
+          <p class="text-xs text-[#71717A] mt-0.5">Mode aktif untuk automasi penjualan & customer service WhatsApp.</p>
         </div>
-        <% if (isLocked) { %>
-          <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold border <%= (typeof editionInfo !== 'undefined' && editionInfo.theme) ? editionInfo.theme.badgeClass : 'bg-zinc-100 text-zinc-800 border-zinc-200' %>">
-            <span class="w-2 h-2 rounded-full <%= (typeof editionInfo !== 'undefined' && editionInfo.defaultMode === 'bisnis') ? 'bg-emerald-500' : 'bg-indigo-500' %>"></span>
-            <span><%= editionName %></span>
-            <input type="hidden" name="mode" value="<%= editionInfo.defaultMode %>">
-          </div>
-        <% } else { %>
-          <div class="inline-flex p-1 bg-[#F4F4F5] rounded-full border border-[#E4E4E7]">
-            <button type="button" @click="mode = 'bisnis'"
-                    class="px-4 py-1.5 text-xs font-medium rounded-full transition-all"
-                    :class="mode === 'bisnis' ? 'bg-[#18181B] text-white shadow-sm' : 'text-[#71717A] hover:text-[#18181B]'">
-              Mode Bisnis
-            </button>
-            <button type="button" @click="mode = 'personal'"
-                    class="px-4 py-1.5 text-xs font-medium rounded-full transition-all"
-                    :class="mode === 'personal' ? 'bg-[#18181B] text-white shadow-sm' : 'text-[#71717A] hover:text-[#18181B]'">
-              Mode Personal
-            </button>
-            <input type="hidden" name="mode" :value="mode">
-          </div>
-        <% } %>
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold border bg-emerald-50 text-emerald-800 border-emerald-200">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span>WA Bot Bisnis AI</span>
+          <input type="hidden" name="mode" value="bisnis">
+        </div>
       </div>
 
-      <!-- 3. Business Name (Only in Business Mode) -->
-      <div class="py-5 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4" x-show="mode === 'bisnis'">
+      <!-- 3. Business Name -->
+      <div class="py-5 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <label class="text-sm font-semibold text-[#18181B]">Nama Usaha / Brand</label>
           <p class="text-xs text-[#71717A] mt-0.5">Nama bisnis yang digunakan bot saat menyapa pelanggan.</p>
@@ -192,8 +172,8 @@
         </div>
       </div>
 
-      <!-- 4b. Fitur Handover / Pengalihan ke Admin (Khusus Mode Bisnis) -->
-      <div class="py-5 border-b border-[#E4E4E7] space-y-3" x-show="mode === 'bisnis'">
+      <!-- 4b. Fitur Handover / Pengalihan ke Admin -->
+      <div class="py-5 border-b border-[#E4E4E7] space-y-3">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div class="flex items-center space-x-2">
@@ -317,8 +297,7 @@
         </div>
       </div>
 
-      <!-- 7b. Jam Operasional & Mode Luar Jam (Mode Bisnis) -->
-      <% if (config && config.mode === 'bisnis') { %>
+      <!-- 7b. Jam Operasional & Mode Luar Jam -->
       <div class="py-5 border-b border-[#E4E4E7] space-y-4">
         <div>
           <label class="text-sm font-semibold text-[#18181B]">Jam Operasional & Mode Luar Jam</label>
@@ -349,7 +328,6 @@
         </div>
         <p class="text-[11px] text-[#A1A1AA]">Kosongkan jam jika toko buka 24 jam. Mode "Balas Template" akan mengirim pesan luar jam tanpa memanggil AI (menghemat kuota).</p>
       </div>
-      <% } %>
 
       <!-- 8. Timing & Debounce -->
       <div class="py-5 border-b border-[#E4E4E7] space-y-4">
@@ -400,8 +378,8 @@
         </div>
       </div>
 
-      <!-- 10. Follow-Up Otomatis (Mode Bisnis Only) -->
-      <div class="py-6 border-b border-[#E4E4E7] space-y-4" x-show="mode === 'bisnis'">
+      <!-- 10. Follow-Up Otomatis -->
+      <div class="py-6 border-b border-[#E4E4E7] space-y-4">
         <div>
           <label class="text-sm font-semibold text-[#18181B]">Follow-Up Otomatis (Anti-Spam)</label>
           <p class="text-xs text-[#71717A] mt-0.5">Kirim pengingat sopan ke pelanggan yang bertanya tentang produk setelah selang waktu tertentu.</p>

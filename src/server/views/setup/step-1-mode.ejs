@@ -1,33 +1,18 @@
 <%- include('../partials/header') %>
 
-<%
-  const edition = typeof editionInfo !== 'undefined' ? editionInfo : { name: 'WhatsApp Bot Assistant', badgeText: 'Setup' };
-  const isBisnisEd = typeof isBusiness !== 'undefined' ? isBusiness : false;
-  const isPersonalEd = typeof isPersonal !== 'undefined' ? isPersonal : false;
-  const isDualEd = typeof isDual !== 'undefined' ? isDual : (!isBisnisEd && !isPersonalEd);
-%>
-
 <div class="max-w-xl mx-auto py-10 px-4">
   <%- include('../partials/wizard-stepper', { currentStep: 1 }) %>
 
-  <div class="bg-white rounded-2xl border border-[#E4E4E7] p-8 space-y-6" 
-       x-data="{ selectedMode: '<%= isBisnisEd ? 'bisnis' : (isPersonalEd ? 'personal' : (config.mode || 'bisnis')) %>' }">
+  <div class="bg-white rounded-2xl border border-[#E4E4E7] p-8 space-y-6">
     
     <div class="text-center space-y-1.5">
-      <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border <%= edition.theme ? edition.theme.badgeClass : 'bg-zinc-100 text-zinc-800 border-zinc-200' %>">
-        <%= edition.theme ? edition.theme.badgeText : 'Setup Wizard' %>
+      <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-800 border-emerald-200">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        <span>WA Bot Bisnis AI</span>
       </div>
       
-      <% if (isBisnisEd) { %>
-        <h2 class="text-xl font-bold text-[#18181B]">Selamat Datang di WA Bot Bisnis AI</h2>
-        <p class="text-xs text-[#71717A] max-w-md mx-auto">Setup cepat 3 langkah untuk mengaktifkan asisten customer service & penjualan otomatis tokomu.</p>
-      <% } else if (isPersonalEd) { %>
-        <h2 class="text-xl font-bold text-[#18181B]">Selamat Datang di WA Asisten Pribadi AI</h2>
-        <p class="text-xs text-[#71717A] max-w-md mx-auto">Setup cepat 3 langkah untuk mengaktifkan asisten pencatatan keuangan, jadwal, dan produktivitas harianmu.</p>
-      <% } else { %>
-        <h2 class="text-xl font-bold text-[#18181B]">Pilih Mode Bot</h2>
-        <p class="text-xs text-[#71717A]">Tentukan peran utama bot untuk customer service bisnis atau asisten pribadi.</p>
-      <% } %>
+      <h2 class="text-xl font-bold text-[#18181B]">Profil Toko & Bisnis</h2>
+      <p class="text-xs text-[#71717A] max-w-md mx-auto">Tentukan identitas bisnismu dan nomor WhatsApp pemilik untuk menerima notifikasi eskalasi pesan pelanggan.</p>
     </div>
 
     <% if (error) { %>
@@ -37,76 +22,30 @@
     <% } %>
 
     <form action="/setup/step-1" method="POST" class="space-y-5">
-      <% if (isDualEd) { %>
-        <!-- Pilihan Mode Khusus Dual Edition -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <!-- Option 1: Mode Bisnis -->
-          <label class="cursor-pointer border rounded-2xl p-4 flex flex-col justify-between transition-all"
-                 :class="selectedMode === 'bisnis' ? 'border-[#18181B] bg-[#F7F7F8]' : 'border-[#E4E4E7] hover:border-[#D4D4D8] bg-white'">
-            <div class="space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="font-semibold text-[#18181B] text-sm">Mode Bisnis</span>
-                <input type="radio" name="mode" value="bisnis" x-model="selectedMode" class="text-[#18181B]">
-              </div>
-              <p class="text-xs text-[#71717A] leading-relaxed">Cek stok otomatis, rekomendasi produk, dan eskalasi chat nego ke owner.</p>
-            </div>
-          </label>
-
-          <!-- Option 2: Mode Personal -->
-          <label class="cursor-pointer border rounded-2xl p-4 flex flex-col justify-between transition-all"
-                 :class="selectedMode === 'personal' ? 'border-[#18181B] bg-[#F7F7F8]' : 'border-[#E4E4E7] hover:border-[#D4D4D8] bg-white'">
-            <div class="space-y-2">
-              <div class="flex items-center justify-between">
-                <span class="font-semibold text-[#18181B] text-sm">Mode Personal</span>
-                <input type="radio" name="mode" value="personal" x-model="selectedMode" class="text-[#18181B]">
-              </div>
-              <p class="text-xs text-[#71717A] leading-relaxed">Pencatatan pengeluaran harian, rekap anggaran, dan asisten reminder.</p>
-            </div>
-          </label>
-        </div>
-      <% } else { %>
-        <!-- Hidden input mode untuk edisi terkunci -->
-        <input type="hidden" name="mode" value="<%= isBisnisEd ? 'bisnis' : 'personal' %>">
-      <% } %>
+      <!-- Mode terkunci otomatis ke Bisnis -->
+      <input type="hidden" name="mode" value="bisnis">
 
       <!-- Form Fields untuk Bisnis -->
-      <div class="space-y-4 pt-2" x-show="selectedMode === 'bisnis'" x-transition>
+      <div class="space-y-4 pt-2">
         <div>
           <label class="block text-xs font-medium text-[#71717A] mb-1">Nama Brand / Toko</label>
           <input type="text" name="business_name" value="<%= config.business_name || '' %>"
-                 placeholder="Contoh: Kopi Nusantara / Hijab Store"
+                 placeholder="Contoh: Kopi Nusantara / Hijab Store" required
                  class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
         </div>
         <div>
           <label class="block text-xs font-medium text-[#71717A] mb-1">Nomor WhatsApp Pemilik (Untuk Notifikasi Handover)</label>
           <input type="text" name="owner_phone" value="<%= config.owner_phone || '' %>"
-                 placeholder="Contoh: 628123456789"
+                 placeholder="Contoh: 628123456789" required
                  class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
-          <p class="text-[11px] text-[#71717A] mt-1">Bot akan mengirim notifikasi ke nomor ini jika ada pelanggan butuh bantuan manual / nego khusus.</p>
-        </div>
-      </div>
-
-      <!-- Form Fields untuk Personal -->
-      <div class="space-y-4 pt-2" x-show="selectedMode === 'personal'" x-transition>
-        <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Nama Panggilan Anda</label>
-          <input type="text" name="business_name" value="<%= config.business_name || '' %>"
-                 placeholder="Contoh: Budi / Sarah"
-                 class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Nomor WhatsApp Utama Anda</label>
-          <input type="text" name="owner_phone" value="<%= config.owner_phone || '' %>"
-                 placeholder="Contoh: 628123456789"
-                 class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
-          <p class="text-[11px] text-[#71717A] mt-1">Digunakan untuk menerima notifikasi reminder dan rekap harian langsung di chat pribadi.</p>
+          <p class="text-[11px] text-[#71717A] mt-1">Bot akan mengirim notifikasi ke nomor ini jika ada pelanggan yang butuh bantuan manual, komplain, atau nego khusus.</p>
         </div>
       </div>
 
       <div class="flex justify-end pt-2">
         <button type="submit" 
                 class="w-full sm:w-auto px-6 py-2.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors shadow-sm">
-          <%= (isBisnisEd || isPersonalEd) ? 'Lanjut: Sambungkan WhatsApp →' : 'Simpan & Lanjut →' %>
+          Simpan & Sambungkan WhatsApp →
         </button>
       </div>
     </form>

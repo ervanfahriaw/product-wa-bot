@@ -8,7 +8,7 @@ const EDITION_FILE_PATH = path.join(CONFIG_DIR, 'edition.json');
 
 const DEFAULT_CONFIG = {
   port: 3000,
-  mode: null, // 'bisnis' | 'personal'
+  mode: 'bisnis', // 'bisnis'
   business_name: '',
   owner_phone: '',
   gemini_api_key: '',

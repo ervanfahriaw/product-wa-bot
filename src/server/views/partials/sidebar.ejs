@@ -1,16 +1,13 @@
 <%
-  const edition = typeof editionInfo !== 'undefined' ? editionInfo : { name: 'WA Bot Assistant', shortName: 'WA Bot', theme: { badgeText: 'Edition', badgeClass: 'bg-zinc-100 text-zinc-800 border-zinc-200' } };
-  const isBisnis = (typeof isBusiness !== 'undefined') ? isBusiness : (config && config.mode === 'bisnis');
-  const isPerson = (typeof isPersonal !== 'undefined') ? isPersonal : (config && config.mode === 'personal');
-  const businessName = (config && config.business_name) ? config.business_name : (isBisnis ? 'Toko Saya' : (edition.shortName || 'Asisten Saya'));
-  const initials = businessName.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || (isBisnis ? 'TK' : 'PA');
-  const ownerName = (config && config.owner_phone) ? config.owner_phone : (isBisnis ? 'Owner Toko' : 'Pengguna');
-  const ownerInitial = ownerName.substring(0, 1).toUpperCase() || 'U';
+  const businessName = (typeof config !== 'undefined' && config.business_name) ? config.business_name : 'Toko Saya';
+  const initials = businessName.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'TK';
+  const ownerName = (typeof config !== 'undefined' && config.owner_phone) ? config.owner_phone : 'Owner Toko';
+  const ownerInitial = ownerName.substring(0, 1).toUpperCase() || 'O';
   const currentMenu = typeof activeMenu !== 'undefined' ? activeMenu : 'dashboard';
   const pendingCount = typeof pendingHandoverCount !== 'undefined' ? pendingHandoverCount : 0;
 %>
 
-<!-- Left Sidebar Navigation (Matching Minimalist Design System) -->
+<!-- Left Sidebar Navigation (Business Bot Suite) -->
 <aside class="w-full md:w-60 bg-white border-r border-[#E4E4E7] flex flex-col justify-between p-4 flex-shrink-0 min-h-[640px]">
   <div class="space-y-4">
     <!-- Workspace Header -->
@@ -22,13 +19,13 @@
           </div>
           <div class="flex flex-col min-w-0">
             <span class="text-sm font-semibold text-[#18181B] truncate max-w-[130px] leading-tight"><%= businessName %></span>
-            <span class="text-[10px] text-[#71717A] truncate"><%= edition.shortName || (isBisnis ? 'WA Bot Bisnis' : 'WA Asisten Pribadi') %></span>
+            <span class="text-[10px] text-[#71717A] truncate">WA Bot Bisnis AI</span>
           </div>
         </div>
       </div>
-      <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium border <%= edition.theme ? edition.theme.badgeClass : 'bg-zinc-100 text-zinc-800 border-zinc-200' %>">
-        <span class="w-1.5 h-1.5 rounded-full <%= isBisnis ? 'bg-emerald-500' : 'bg-indigo-500' %>"></span>
-        <span><%= edition.theme ? edition.theme.badgeText : (isBisnis ? 'Bisnis Edition' : 'Personal Edition') %></span>
+      <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium border bg-emerald-50 text-emerald-800 border-emerald-200">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        <span>Bisnis Edition</span>
       </div>
     </div>
 
@@ -45,7 +42,7 @@
       </svg>
     </a>
 
-    <!-- Navigation Group 1 -->
+    <!-- Navigation Group 1: Business Suite -->
     <nav class="space-y-1 pt-2">
       <!-- Dashboard -->
       <a href="/dashboard" 
@@ -59,197 +56,89 @@
         <span>Dashboard</span>
       </a>
 
-      <% if (isBisnis) { %>
-        <!-- Analisis Bisnis & AI Insights (Khusus Mode Bisnis) -->
-        <a href="/dashboard/analytics" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'analytics' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'analytics' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <line x1="18" y1="20" x2="18" y2="10"></line>
-            <line x1="12" y1="20" x2="12" y2="4"></line>
-            <line x1="6" y1="20" x2="6" y2="14"></line>
-          </svg>
-          <span>Analisis Bisnis</span>
-        </a>
+      <!-- Analisis Bisnis & AI Insights -->
+      <a href="/dashboard/analytics" 
+         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'analytics' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+        <svg class="w-4 h-4 <%= currentMenu === 'analytics' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <line x1="18" y1="20" x2="18" y2="10"></line>
+          <line x1="12" y1="20" x2="12" y2="4"></line>
+          <line x1="6" y1="20" x2="6" y2="14"></line>
+        </svg>
+        <span>Analisis Bisnis</span>
+      </a>
 
-        <!-- Katalog Produk -->
-        <a href="/dashboard/products" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'products' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'products' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="m7.5 4.27 9 5.15"></path>
-            <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
-            <path d="m3.3 7 8.7 5 8.7-5"></path>
-            <path d="M12 22V12"></path>
-          </svg>
-          <span>Katalog Produk</span>
-        </a>
+      <!-- Katalog Produk -->
+      <a href="/dashboard/products" 
+         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'products' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+        <svg class="w-4 h-4 <%= currentMenu === 'products' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <path d="m7.5 4.27 9 5.15"></path>
+          <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
+          <path d="m3.3 7 8.7 5 8.7-5"></path>
+          <path d="M12 22V12"></path>
+        </svg>
+        <span>Katalog Produk</span>
+      </a>
 
-        <!-- Profil & Knowledge Usaha -->
-        <a href="/dashboard/business-profile" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'business-profile' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'business-profile' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-          </svg>
-          <span>Profil Usaha</span>
-        </a>
+      <!-- Profil & Knowledge Usaha -->
+      <a href="/dashboard/business-profile" 
+         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'business-profile' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+        <svg class="w-4 h-4 <%= currentMenu === 'business-profile' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        <span>Profil Usaha</span>
+      </a>
 
-        <!-- Inbox Handover -->
-        <a href="/dashboard/handover-inbox" 
-           class="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'handover-inbox' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <div class="flex items-center space-x-2.5">
-            <svg class="w-4 h-4 <%= currentMenu === 'handover-inbox' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
-              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
-            </svg>
-            <span>Inbox Handover</span>
-          </div>
-          <% if (pendingCount > 0) { %>
-            <span class="px-2 py-0.5 text-[11px] font-bold bg-[#DC2626] text-white rounded-full">
-              <%= pendingCount %>
-            </span>
-          <% } %>
-        </a>
+      <!-- Inbox Handover -->
+      <a href="/dashboard/handover-inbox" 
+         class="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'handover-inbox' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+        <div class="flex items-center space-x-2.5">
+          <svg class="w-4 h-4 <%= currentMenu === 'handover-inbox' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+          </svg>
+          <span>Inbox Handover</span>
+        </div>
+        <% if (pendingCount > 0) { %>
+          <span class="px-2 py-0.5 text-[11px] font-bold bg-[#DC2626] text-white rounded-full">
+            <%= pendingCount %>
+          </span>
+        <% } %>
+      </a>
 
-        <!-- Pelanggan (CRM) -->
-        <a href="/dashboard/customers" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'customers' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'customers' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-          </svg>
-          <span>Pelanggan</span>
-        </a>
+      <!-- Pelanggan (CRM) -->
+      <a href="/dashboard/customers" 
+         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'customers' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+        <svg class="w-4 h-4 <%= currentMenu === 'customers' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+        <span>Pelanggan (CRM)</span>
+      </a>
 
-        <!-- FAQ Otomatis -->
-        <a href="/dashboard/faqs" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'faqs' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'faqs' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-          </svg>
-          <span>FAQ Otomatis</span>
-        </a>
+      <!-- FAQ Otomatis -->
+      <a href="/dashboard/faqs" 
+         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'faqs' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+        <svg class="w-4 h-4 <%= currentMenu === 'faqs' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <span>FAQ Otomatis</span>
+      </a>
 
-        <!-- Daftar Pesanan -->
-        <a href="/dashboard/orders" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'orders' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'orders' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <circle cx="9" cy="21" r="1"></circle>
-            <circle cx="20" cy="21" r="1"></circle>
-            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-          </svg>
-          <span>Daftar Pesanan</span>
-        </a>
-      <% } else { %>
-        <!-- Catatan Keuangan (Mode Personal) -->
-        <a href="/dashboard/expenses" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'expenses' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'expenses' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <rect width="20" height="14" x="2" y="5" rx="2"></rect>
-            <line x1="2" x2="22" y1="10" y2="10"></line>
-          </svg>
-          <span>Catatan Keuangan</span>
-        </a>
-
-        <!-- Pengingat (Mode Personal) -->
-        <a href="/dashboard/reminders" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'reminders' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'reminders' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-          <span>Pengingat</span>
-        </a>
-
-        <!-- Catatan (Mode Personal) -->
-        <a href="/dashboard/notes" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'notes' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'notes' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="16" y1="13" x2="8" y2="13"></line>
-            <line x1="16" y1="17" x2="8" y2="17"></line>
-          </svg>
-          <span>Catatan</span>
-        </a>
-
-        <!-- Daftar Tugas (Mode Personal) -->
-        <a href="/dashboard/todos" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'todos' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'todos' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M9 11l3 3L22 4"></path>
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-          </svg>
-          <span>Daftar Tugas</span>
-        </a>
-
-        <!-- Budget Planner (Mode Personal) -->
-        <a href="/dashboard/budgets" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'budgets' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'budgets' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <line x1="12" y1="1" x2="12" y2="23"></line>
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-          </svg>
-          <span>Budget Planner</span>
-        </a>
-
-        <!-- Habit Tracker (Mode Personal) -->
-        <a href="/dashboard/habits" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'habits' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'habits' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M12 20V10"></path>
-            <path d="M18 20V4"></path>
-            <path d="M6 20v-4"></path>
-          </svg>
-          <span>Habit Tracker</span>
-        </a>
-
-        <!-- Jadwal Acara (Mode Personal) -->
-        <a href="/dashboard/events" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'events' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'events' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line>
-            <line x1="3" y1="10" x2="21" y2="10"></line>
-          </svg>
-          <span>Jadwal Acara</span>
-        </a>
-
-        <!-- Daily Journal (Mode Personal) -->
-        <a href="/dashboard/journals" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'journals' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'journals' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-          </svg>
-          <span>Daily Journal</span>
-        </a>
-
-        <!-- Goal Setting (Mode Personal) -->
-        <a href="/dashboard/goals" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'goals' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'goals' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"></circle>
-            <circle cx="12" cy="12" r="6"></circle>
-            <circle cx="12" cy="12" r="2"></circle>
-          </svg>
-          <span>Goal Setting</span>
-        </a>
-
-        <!-- Export Data (Mode Personal) -->
-        <a href="/dashboard/export" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'export' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'export' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span>Export Data</span>
-        </a>
-      <% } %>
+      <!-- Daftar Pesanan -->
+      <a href="/dashboard/orders" 
+         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'orders' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+        <svg class="w-4 h-4 <%= currentMenu === 'orders' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <circle cx="9" cy="21" r="1"></circle>
+          <circle cx="20" cy="21" r="1"></circle>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+        </svg>
+        <span>Daftar Pesanan</span>
+      </a>
 
       <!-- Chat Logs -->
       <a href="/dashboard/chat-logs" 

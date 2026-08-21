@@ -56,7 +56,9 @@ async function testPhase3() {
   };
 
   const mockClient = {
-    sendMessage: async () => { replied = true; }
+    sendMessage: async (to) => { 
+      if (to === testContact) replied = true; 
+    }
   };
 
   await handleBusinessMessage(mockMessage, mockClient);

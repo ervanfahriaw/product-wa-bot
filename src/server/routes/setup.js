@@ -79,7 +79,7 @@ router.post('/license/deactivate', async (req, res) => {
   return res.redirect('/setup/license');
 });
 
-// Step 1: Profil / Pilih Mode
+// Step 1: Profil Bisnis & Toko
 router.get('/', (req, res) => {
   const lic = checkLocalLicense();
   if (!lic.isValid) {
@@ -89,43 +89,28 @@ router.get('/', (req, res) => {
 });
 
 router.get('/step-1', (req, res) => {
-  const isBusiness = isBusinessEdition();
-  const isPersonal = isPersonalEdition();
-
-  let stepTitle = 'Langkah 1: Pilih Mode Bot';
-  if (isBusiness) stepTitle = 'Langkah 1: Profil Bisnis & CS';
-  else if (isPersonal) stepTitle = 'Langkah 1: Profil Asisten Pribadi';
-
   res.render('setup/step-1-mode', getSetupContext({
-    title: stepTitle,
+    title: 'Langkah 1: Profil Toko & Bisnis',
     currentStep: 1,
     error: null
   }));
 });
 
 router.post('/step-1', (req, res) => {
-  let { mode, business_name, owner_phone } = req.body || {};
-  const isBusiness = isBusinessEdition();
-  const isPersonal = isPersonalEdition();
-
-  // Kunci mode jika pada edisi spesifik
-  if (isBusiness) {
-    mode = 'bisnis';
-  } else if (isPersonal) {
-    mode = 'personal';
-  }
-
-  if (!mode || !['bisnis', 'personal'].includes(mode)) {
-    return res.render('setup/step-1-mode', getSetupContext({
-      title: 'Langkah 1: Pilih Mode Bot',
-      currentStep: 1,
-      config: { ...getConfig(), business_name, owner_phone },
-      error: 'Silakan pilih salah satu mode yang tersedia (Mode Bisnis atau Mode Personal).'
-    }));
-  }
+  let { business_name, owner_phone } = req.body || {};
+  const mode = 'bisnis';
 
   const bName = typeof business_name === 'string' ? business_name.trim() : '';
   const oPhone = typeof owner_phone === 'string' ? owner_phone.trim() : '';
+
+  if (!bName) {
+    return res.render('setup/step-1-mode', getSetupContext({
+      title: 'Langkah 1: Profil Toko & Bisnis',
+      currentStep: 1,
+      config: { ...getConfig(), business_name, owner_phone },
+      error: 'Nama Brand / Toko wajib diisi.'
+    }));
+  }
 
   saveConfig({
     mode,
@@ -219,42 +204,30 @@ router.post('/step-3', (req, res) => {
   return res.redirect('/setup/step-4');
 });
 
-// Step 4: Data Awal (Produk / Pengeluaran)
+// Step 4: Data Awal Katalog Produk
 router.get('/step-4', (req, res) => {
   const config = getConfig();
   if (!config.mode) return res.redirect('/setup/step-1');
   if (!config.gemini_api_key) return res.redirect('/setup/step-3');
 
-  const isBusiness = isBusinessEdition() || config.mode === 'bisnis';
-  const stepTitle = isBusiness ? 'Langkah 4: Contoh Produk Katalog' : 'Langkah 4: Contoh Pengeluaran Awal';
-
   res.render('setup/step-4-initial-data', getSetupContext({
-    title: stepTitle,
+    title: 'Langkah 4: Contoh Produk Katalog',
     currentStep: 4,
     error: null
   }));
 });
 
 router.post('/step-4', (req, res) => {
-  const config = getConfig();
-  const { product_name, product_price, product_stock, product_description, expense_category, expense_amount, expense_note } = req.body || {};
+  const { product_name, product_price, product_stock, product_description } = req.body || {};
 
   try {
-    if (config.mode === 'bisnis' && product_name && typeof product_name === 'string' && product_name.trim()) {
+    if (product_name && typeof product_name === 'string' && product_name.trim()) {
       if (typeof db.createProduct === 'function') {
         db.createProduct({
           name: product_name.trim(),
           price: Number(product_price) || 0,
           stock: Number(product_stock) || 0,
           description: product_description && typeof product_description === 'string' ? product_description.trim() : ''
-        });
-      }
-    } else if (config.mode === 'personal' && expense_category && expense_amount) {
-      if (typeof db.createExpense === 'function') {
-        db.createExpense({
-          category: typeof expense_category === 'string' ? expense_category.trim() : 'Lainnya',
-          amount: Number(expense_amount) || 0,
-          note: expense_note && typeof expense_note === 'string' ? expense_note.trim() : 'Data pengeluaran awal'
         });
       }
     }
@@ -267,7 +240,7 @@ router.post('/step-4', (req, res) => {
     return res.redirect('/dashboard');
   } catch (error) {
     return res.render('setup/step-4-initial-data', getSetupContext({
-      title: 'Langkah 4: Masukkan Data Awal',
+      title: 'Langkah 4: Contoh Produk Katalog',
       currentStep: 4,
       error: `Gagal menyimpan data awal: ${error.message}`
     }));
