@@ -100,14 +100,27 @@ function incrementFaqMatchCount(id) {
 function matchFaq(message) {
   if (!message || !message.trim()) return null;
 
+  // JANGAN cocokkan FAQ jika pesan merupakan format pemesanan/order dari pelanggan
+  const msgLower = message.toLowerCase().trim();
+  if (
+    (msgLower.includes('nama') && msgLower.includes('alamat')) ||
+    (msgLower.includes('nama') && msgLower.includes('pesanan')) ||
+    (msgLower.includes('alamat') && msgLower.includes('pesanan')) ||
+    msgLower.includes('nama penerima') ||
+    msgLower.includes('alamat lengkap') ||
+    msgLower.includes('pesanan & jumlah')
+  ) {
+    return null;
+  }
+
   const activeFaqs = db.prepare('SELECT * FROM faqs WHERE is_active = 1').all();
   if (!activeFaqs || activeFaqs.length === 0) return null;
 
   // Bersihkan pesan dan buat token kata
-  const msgLower = message.toLowerCase().trim();
   // Hilangkan tanda baca untuk token kata
   const cleanedMsg = msgLower.replace(/[^\w\s\d]/g, ' ');
   const msgWords = cleanedMsg.split(/\s+/).filter(Boolean);
+
 
   let bestMatch = null;
   let bestScore = 0;

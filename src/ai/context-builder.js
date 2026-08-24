@@ -113,7 +113,7 @@ function buildExpenseContext(message = '') {
     const recentExpenses = db.getRecentExpenses ? db.getRecentExpenses(10) : [];
 
     if ((!monthlyExpenses || monthlyExpenses.length === 0) && (!recentExpenses || recentExpenses.length === 0)) {
-      return `[DATA PENGELUARAN DATABASE (Bulan ${month}/${year})]:\nBelum ada catatan pengeluaran bulan ini.`;
+      return `[DATA PENGELUARAN DARI DATABASE (Bulan ${month}/${year})]:\nBelum ada catatan pengeluaran bulan ini.`;
     }
 
     const totalMonth = monthlyExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
@@ -133,7 +133,7 @@ function buildExpenseContext(message = '') {
       `  - [ID:${e.id}] ${e.created_at.substring(0, 16)} | *${e.category}* | Rp${Number(e.amount).toLocaleString('id-ID')} (${e.note || '-'})`
     );
 
-    return `[DATA PENGELUARAN REALTIME DATABASE (Bulan ${month}/${year})]:
+    return `[DATA PENGELUARAN DARI DATABASE (Bulan ${month}/${year})]:
 Total Pengeluaran Bulan Ini: Rp${totalMonth.toLocaleString('id-ID')} (${monthlyExpenses.length} transaksi)
 Rincian per Kategori:
 ${catSummary || '  (Belum ada data)'}
@@ -141,8 +141,9 @@ ${catSummary || '  (Belum ada data)'}
 Transaksi Terakhir Dicatat:
 ${recentLines.join('\n') || '  (Belum ada transaksi)'}`;
   } catch (err) {
-    return '[DATA PENGELUARAN]: Mode pencatatan siap.';
+    return '[DATA PENGELUARAN DARI DATABASE]: Mode pencatatan siap.';
   }
+
 }
 
 /**
@@ -484,11 +485,12 @@ function buildFewShotSamplesContext(limit = 4) {
       `Contoh ${idx + 1}:\n- Pelanggan: "${s.user_sample}"\n- Balasan Asisten/Toko: "${s.bot_sample}"`
     );
 
-    return `[CONTOH GAYA PERCAKAPAN YANG DIINGINKAN (FEW-SHOT TRAINING)]:\nIkuti gaya komunikasi, keramahan, dan cara menjawab seperti contoh berikut:\n\n${formatted.join('\n\n')}`;
+    return `[CONTOH GAYA PERCAKAPAN YANG DIINGINKAN (FEW-SHOT TRAINING)]:\nIkuti gaya komunikasi, keramahan, dan cara menjawab seperti contoh berikut. Jika pertanyaan atau situasi pelanggan serupa dengan contoh (misal: menawar harga/nego/minta bonus), prioritaskan gaya dan solusi tawaran seperti pada contoh dialog di bawah:\n\n${formatted.join('\n\n')}`;
   } catch (_) {
     return '';
   }
 }
+
 
 /**
  * Membangun konteks waktu saat ini & status pelanggan (baru/lama) untuk sapaan kontekstual.

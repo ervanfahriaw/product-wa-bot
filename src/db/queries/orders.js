@@ -15,20 +15,22 @@ require('../migrations/008-orders');
  * @returns {number}
  */
 function createOrder(data) {
-  const stmt = db.prepare(`
-    INSERT INTO orders (contact, customer_name, order_summary, total_amount, status, resi_number, shipping_method, notes)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `);
   const summary = data.order_summary || data.items || '';
+  const stmt = db.prepare(`
+    INSERT INTO orders (contact, customer_name, order_summary, items, total_amount, status, resi_number, shipping_method, notes, shipping_address)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
   const result = stmt.run(
     data.contact || null,
     data.customer_name || null,
+    summary,
     summary,
     data.total_amount || 0,
     data.status || 'pending',
     data.resi_number || null,
     data.shipping_method || null,
-    data.notes || null
+    data.notes || data.shipping_address || null,
+    data.shipping_address || data.notes || null
   );
   return result.lastInsertRowid;
 }
@@ -39,7 +41,12 @@ function createOrder(data) {
  * @returns {object|undefined}
  */
 function getOrderById(id) {
-  return db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+  const row = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+  if (row) {
+    if (!row.order_summary && row.items) row.order_summary = row.items;
+    if (!row.items && row.order_summary) row.items = row.order_summary;
+  }
+  return row;
 }
 
 /**
@@ -50,7 +57,12 @@ function getOrderById(id) {
  */
 function getOrdersByContact(contact, limit = 10) {
   if (!contact) return [];
-  return db.prepare('SELECT * FROM orders WHERE contact = ? ORDER BY created_at DESC LIMIT ?').all(contact, limit);
+  const rows = db.prepare('SELECT * FROM orders WHERE contact = ? ORDER BY created_at DESC LIMIT ?').all(contact, limit);
+  return rows.map(r => {
+    if (!r.order_summary && r.items) r.order_summary = r.items;
+    if (!r.items && r.order_summary) r.items = r.order_summary;
+    return r;
+  });
 }
 
 /**
@@ -60,10 +72,17 @@ function getOrdersByContact(contact, limit = 10) {
  * @returns {Array<object>}
  */
 function getAllOrders(status, limit = 50) {
+  let rows = [];
   if (status) {
-    return db.prepare('SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC LIMIT ?').all(status, limit);
+    rows = db.prepare('SELECT * FROM orders WHERE status = ? ORDER BY created_at DESC LIMIT ?').all(status, limit);
+  } else {
+    rows = db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT ?').all(limit);
   }
-  return db.prepare('SELECT * FROM orders ORDER BY created_at DESC LIMIT ?').all(limit);
+  return rows.map(r => {
+    if (!r.order_summary && r.items) r.order_summary = r.items;
+    if (!r.items && r.order_summary) r.items = r.order_summary;
+    return r;
+  });
 }
 
 /**
@@ -97,3 +116,4 @@ module.exports = {
   updateOrderStatus,
   deleteOrder
 };
+

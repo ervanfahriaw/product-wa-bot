@@ -1091,6 +1091,80 @@ router.get('/orders', (req, res) => {
   });
 });
 
+router.post('/orders/create', async (req, res) => {
+  const {
+    customer_name,
+    contact,
+    order_summary,
+    total_amount,
+    status,
+    resi_number,
+    shipping_method,
+    notes
+  } = req.body;
+
+  if (!order_summary || !order_summary.trim()) {
+    return res.redirect('/dashboard/orders?error=missing_summary');
+  }
+
+  const { normalizePhoneNumber } = require('../../utils/phone');
+  let resolvedContact = (contact || '').trim();
+  const cleanPhone = normalizePhoneNumber(resolvedContact);
+  if (cleanPhone) {
+    resolvedContact = `${cleanPhone}@c.us`;
+  }
+
+  const numericTotal = parseInt(String(total_amount || 0).replace(/[^0-9]/g, ''), 10) || 0;
+  const orderStatus = status && status.trim() ? status.trim() : 'pending';
+
+  const newOrderId = db.createOrder({
+    customer_name: customer_name ? customer_name.trim() : null,
+    contact: resolvedContact || null,
+    order_summary: order_summary.trim(),
+    total_amount: numericTotal,
+    status: orderStatus,
+    resi_number: resi_number && resi_number.trim() ? resi_number.trim() : null,
+    shipping_method: shipping_method && shipping_method.trim() ? shipping_method.trim() : null,
+    notes: notes && notes.trim() ? notes.trim() : null
+  });
+
+  // Update CRM Profile Pelanggan jika nama & kontak tersedia
+  if (db.upsertCustomerProfile && resolvedContact) {
+    try {
+      db.upsertCustomerProfile(resolvedContact, {
+        customer_name: customer_name ? customer_name.trim() : null,
+        customer_status: 'loyal'
+      });
+    } catch (_) {}
+  }
+
+  // Jika status langsung 'shipped' dan ada nomor resi, kirim notifikasi WA
+  if (orderStatus === 'shipped' && resolvedContact) {
+    try {
+      const { getClient } = require('../../engine');
+      const client = getClient();
+      if (client) {
+        const businessName = getConfig().business_name || 'Toko Kami';
+        const resiText = resi_number && resi_number.trim() ? ` dengan nomor resi *${resi_number.trim()}*` : '';
+        const notificationMsg = `🎉 *[NOTIFIKASI PESANAN - ${businessName.toUpperCase()}]*\n\nHalo ${customer_name || 'Kak'}!\nKabar baik, pesanan Anda *(${order_summary.trim()})* telah dikirim${resiText}.\n\nTerima kasih telah berbelanja di toko kami! 🙏😊`;
+        
+        let contactJid = resolvedContact;
+        if (!contactJid.includes('@')) {
+          contactJid = `${contactJid.replace(/[^0-9]/g, '')}@c.us`;
+        }
+        await client.sendMessage(contactJid, notificationMsg);
+        console.log(`[OrderNotification] Berhasil mengirim notifikasi shipped ke ${contactJid}`);
+      }
+    } catch (err) {
+      console.error('[OrderNotification] Gagal mengirim notifikasi shipped:', err.message);
+    }
+  }
+
+  return res.redirect('/dashboard/orders?success=created');
+});
+
+router.post('/orders/add', (req, res) => res.redirect(307, '/dashboard/orders/create'));
+
 router.post('/orders/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status, resi_number } = req.body;
@@ -1134,3 +1208,4 @@ router.post('/orders/:id/delete', (req, res) => {
 });
 
 module.exports = router;
+

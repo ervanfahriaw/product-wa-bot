@@ -1,16 +1,17 @@
 <%- include('../partials/header') %>
 
 <div class="max-w-xl mx-auto py-10 px-4">
-  <!-- Stepper Tahap 5 dari 5 -->
-  <%- include('../partials/wizard-stepper', { currentStep: 5 }) %>
+  <%- include('../partials/wizard-stepper', { currentStep: 4 }) %>
 
   <div class="bg-white rounded-2xl border border-[#E4E4E7] p-8 space-y-6">
     <div class="text-center space-y-1">
       <h2 class="text-xl font-bold text-[#18181B]">
-        Masukkan Contoh Produk Pertama
+        <%= config.mode === 'bisnis' ? 'Masukkan Contoh Produk Pertama' : 'Catat Pengeluaran Pertama' %>
       </h2>
       <p class="text-xs text-[#71717A]">
-        Tambahkan satu contoh produk ke katalog agar bot bisa langsung dites untuk mengecek stok dan rekomendasi.
+        <%= config.mode === 'bisnis' 
+            ? 'Tambahkan satu contoh produk ke katalog agar bot bisa langsung dites untuk mengecek stok.' 
+            : 'Tambahkan satu contoh pengeluaran agar Anda dapat menguji rekap keuangan bot.' %>
       </p>
     </div>
 
@@ -21,45 +22,62 @@
     <% } %>
 
     <form action="/setup/step-4" method="POST" class="space-y-4">
-      <!-- Input Produk Bisnis -->
-      <div>
-        <label class="block text-xs font-medium text-[#71717A] mb-1">Nama Produk</label>
-        <input type="text" name="product_name" placeholder="Contoh: Kopi Susu Gula Aren"
-               class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
-      </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <% if (config.mode === 'bisnis') { %>
+        <!-- Mode Bisnis -->
         <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Harga (Rp)</label>
-          <input type="number" name="product_price" placeholder="18000" min="0"
+          <label class="block text-xs font-medium text-[#71717A] mb-1">Nama Produk</label>
+          <input type="text" name="product_name" placeholder="Kopi Susu Aren"
                  class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
         </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-[#71717A] mb-1">Harga (Rp)</label>
+            <input type="number" name="product_price" placeholder="18000" min="0"
+                   class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-[#71717A] mb-1">Jumlah Stok</label>
+            <input type="number" name="product_stock" placeholder="50" min="0"
+                   class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+          </div>
+        </div>
+
         <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Jumlah Stok</label>
-          <input type="number" name="product_stock" placeholder="50" min="0"
+          <label class="block text-xs font-medium text-[#71717A] mb-1">Deskripsi Singkat</label>
+          <textarea name="product_description" rows="3" placeholder="Kopi espresso blend robusta & arabika dengan gula aren murni."
+                    class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"></textarea>
+        </div>
+
+      <% } else { %>
+        <!-- Mode Personal -->
+        <div>
+          <label class="block text-xs font-medium text-[#71717A] mb-1">Kategori Pengeluaran</label>
+          <input type="text" name="expense_category" placeholder="Makan & Minum"
                  class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
         </div>
-      </div>
 
-      <div>
-        <label class="block text-xs font-medium text-[#71717A] mb-1">Deskripsi Singkat</label>
-        <textarea name="product_description" rows="3" placeholder="Kopi espresso blend robusta & arabika dengan gula aren murni."
-                  class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"></textarea>
-      </div>
+        <div>
+          <label class="block text-xs font-medium text-[#71717A] mb-1">Nominal (Rp)</label>
+          <input type="number" name="expense_amount" placeholder="25000" min="0"
+                 class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-[#71717A] mb-1">Catatan Keterangan</label>
+          <input type="text" name="expense_note" placeholder="Makan siang nasi padang"
+                 class="w-full px-3.5 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
+        </div>
+      <% } %>
 
       <div class="flex flex-col sm:flex-row justify-between items-center pt-4 border-t border-[#E4E4E7] gap-3">
-        <div class="flex items-center gap-3">
-          <a href="/setup/step-3" class="text-xs font-medium text-[#71717A] hover:text-[#18181B] transition-colors">
-            ← Kembali
-          </a>
-          <button type="submit" formaction="/setup/step-4/skip" formmethod="POST"
-                  class="px-3.5 py-2 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#71717A] text-center transition-colors">
-            Lewati Langkah Ini
-          </button>
-        </div>
+        <button type="submit" formaction="/setup/step-4/skip" formmethod="POST"
+                class="px-4 py-2 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#71717A] text-center transition-colors">
+          Lewati Langkah Ini
+        </button>
         <button type="submit"
-                class="px-6 py-2.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors text-center shadow-sm">
-          Selesai & Buka Dashboard Bisnis →
+                class="px-6 py-2.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors text-center">
+          Selesai & Buka Dashboard
         </button>
       </div>
     </form>

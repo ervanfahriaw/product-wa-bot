@@ -33,6 +33,19 @@ function up() {
   `);
 
   // Pastikan kolom baru ada jika tabel dibuat dari versi lama
+  try {
+    const followUpCols = db.pragma('table_info(follow_ups)').map(c => c.name);
+    if (!followUpCols.includes('inquiry_message')) {
+      db.exec('ALTER TABLE follow_ups ADD COLUMN inquiry_message TEXT');
+    }
+    if (!followUpCols.includes('inquiry_at')) {
+      db.exec('ALTER TABLE follow_ups ADD COLUMN inquiry_at DATETIME');
+    }
+    if (!followUpCols.includes('cancel_reason')) {
+      db.exec('ALTER TABLE follow_ups ADD COLUMN cancel_reason TEXT');
+    }
+  } catch (_) {}
+
   const optoutCols = db.pragma('table_info(follow_up_optouts)').map(c => c.name);
   if (!optoutCols.includes('opted_out_at')) {
     try {
@@ -46,6 +59,7 @@ function up() {
   }
 
   console.log('[Migration 009] Tabel follow_ups & follow_up_optouts berhasil dibuat/dimigrasi.');
+
 }
 
 function down() {

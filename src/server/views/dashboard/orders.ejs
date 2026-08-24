@@ -10,6 +10,16 @@
         <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Daftar Pesanan (Orders)</h1>
         <p class="text-xs md:text-sm text-[#71717A] mt-1">Lacak dan kelola pesanan pelanggan dari WhatsApp serta update status pengiriman.</p>
       </div>
+      <div>
+        <button @click="openAddModal()" 
+                class="inline-flex items-center gap-2 px-4 py-2.5 bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-semibold rounded-full shadow-sm transition-all duration-150 active:scale-95">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.25" viewBox="0 0 24 24">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>+ Tambah Pesanan</span>
+        </button>
+      </div>
     </div>
 
     <!-- Filter Tab Status -->
@@ -68,12 +78,12 @@
                   <td class="px-5 py-3.5 font-mono font-bold text-[#71717A]">#<%= order.id %></td>
                   <td class="px-5 py-3.5">
                     <div class="font-semibold text-[#18181B]"><%= order.customer_name || 'Kak (Tanpa Nama)' %></div>
-                    <div class="text-[10px] text-[#71717A] font-mono mt-0.5"><%= order.contact.split('@')[0] %></div>
+                    <div class="text-[10px] text-[#71717A] font-mono mt-0.5"><%= (order.contact || '').split('@')[0] %></div>
                   </td>
                   <td class="px-5 py-3.5 max-w-[220px]">
-                    <div class="text-[#18181B] font-medium leading-relaxed"><%= order.order_summary %></div>
+                    <div class="text-[#18181B] font-medium leading-relaxed"><%= order.order_summary || order.items || '-' %></div>
                     <% if (order.notes) { %>
-                      <div class="text-[10px] text-amber-600 mt-1 italic">Catatan: "<%= order.notes %>"</div>
+                      <div class="text-[10px] text-amber-600 mt-1 italic leading-tight">Catatan: "<%= order.notes %>"</div>
                     <% } %>
                   </td>
                   <td class="px-5 py-3.5 font-bold text-[#18181B] whitespace-nowrap">
@@ -126,8 +136,21 @@
               <% }); %>
             <% } else { %>
               <tr>
-                <td colspan="7" class="px-5 py-8 text-center text-[#71717A] italic">
-                  Tidak ada pesanan ditemukan.
+                <td colspan="7" class="px-5 py-12 text-center">
+                  <div class="max-w-sm mx-auto flex flex-col items-center">
+                    <div class="w-12 h-12 rounded-full bg-[#F4F4F5] flex items-center justify-center text-[#71717A] mb-3">
+                      <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <path d="M16 10a4 4 0 0 1-8 0"></path>
+                      </svg>
+                    </div>
+                    <p class="text-sm font-semibold text-[#18181B]">Belum ada pesanan ditemukan</p>
+                    <p class="text-xs text-[#71717A] mt-1">Tambah pesanan secara manual atau kirim format form pesanan dari WhatsApp nomor Owner.</p>
+                    <button @click="openAddModal()" class="mt-4 px-4 py-2 bg-[#18181B] text-white text-xs font-semibold rounded-full hover:bg-[#27272A] transition-colors shadow-sm">
+                      + Tambah Pesanan Sekarang
+                    </button>
+                  </div>
                 </td>
               </tr>
             <% } %>
@@ -137,26 +160,153 @@
     </div>
   </main>
 
-  <!-- Modal Update Status / Resi -->
-  <div x-show="isModalOpen" 
+  <!-- Modal Tambah Pesanan Baru -->
+  <div x-show="isAddModalOpen" 
        class="fixed inset-0 z-50 overflow-y-auto" 
        style="display: none;" 
        x-transition.opacity>
     
     <!-- Backdrop -->
-    <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" @click="closeModal()"></div>
+    <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" @click="closeAddModal()"></div>
+
+    <!-- Modal Content -->
+    <div class="flex min-h-screen items-center justify-center p-4">
+      <div class="relative w-full max-w-lg bg-white rounded-2xl shadow-xl border border-[#E4E4E7] overflow-hidden" 
+           @click.away="closeAddModal()" 
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+        
+        <div class="px-6 py-4 border-b border-[#E4E4E7] flex items-center justify-between">
+          <div>
+            <h3 class="font-bold text-[#18181B] text-sm">Tambah Pesanan Baru</h3>
+            <p class="text-[11px] text-[#71717A]">Catat transaksi pesanan pelanggan dari WhatsApp ke database.</p>
+          </div>
+          <button @click="closeAddModal()" class="p-1.5 rounded-lg hover:bg-[#F4F4F5] text-[#71717A] transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <form action="/dashboard/orders/create" method="POST" class="p-6 space-y-4">
+          <!-- Nama & Kontak Pelanggan -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">Nama Pelanggan <span class="text-red-500">*</span></label>
+              <input type="text" 
+                     name="customer_name" 
+                     required
+                     placeholder="Contoh: Kak Ervan" 
+                     class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">No. WhatsApp / Kontak <span class="text-red-500">*</span></label>
+              <input type="text" 
+                     name="contact" 
+                     required
+                     placeholder="Contoh: 081321435462" 
+                     class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all">
+            </div>
+          </div>
+
+          <!-- Ringkasan Item Pesanan -->
+          <div>
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">Ringkasan Pesanan / Item <span class="text-red-500">*</span></label>
+            <textarea name="order_summary" 
+                      rows="2" 
+                      required
+                      placeholder="Contoh: 2 pasang albino koi, 1x pakan pelet premium" 
+                      class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all"></textarea>
+          </div>
+
+          <!-- Total Harga & Status Awal -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">Total Harga (Rp)</label>
+              <input type="number" 
+                     name="total_amount" 
+                     min="0"
+                     step="1000"
+                     placeholder="Contoh: 150000" 
+                     class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">Status Awal</label>
+              <select name="status" 
+                      class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all">
+                <option value="pending" selected>PENDING</option>
+                <option value="confirmed">CONFIRMED</option>
+                <option value="processing">PROCESSING</option>
+                <option value="shipped">SHIPPED</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Kurir & Resi (Opsional) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">Kurir / Ekspedisi (Opsional)</label>
+              <input type="text" 
+                     name="shipping_method" 
+                     placeholder="Contoh: JNE / SiCepat / Grab" 
+                     class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">Nomor Resi (Opsional)</label>
+              <input type="text" 
+                     name="resi_number" 
+                     placeholder="Contoh: JNE-987654321" 
+                     class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all">
+            </div>
+          </div>
+
+          <!-- Alamat / Catatan Pengiriman -->
+          <div>
+            <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">Alamat / Catatan Pengiriman (Opsional)</label>
+            <textarea name="notes" 
+                      rows="2" 
+                      placeholder="Contoh: Jl. Bandung No. 12, kirim sebelum jam 3 sore" 
+                      class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all"></textarea>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex justify-end gap-2 pt-3 border-t border-[#F4F4F5]">
+            <button type="button" 
+                    @click="closeAddModal()" 
+                    class="px-4 py-2 rounded-full border border-[#E4E4E7] text-xs font-semibold text-[#71717A] hover:bg-[#F4F4F5] transition-colors">
+              Batal
+            </button>
+            <button type="submit" 
+                    class="px-5 py-2 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-semibold shadow-sm transition-all active:scale-95">
+              Simpan Pesanan
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Update Status / Resi -->
+  <div x-show="isEditModalOpen" 
+       class="fixed inset-0 z-50 overflow-y-auto" 
+       style="display: none;" 
+       x-transition.opacity>
+    
+    <!-- Backdrop -->
+    <div class="fixed inset-0 bg-black/40 backdrop-blur-sm" @click="closeEditModal()"></div>
 
     <!-- Modal Content -->
     <div class="flex min-h-screen items-center justify-center p-4">
       <div class="relative w-full max-w-md bg-white rounded-2xl shadow-xl border border-[#E4E4E7] overflow-hidden" 
-           @click.away="closeModal()" 
+           @click.away="closeEditModal()" 
            x-transition:enter="transition ease-out duration-200"
            x-transition:enter-start="opacity-0 scale-95"
            x-transition:enter-end="opacity-100 scale-100">
         
         <div class="px-5 py-4 border-b border-[#E4E4E7] flex items-center justify-between">
           <h3 class="font-bold text-[#18181B] text-sm">Update Status Pesanan</h3>
-          <button @click="closeModal()" class="p-1 rounded-lg hover:bg-[#F4F4F5] text-[#71717A] transition-colors">
+          <button @click="closeEditModal()" class="p-1 rounded-lg hover:bg-[#F4F4F5] text-[#71717A] transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -168,7 +318,7 @@
           <div>
             <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1.5">Status Pesanan</label>
             <select name="status" 
-                    x-model="formData.status"
+                    x-model="editFormData.status"
                     class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all">
               <option value="pending">PENDING</option>
               <option value="confirmed">CONFIRMED</option>
@@ -184,7 +334,7 @@
             <label class="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1.5">Nomor Resi / Kurir (Opsional)</label>
             <input type="text" 
                    name="resi_number" 
-                   x-model="formData.resi_number"
+                   x-model="editFormData.resi_number"
                    placeholder="Contoh: JNE-987654321 / SICEPAT" 
                    class="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E4E4E7] text-[#18181B] focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] outline-none transition-all">
             <p class="text-[10px] text-[#A1A1AA] mt-1.5">Jika status diubah ke <strong>SHIPPED</strong>, bot akan otomatis mengirimkan notifikasi nomor resi ke nomor WhatsApp pelanggan.</p>
@@ -193,7 +343,7 @@
           <!-- Buttons -->
           <div class="flex justify-end gap-2 pt-2 border-t border-[#F4F4F5] mt-4">
             <button type="button" 
-                    @click="closeModal()" 
+                    @click="closeEditModal()" 
                     class="px-4 py-2 rounded-full border border-[#E4E4E7] text-xs font-semibold text-[#71717A] hover:bg-[#F4F4F5] transition-colors">
               Batal
             </button>
@@ -211,22 +361,31 @@
 <script>
   function orderManager() {
     return {
-      isModalOpen: false,
+      isAddModalOpen: false,
+      isEditModalOpen: false,
       editId: null,
-      formData: {
+      editFormData: {
         status: 'pending',
         resi_number: ''
       },
 
-      openEditModal(id, status, resi) {
-        this.editId = id;
-        this.formData.status = status;
-        this.formData.resi_number = resi;
-        this.isModalOpen = true;
+      openAddModal() {
+        this.isAddModalOpen = true;
       },
 
-      closeModal() {
-        this.isModalOpen = false;
+      closeAddModal() {
+        this.isAddModalOpen = false;
+      },
+
+      openEditModal(id, status, resi) {
+        this.editId = id;
+        this.editFormData.status = status;
+        this.editFormData.resi_number = resi;
+        this.isEditModalOpen = true;
+      },
+
+      closeEditModal() {
+        this.isEditModalOpen = false;
         this.editId = null;
       }
     }

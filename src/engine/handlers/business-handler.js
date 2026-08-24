@@ -485,10 +485,25 @@ async function handleBusinessMessage(message, client) {
       }
     }
 
+    // 1b. Cek apakah pesan merupakan pengiriman formulir pesanan lengkap dari pelanggan
+    try {
+      const { isCustomerOrderForm, handleCustomerOrderSubmission } = require('./order-submission-handler');
+      if (isCustomerOrderForm(messageBody)) {
+        await simulateHumanTyping(message, 1000, 2000);
+        const orderHandled = await handleCustomerOrderSubmission(message, client);
+        if (orderHandled) {
+          return;
+        }
+      }
+    } catch (orderErr) {
+      console.warn('[BusinessHandler] Gagal memproses submit order form pelanggan:', orderErr.message);
+    }
+
     // 2. Cek FAQ match — jawab langsung tanpa AI jika ada FAQ yang cocok
     try {
       const matchedFaq = db.matchFaq ? db.matchFaq(messageBody) : null;
       if (matchedFaq) {
+
         await simulateHumanTyping(message, 1500, 3000);
         await message.reply(matchedFaq.answer);
 

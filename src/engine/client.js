@@ -150,9 +150,18 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
       });
       // Aktifkan scheduler reminder otomatis
       startReminderScheduler(clientInstance);
+
+      // Kirim pesan sambutan & panduan pertama kali jika setup sudah selesai dan belum pernah dikirim
+      try {
+        const { sendOneTimeOnboardingWelcome } = require('./onboarding');
+        sendOneTimeOnboardingWelcome(clientInstance).catch(err => {
+          console.warn('[Engine] Onboarding welcome error on ready:', err.message);
+        });
+      } catch (_) {}
     });
 
     // Event: Disconnected
+
     clientInstance.on('disconnected', (reason) => {
       console.warn(`[Engine] Sesi WhatsApp terputus. Alasan: ${reason}`);
       stopReminderScheduler();

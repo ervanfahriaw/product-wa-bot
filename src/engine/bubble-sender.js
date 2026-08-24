@@ -9,10 +9,31 @@ function splitIntoBubbles(text = '', maxBubbles = 3) {
   if (!text || typeof text !== 'string') return [];
   const clean = text.trim();
   
+  // 0. Cek apakah teks memuat template formulir pemesanan kosong yang harus diisolasi ke bubble tersendiri
+  const templatePattern = /((?:^|\n)(?:[-•*]\s*)?Nama\s+Penerima\s*:[ \t]*(?:\r?\n)(?:[-•*]\s*)?Alamat(?:\s+Lengkap)?\s*:[ \t]*(?:\r?\n)(?:[-•*]\s*)?No\.?\s*HP\s*:[ \t]*(?:\r?\n(?:[-•*]\s*)?Pesanan(?:\s*&\s*Jumlah)?\s*:[ \t]*)?)/i;
+  const templateMatch = clean.match(templatePattern);
+
+  if (templateMatch) {
+    const matchIdx = templateMatch.index;
+    const formBubble = templateMatch[1].trim();
+    const beforeText = clean.substring(0, matchIdx).trim();
+    const afterText = clean.substring(matchIdx + templateMatch[0].length).trim();
+
+    const parts = [];
+    if (beforeText) parts.push(beforeText);
+    if (formBubble) parts.push(formBubble);
+    if (afterText) parts.push(afterText);
+
+    if (parts.length > 1) {
+      return parts;
+    }
+  }
+
   // Jika pesan pendek (< 250 karakter), jadikan 1 bubble saja
   if (clean.length < 250) {
     return [clean];
   }
+
 
   // Pisahkan berdasarkan garis pembatas (---) atau paragraf ganda (\n\n)
   const rawSections = clean
