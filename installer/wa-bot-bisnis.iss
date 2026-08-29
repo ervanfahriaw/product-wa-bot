@@ -27,15 +27,14 @@ PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 
 [Languages]
-Name: "indonesian"; MessagesFile: "compiler:Languages\Indonesian.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce
 
 [Files]
-; Salin semua file dari folder dist/wa-bot-bisnis
-Source: "..\dist\wa-bot-bisnis\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Salin semua file bersih dari folder dist/wa-bot-bisnis (kecuali data runtime & cache sesi)
+Source: "..\dist\wa-bot-bisnis\*"; DestDir: "{app}"; Excludes: "data, data\*, .wwebjs_auth, .wwebjs_auth\*, .wwebjs_cache, .wwebjs_cache\*, *.old, *.log, config\config.json, config\license.json"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 ; Shortcut di Start Menu
