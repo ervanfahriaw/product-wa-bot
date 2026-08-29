@@ -79,9 +79,17 @@ if (!process.env.TEST_MODE) {
     console.log(`======================================================\n`);
 
     // Inisialisasi WhatsApp client & Auto-Sync Google Sheets di latar belakang
-    console.log('[Server] Menyiapkan WhatsApp Engine...');
-    initClient();
-    startAutoSyncScheduler();
+    // Delayed agar server HTTP sudah 100% ready sebelum engine init
+    // Dashboard harus bisa diakses MESKIPUN engine gagal total
+    setTimeout(() => {
+      console.log('[Server] Menyiapkan WhatsApp Engine...');
+      try {
+        initClient();
+      } catch (err) {
+        console.error('[Server] Engine init error (non-fatal, dashboard tetap aktif):', err.message);
+      }
+      startAutoSyncScheduler();
+    }, 500);
 
     // Auto-open browser jika dijalankan secara lokal
     if (!process.env.NO_AUTO_OPEN) {

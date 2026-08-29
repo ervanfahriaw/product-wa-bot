@@ -146,6 +146,7 @@ async function forceWipeSessionDirectory() {
 
 let clientInstance = null;
 let isInitializing = false;
+let initRetryCount = 0;
 
 /**
  * Menginisialisasi WhatsApp Client dengan strategi LocalAuth.
@@ -162,8 +163,15 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
     return clientInstance;
   }
 
+  // Pembersihan agresif sebelum inisialisasi
   forceKillBrowserProcess();
   cleanSessionLocks();
+
+  // Tunggu sebentar agar OS melepas file locks setelah kill
+  // (sinkron karena initClient dipanggil secara fire-and-forget)
+  try { require('child_process').execSync('ping -n 1 127.0.0.1 > nul', { stdio: 'ignore', timeout: 1500 }); } catch (_) {}
+  cleanSessionLocks(); // sekali lagi setelah delay
+
   isInitializing = true;
   setStatus(ENGINE_STATUS.CONNECTING, {
     qrCodeDataUrl: null,
@@ -277,11 +285,9 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
       await handleIncomingMessage(msg, clientInstance);
     });
 
-let initRetryCount = 0;
-
     // Jalankan inisialisasi puppeteer & client
     clientInstance.initialize().then(() => {
-      initRetryCount = 0;
+      initRetryCount = 0; // Reset counter saat berhasil
     }).catch(async (err) => {
       console.error('[Engine] Gagal menjalankan inisialisasi client:', err.message);
       stopReminderScheduler();
@@ -293,9 +299,17 @@ let initRetryCount = 0;
       cleanSessionLocks();
 
       // AUTO-RECOVERY: Jika terdeteksi browser lock / already running / launch fail
-      if (initRetryCount < 3 && err.message && (err.message.includes('already running') || err.message.includes('userDataDir') || err.message.includes('Singleton') || err.message.includes('EBUSY') || err.message.includes('Failed to launch'))) {
+      const isRecoverableError = err.message && (
+        err.message.includes('already running') ||
+        err.message.includes('userDataDir') ||
+        err.message.includes('Singleton') ||
+        err.message.includes('EBUSY') ||
+        err.message.includes('Failed to launch')
+      );
+
+      if (isRecoverableError && initRetryCount < 3) {
         initRetryCount++;
-        console.log(`[Engine] ⚡ Terdeteksi error inisialisasi (${initRetryCount}/3), melakukan pembersihan paksa & auto-recovery...`);
+        console.log(`[Engine] ⚡ Terdeteksi error inisialisasi (percobaan ${initRetryCount}/3), melakukan pembersihan paksa & auto-recovery...`);
         forceKillBrowserProcess();
         cleanSessionLocks();
         await forceWipeSessionDirectory();
@@ -304,10 +318,12 @@ let initRetryCount = 0;
         setTimeout(() => {
           console.log('[Engine] 🔄 Mencoba inisialisasi ulang WhatsApp Client...');
           initClient({}, true);
-        }, 1500);
+        }, 2000);
         return;
       }
 
+      // Semua percobaan habis atau error non-recoverable
+      console.error(`[Engine] ❌ Inisialisasi gagal total setelah ${initRetryCount} percobaan. Dashboard tetap bisa diakses.`);
       initRetryCount = 0;
       resetStatus(err.message);
     });
