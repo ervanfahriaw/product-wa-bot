@@ -96,7 +96,7 @@ function cleanSessionLocks() {
 }
 
 /**
- * Menghapus folder sesi lama secara tuntas dengan mekanisme retry
+ * Menghapus folder sesi lama secara tuntas dengan mekanisme toleran terhadap Windows lock
  */
 async function forceWipeSessionDirectory() {
   const sessionPath = path.join(SESSION_DIR, 'session-wa-bot-main');
@@ -105,20 +105,40 @@ async function forceWipeSessionDirectory() {
   forceKillBrowserProcess();
   cleanSessionLocks();
 
-  for (let i = 0; i < 5; i++) {
+  function safeDeleteDirectory(dirPath) {
+    if (!fs.existsSync(dirPath)) return;
+    try {
+      const items = fs.readdirSync(dirPath);
+      for (const item of items) {
+        const fullPath = path.join(dirPath, item);
+        try {
+          const stat = fs.lstatSync(fullPath);
+          if (stat.isDirectory()) {
+            safeDeleteDirectory(fullPath);
+            try { fs.rmdirSync(fullPath); } catch (_) {}
+          } else {
+            try { fs.unlinkSync(fullPath); } catch (_) {}
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+
+  for (let i = 0; i < 3; i++) {
     try {
       if (fs.existsSync(sessionPath)) {
-        fs.rmSync(sessionPath, { recursive: true, force: true });
+        safeDeleteDirectory(sessionPath);
+        try {
+          fs.rmSync(sessionPath, { recursive: true, force: true });
+        } catch (_) {}
         console.log('[Engine] Folder sesi lama berhasil dibersihkan.');
       }
       break;
     } catch (err) {
-      if (i < 4) {
+      if (i < 2) {
         forceKillBrowserProcess();
         cleanSessionLocks();
-        await new Promise(r => setTimeout(r, 300));
-      } else {
-        console.warn('[Engine] Catatan pembersihan sesi:', err.message);
+        await new Promise(r => setTimeout(r, 250));
       }
     }
   }
@@ -167,13 +187,13 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--no-zygote',
         '--disable-gpu',
-        '--disable-crash-reporter',
-        '--disable-crashpad',
-        '--disable-breakpad',
-        '--disable-metrics',
-        '--disable-metrics-repo',
+        '--disable-extensions',
+        '--disable-component-update',
+        '--disable-default-apps',
+        '--disable-domain-reliability',
+        '--disable-sync',
+        '--disable-features=msEdgeStartupBoost,msEdgeBackgroundMode,OptimizationHints,Translate,BackForwardCache,MediaRouter',
         '--disable-background-networking',
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
@@ -257,8 +277,12 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
       await handleIncomingMessage(msg, clientInstance);
     });
 
+let initRetryCount = 0;
+
     // Jalankan inisialisasi puppeteer & client
-    clientInstance.initialize().catch(async (err) => {
+    clientInstance.initialize().then(() => {
+      initRetryCount = 0;
+    }).catch(async (err) => {
       console.error('[Engine] Gagal menjalankan inisialisasi client:', err.message);
       stopReminderScheduler();
       try {
@@ -268,21 +292,23 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
       isInitializing = false;
       cleanSessionLocks();
 
-      // AUTO-RECOVERY: Jika terdeteksi browser lock / already running
-      if (err.message && (err.message.includes('already running') || err.message.includes('userDataDir') || err.message.includes('Singleton') || err.message.includes('EBUSY'))) {
-        console.log('[Engine] ⚡ Terdeteksi browser lama terkunci, melakukan pembersihan paksa & auto-recovery...');
+      // AUTO-RECOVERY: Jika terdeteksi browser lock / already running / launch fail
+      if (initRetryCount < 3 && err.message && (err.message.includes('already running') || err.message.includes('userDataDir') || err.message.includes('Singleton') || err.message.includes('EBUSY') || err.message.includes('Failed to launch'))) {
+        initRetryCount++;
+        console.log(`[Engine] ⚡ Terdeteksi error inisialisasi (${initRetryCount}/3), melakukan pembersihan paksa & auto-recovery...`);
         forceKillBrowserProcess();
         cleanSessionLocks();
         await forceWipeSessionDirectory();
         
-        // Retry inisialisasi otomatis setelah 1 detik
+        // Retry inisialisasi otomatis setelah jeda pembersihan
         setTimeout(() => {
           console.log('[Engine] 🔄 Mencoba inisialisasi ulang WhatsApp Client...');
           initClient({}, true);
-        }, 1000);
+        }, 1500);
         return;
       }
 
+      initRetryCount = 0;
       resetStatus(err.message);
     });
 
