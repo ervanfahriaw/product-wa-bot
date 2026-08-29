@@ -71,7 +71,8 @@ app.get('/', (req, res) => {
 // Jalankan Server & Inisialisasi WhatsApp Engine
 let server = null;
 if (!process.env.TEST_MODE) {
-  server = app.listen(PORT, async () => {
+  const HOST = process.env.HOST || '127.0.0.1';
+  server = app.listen(PORT, HOST, async () => {
     const url = `http://localhost:${PORT}`;
     console.log(`\n======================================================`);
     console.log(`  🚀 WA Bot Web Controller berjalan di ${url}`);
