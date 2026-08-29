@@ -131,6 +131,8 @@
       async initEngine() {
         this.loadingText = 'Memulai ulang WhatsApp...';
         this.state = 'connecting';
+        this.qrImage = null;
+        this.errorMessage = null;
         try {
           await fetch('/api/init-engine', { method: 'POST' });
         } catch (e) {}
@@ -139,6 +141,8 @@
       async resetSession() {
         this.loadingText = 'Membersihkan sesi dan membuat QR baru...';
         this.state = 'connecting';
+        this.qrImage = null;
+        this.errorMessage = null;
         try {
           await fetch('/api/reset-session', { method: 'POST' });
         } catch (e) {}

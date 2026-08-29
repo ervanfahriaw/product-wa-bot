@@ -94,7 +94,7 @@ function buildBusinessContext(message = '') {
     categoryGroups[cat].push(formatProductLine(p));
   }
 
-  let catalogBlock = `[DATA PRODUK & STOK DARI DATABASE] (Seluruh Katalog Toko - Total: ${allProducts.length} Produk):\n`;
+  let catalogBlock = `[DATA PRODUK & STOK DARI DATABASE (SELURUH KATALOG TOKO)] (Total: ${allProducts.length} Produk):\n`;
   for (const [catName, prodLines] of Object.entries(categoryGroups)) {
     catalogBlock += `📂 Kategori: ${catName}\n${prodLines.join('\n')}\n\n`;
   }

@@ -102,9 +102,11 @@ if (!process.env.TEST_MODE) {
 }
 
 // Penanganan penghentian server
-process.on('SIGINT', async () => {
+const handleShutdown = async () => {
   console.log('\nMematikan Web Controller & WhatsApp Engine...');
-  await destroyClient();
+  try {
+    await destroyClient();
+  } catch (_) {}
   if (server) {
     server.close(() => {
       console.log('Server berhasil dihentikan.');
@@ -113,6 +115,9 @@ process.on('SIGINT', async () => {
   } else {
     process.exit(0);
   }
-});
+};
+
+process.on('SIGINT', handleShutdown);
+process.on('SIGTERM', handleShutdown);
 
 module.exports = app;

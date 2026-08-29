@@ -2,6 +2,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
+const { execSync } = require('child_process');
 
 const {
   ENGINE_STATUS,
@@ -29,6 +30,23 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
+/**
+ * Membunuh proses browser Chromium/Edge yang mungkin masih mengunci folder sesi pada Windows
+ */
+function forceKillBrowserProcess() {
+  if (process.platform === 'win32') {
+    try {
+      if (clientInstance && clientInstance.pupBrowser) {
+        try {
+          const proc = clientInstance.pupBrowser.process();
+          if (proc && proc.pid) {
+            execSync(`taskkill /F /T /PID ${proc.pid}`, { stdio: 'ignore' });
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+}
 
 /**
  * Membersihkan file lock sisa proses Chromium sebelumnya yang macet
@@ -45,13 +63,45 @@ function cleanSessionLocks() {
     'SingletonCookie'
   ];
 
-  for (const file of lockFiles) {
-    const fullPath = path.join(sessionPath, file);
-    try {
-      if (fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath);
+  const targetDirs = [sessionPath, path.join(sessionPath, 'Default')];
+  for (const dir of targetDirs) {
+    if (fs.existsSync(dir)) {
+      for (const file of lockFiles) {
+        const fullPath = path.join(dir, file);
+        try {
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+          }
+        } catch (_) {}
       }
-    } catch (_) {}
+    }
+  }
+}
+
+/**
+ * Menghapus folder sesi lama secara tuntas dengan mekanisme retry
+ */
+async function forceWipeSessionDirectory() {
+  const sessionPath = path.join(SESSION_DIR, 'session-wa-bot-main');
+  if (!fs.existsSync(sessionPath)) return;
+
+  forceKillBrowserProcess();
+  cleanSessionLocks();
+
+  for (let i = 0; i < 5; i++) {
+    try {
+      if (fs.existsSync(sessionPath)) {
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+        console.log('[Engine] Folder sesi lama berhasil dibersihkan.');
+      }
+      break;
+    } catch (err) {
+      if (i < 4) {
+        await new Promise(r => setTimeout(r, 250));
+      } else {
+        console.warn('[Engine] Catatan pembersihan sesi:', err.message);
+      }
+    }
   }
 }
 
@@ -69,13 +119,17 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
     return clientInstance;
   }
 
-  if (isInitializing) {
+  if (isInitializing && !forceReinit) {
     return clientInstance;
   }
 
   cleanSessionLocks();
   isInitializing = true;
-  setStatus(ENGINE_STATUS.CONNECTING);
+  setStatus(ENGINE_STATUS.CONNECTING, {
+    qrCodeDataUrl: null,
+    rawQr: null,
+    errorMessage: null
+  });
 
   try {
     const detectedExecutable = findSystemBrowserExecutable();
@@ -161,7 +215,6 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
     });
 
     // Event: Disconnected
-
     clientInstance.on('disconnected', (reason) => {
       console.warn(`[Engine] Sesi WhatsApp terputus. Alasan: ${reason}`);
       stopReminderScheduler();
@@ -185,6 +238,22 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
       clientInstance = null;
       isInitializing = false;
       cleanSessionLocks();
+
+      // AUTO-RECOVERY: Jika terdeteksi browser lock / already running
+      if (err.message && (err.message.includes('already running') || err.message.includes('userDataDir') || err.message.includes('Singleton') || err.message.includes('EBUSY'))) {
+        console.log('[Engine] ⚡ Terdeteksi browser lama terkunci, melakukan pembersihan paksa & auto-recovery...');
+        forceKillBrowserProcess();
+        cleanSessionLocks();
+        await forceWipeSessionDirectory();
+        
+        // Retry inisialisasi otomatis setelah 1 detik
+        setTimeout(() => {
+          console.log('[Engine] 🔄 Mencoba inisialisasi ulang WhatsApp Client...');
+          initClient({}, true);
+        }, 1000);
+        return;
+      }
+
       resetStatus(err.message);
     });
 
@@ -215,6 +284,18 @@ async function destroyClient() {
   stopReminderScheduler();
   if (clientInstance) {
     try {
+      if (clientInstance.pupBrowser) {
+        try {
+          const proc = clientInstance.pupBrowser.process();
+          if (proc && proc.pid) {
+            if (process.platform === 'win32') {
+              execSync(`taskkill /F /T /PID ${proc.pid}`, { stdio: 'ignore' });
+            } else {
+              proc.kill('SIGKILL');
+            }
+          }
+        } catch (_) {}
+      }
       await clientInstance.destroy();
     } catch (err) {
       console.error('[Engine] Gagal menghancurkan client instance:', err.message);
@@ -231,16 +312,17 @@ async function destroyClient() {
  * Reset total sesi WhatsApp (menghapus folder session lokal).
  */
 async function resetSession() {
+  console.log('[Engine] Memulai proses reset sesi total...');
+  setStatus(ENGINE_STATUS.CONNECTING, {
+    qrCodeDataUrl: null,
+    rawQr: null,
+    errorMessage: null
+  });
+
   await destroyClient();
-  try {
-    const sessionPath = path.join(SESSION_DIR, 'session-wa-bot-main');
-    if (fs.existsSync(sessionPath)) {
-      fs.rmSync(sessionPath, { recursive: true, force: true });
-      console.log('[Engine] Folder sesi lama berhasil dibersihkan.');
-    }
-  } catch (err) {
-    console.error('[Engine] Gagal menghapus folder session:', err.message);
-  }
+  await forceWipeSessionDirectory();
+  await new Promise(r => setTimeout(r, 600));
+
   return initClient({}, true);
 }
 

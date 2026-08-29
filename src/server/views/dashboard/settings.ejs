@@ -602,17 +602,16 @@
       async startScanModal() {
         this.showQrModal = true;
         this.modalStatusText = 'Menyiapkan sesi & memuat QR Code baru...';
-        await this.checkStatus(false);
+        this.qrCodeDataUrl = '';
+        this.statusState = 'connecting';
+        this.isResetting = true;
 
-        if (this.statusState !== 'qr_ready' || !this.qrCodeDataUrl) {
-          this.isResetting = true;
-          try {
-            await fetch('/api/reset-session', { method: 'POST' });
-          } catch (err) {
-            console.error(err);
-          } finally {
-            this.isResetting = false;
-          }
+        try {
+          await fetch('/api/reset-session', { method: 'POST' });
+        } catch (err) {
+          console.error(err);
+        } finally {
+          this.isResetting = false;
         }
 
         if (this.pollInterval) clearInterval(this.pollInterval);
@@ -623,11 +622,12 @@
               this.closeScanModal();
             }, 1500);
           }
-        }, 1200);
+        }, 1000);
       },
 
       closeScanModal() {
         this.showQrModal = false;
+        this.isResetting = false;
         if (this.pollInterval) {
           clearInterval(this.pollInterval);
           this.pollInterval = null;
