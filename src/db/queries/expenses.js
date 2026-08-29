@@ -257,7 +257,7 @@ function getExpenseCategories() {
  * @returns {Array<object>}
  */
 function getRecentExpenses(limit = 10) {
-  return db.prepare('SELECT * FROM expenses ORDER BY created_at DESC, id DESC LIMIT ?').all(limit);
+  return db.prepare('SELECT * FROM expenses ORDER BY id DESC LIMIT ?').all(limit);
 }
 
 module.exports = {

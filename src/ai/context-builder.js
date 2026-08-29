@@ -1,7 +1,9 @@
 const db = require('../db');
+const { getConfig } = require('../config');
 
 /**
  * Ekstraksi kata kunci sederhana dari pesan pengguna.
+ * Memfilter kata-kata penghubung dan kata generik agar tidak merusak pencarian produk.
  * @param {string} text 
  * @returns {Array<string>}
  */
@@ -15,7 +17,11 @@ function extractKeywords(text) {
   const stopWords = new Set([
     'ada', 'apa', 'apakah', 'bisa', 'dan', 'dari', 'dengan', 'halo',
     'hai', 'ini', 'itu', 'juga', 'kami', 'kamu', 'mau', 'minta',
-    'saya', 'sudah', 'tanya', 'untuk', 'yang', 'kak', 'min', 'gan'
+    'saya', 'sudah', 'tanya', 'untuk', 'yang', 'kak', 'min', 'gan',
+    'bro', 'dong', 'saja', 'aja', 'aha', 'coba', 'stok', 'stock',
+    'menu', 'produk', 'katalog', 'ready', 'list', 'daftar', 'jual',
+    'tersedia', 'pilihan', 'pesan', 'order', 'beli', 'harga', 'berapa',
+    'nya', 'punya', 'kok', 'sih', 'deh', 'nih', 'kan', 'yah', 'yaa', 'yuk', 'kah'
   ]);
   
   return words.filter(w => !stopWords.has(w));
@@ -23,72 +29,107 @@ function extractKeywords(text) {
 
 /**
  * Membangun konteks data produk untuk Mode Bisnis.
+ * Selalu memberikan visibilitas katalog menyeluruh kepada AI dengan penyorotan produk yang relevan.
  * @param {string} message 
  * @returns {string}
  */
-function buildBusinessContext(message) {
-  const keywords = extractKeywords(message);
-  let matchedProducts = [];
+function buildBusinessContext(message = '') {
+  const rawProducts = db.getAllProducts ? db.getAllProducts() : [];
 
-  // Cari produk berdasarkan kata kunci
-  for (const kw of keywords) {
-    const results = db.searchProducts(kw);
-    if (results && results.length > 0) {
-      matchedProducts.push(...results);
-    }
-  }
-
-  // Hilangkan duplikasi
-  const uniqueProducts = Array.from(
-    new Map(matchedProducts.map(p => [p.id, p])).values()
-  );
-
-  // Jika tidak ada kata kunci yang cocok, ambil ringkasan seluruh katalog (maks 10 produk)
-  const productsToDisplay = uniqueProducts.length > 0 
-    ? uniqueProducts 
-    : db.getAllProducts().slice(0, 10);
-
-  if (productsToDisplay.length === 0) {
+  if (!rawProducts || rawProducts.length === 0) {
     return '[DATA PRODUK & STOK DARI DATABASE]: Katalog produk saat ini masih kosong.';
   }
 
+  // Deduplikasi produk berdasarkan nama unik (agar produk pengujian/duplikat tidak membingungkan AI)
+  const uniqueProductMap = new Map();
+  for (const p of rawProducts) {
+    const key = (p.name || '').toLowerCase().trim();
+    if (!uniqueProductMap.has(key) || p.id > uniqueProductMap.get(key).id) {
+      uniqueProductMap.set(key, p);
+    }
+  }
+  const allProducts = Array.from(uniqueProductMap.values());
+
   const { resolveProductImagePath } = require('../engine/handlers/business-handler');
 
-  const lines = productsToDisplay.map(p => {
-    let line = `- [${p.sku ? p.sku + ' - ' : ''}${p.name}] | Kategori: ${p.category || 'Umum'} | Harga: Rp${Number(p.price).toLocaleString('id-ID')} | Stok: ${p.stock} unit`;
+  const formatProductLine = (p) => {
+    let line = `- [${p.sku ? p.sku + ' - ' : ''}${p.name}] | Kategori: ${p.category || 'Umum'} | Harga: Rp${Number(p.price).toLocaleString('id-ID')} | Stok: ${p.stock > 0 ? p.stock + ' unit (Ready)' : 'Habis (0)'}`;
     if (p.description) line += ` | Deskripsi: ${p.description}`;
-    if (p.product_knowledge) line += ` | Product Knowledge/Manfaat/Bahan: ${p.product_knowledge}`;
+    if (p.product_knowledge) line += ` | Info/Bahan: ${p.product_knowledge}`;
     const hasPhoto = Boolean(p.image_path && resolveProductImagePath && resolveProductImagePath(p.image_path));
-    line += ` | Foto Produk: ${hasPhoto ? 'Tersedia di sistem (akan otomatis dikirimkan ke chat)' : 'Belum tersedia'}`;
+    line += ` | Foto: ${hasPhoto ? 'Tersedia di sistem' : 'Belum tersedia'}`;
     return line;
-  });
+  };
 
-  // Kumpulkan rekomendasi produk terkait (upselling) untuk Fase 4B
+  const keywords = extractKeywords(message);
+  let matchedProducts = [];
+
+  if (keywords.length > 0) {
+    for (const kw of keywords) {
+      const results = db.searchProducts ? db.searchProducts(kw) : [];
+      if (results && results.length > 0) {
+        matchedProducts.push(...results);
+      }
+    }
+  }
+
+  // Hilangkan duplikasi produk yang cocok
+  const uniqueMatched = Array.from(
+    new Map(matchedProducts.map(p => [p.name.toLowerCase().trim(), p])).values()
+  );
+
+  let resultContext = '';
+
+  // 1. Jika ada produk spesifik yang cocok dengan pencarian kata kunci non-generik
+  if (uniqueMatched.length > 0) {
+    const matchedLines = uniqueMatched.map(formatProductLine);
+    resultContext += `[PRODUK YANG PALING SESUAI DENGAN PERTANYAAN]:\n${matchedLines.join('\n')}\n\n`;
+  }
+
+  // 2. Kelompokkan seluruh katalog produk aktif per kategori
+  const categoryGroups = {};
+  for (const p of allProducts) {
+    const cat = p.category || 'Umum';
+    if (!categoryGroups[cat]) categoryGroups[cat] = [];
+    categoryGroups[cat].push(formatProductLine(p));
+  }
+
+  let catalogBlock = `[DATA PRODUK & STOK DARI DATABASE] (Seluruh Katalog Toko - Total: ${allProducts.length} Produk):\n`;
+  for (const [catName, prodLines] of Object.entries(categoryGroups)) {
+    catalogBlock += `📂 Kategori: ${catName}\n${prodLines.join('\n')}\n\n`;
+  }
+  resultContext += catalogBlock.trim();
+
+  // 3. Deteksi pertanyaan katalog umum ("yang ready apa aja", "menu ready", dll)
+  const lowerMsg = (message || '').toLowerCase().trim();
+  const isGeneralCatalogInquiry = /(?:yang\s+ready|ready\s+apa|ada\s+apa|stok\s+apa|menu|katalog|daftar\s+menu|apa\s+aja|pilihan\s+menu|jual\s+apa|apa\s+yang\s+ada)/i.test(lowerMsg);
+  
+  if (isGeneralCatalogInquiry) {
+    resultContext += `\n\n[INSTRUKSI WAJIB UNTUK PERTANYAAN KATALOG/READY]:
+Pelanggan menanyakan menu atau stok produk yang ready secara umum ("${message}").
+Anda WAJIB menyebutkan SELURUH ${allProducts.length} produk di atas yang berstatus stok ready (> 0) tanpa ada yang dipotong atau dihilangkan. Kelompokkan per kategori secara rapi dengan harga yang jelas.`;
+  }
+
+  // 4. Kumpulkan rekomendasi produk terkait (upselling)
   const relatedProductsList = [];
-  if (uniqueProducts.length > 0) {
-    for (const p of uniqueProducts) {
-      if (p.related_products) {
-        const ids = p.related_products.split(',').map(id => Number(id.trim())).filter(Boolean);
-        for (const id of ids) {
-          const relProd = db.getProductById ? db.getProductById(id) : null;
-          if (relProd) {
-            // Hindari duplikasi rekomendasi
-            if (!relatedProductsList.some(rp => rp.id === relProd.id)) {
-              relatedProductsList.push({ originName: p.name, ...relProd });
-            }
-          }
+  const sourceList = uniqueMatched.length > 0 ? uniqueMatched : allProducts.slice(0, 3);
+  for (const p of sourceList) {
+    if (p.related_products) {
+      const ids = p.related_products.split(',').map(id => Number(id.trim())).filter(Boolean);
+      for (const id of ids) {
+        const relProd = db.getProductById ? db.getProductById(id) : null;
+        if (relProd && !relatedProductsList.some(rp => rp.id === relProd.id)) {
+          relatedProductsList.push({ originName: p.name, ...relProd });
         }
       }
     }
   }
 
-  let resultContext = `[DATA PRODUK & STOK DARI DATABASE]:\n${lines.join('\n')}`;
-
   if (relatedProductsList.length > 0) {
     const relLines = relatedProductsList.map(rp => 
-      `- ${rp.name} — Rp${Number(rp.price).toLocaleString('id-ID')} (Rekomendasi terkait produk "${rp.originName}" yang sedang ditanyakan)`
+      `- ${rp.name} — Rp${Number(rp.price).toLocaleString('id-ID')} (Rekomendasi terkait "${rp.originName}")`
     );
-    resultContext += `\n\n[REKOMENDASI PRODUK TERKAIT]:\nPelanggan sedang bertanya tentang produk yang relevan. Jika natural, tawarkan produk terkait berikut:\n${relLines.join('\n')}`;
+    resultContext += `\n\n[REKOMENDASI PRODUK TERKAIT]:\nJika relevan dan natural, tawarkan produk terkait berikut:\n${relLines.join('\n')}`;
   }
 
   return resultContext;
@@ -391,28 +432,52 @@ function buildGoalsContext(message) {
 
 /**
  * Membangun konteks riwayat chat percakapan sebelumnya untuk kontak tertentu.
+ * Mendukung pembacaan kapasitas memori hingga 10-15 interaksi dan pembersihan format otomatis.
  * @param {string} contact 
- * @param {number} [limit=5] 
+ * @param {number} [limit=12] 
  * @returns {string}
  */
-function buildChatHistoryContext(contact, limit = 5) {
+function buildChatHistoryContext(contact, limit = null) {
   if (!contact) return '';
   try {
-    const rawLogs = db.getChatLogsByContact(contact, limit);
+    let resolvedLimit = limit;
+    if (!resolvedLimit || isNaN(Number(resolvedLimit))) {
+      const config = getConfig ? getConfig() : {};
+      resolvedLimit = Number(config.chat_history_limit) || 12;
+    }
+    resolvedLimit = Math.max(1, Math.min(resolvedLimit, 30));
+
+    const rawLogs = db.getChatLogsByContact(contact, resolvedLimit);
     if (!rawLogs || rawLogs.length === 0) return '';
 
     // Balik urutan agar kronologis dari yang terlama ke terbaru
     const logs = [...rawLogs].reverse();
     const historyLines = logs.map(l => {
       const parts = [];
-      if (l.message_in) parts.push(`- Pelanggan: "${l.message_in.replace(/\n/g, ' ')}"`);
-      if (l.message_out) parts.push(`- Asisten/Bot: "${l.message_out.replace(/\n/g, ' ')}"`);
+      if (l.message_in) {
+        const cleanIn = l.message_in
+          .replace(/```json[\s\S]*?```/g, '')
+          .replace(/\{[\s\S]*?"intent"[\s\S]*?\}/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (cleanIn) parts.push(`- Pelanggan: "${cleanIn}"`);
+      }
+      if (l.message_out) {
+        const cleanOut = l.message_out
+          .replace(/```json[\s\S]*?```/g, '')
+          .replace(/\{[\s\S]*?"intent"[\s\S]*?\}/g, '')
+          .replace(/\[HANDOVER_REQUIRED\]/g, '')
+          .replace(/\[CUSTOMER_NAME:[^\]]+\]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        if (cleanOut) parts.push(`- Asisten/Bot: "${cleanOut}"`);
+      }
       return parts.join('\n');
     }).filter(Boolean);
 
     if (historyLines.length === 0) return '';
 
-    return `[RIWAYAT PERCAKAPAN TERAKHIR DENGAN KONTAK INI]:\n${historyLines.join('\n')}`;
+    return `[RIWAYAT PERCAKAPAN TERAKHIR DENGAN KONTAK INI (${logs.length} Interaksi Sebelumnya)]:\n${historyLines.join('\n')}`;
   } catch (err) {
     return '';
   }
@@ -456,6 +521,17 @@ function buildBusinessProfileContext() {
     if (details.length > 0) {
       parts.push(`[PROFIL & INFORMASI LENGKAP BISNIS]:\n${details.join('\n')}`);
     }
+
+    // Injeksi FAQ sebagai panduan pengetahuan cerdas untuk AI
+    try {
+      const faqs = db.getAllFaqs ? db.getAllFaqs().filter(f => f.is_active !== 0) : [];
+      if (faqs && faqs.length > 0) {
+        const faqLines = faqs.map(f => 
+          `• Tanya: ${f.question_label || f.trigger_keywords}\n  Jawab: ${f.answer}`
+        );
+        parts.push(`[PANDUAN INFORMASI & FAQ TOKO]:\n${faqLines.join('\n\n')}`);
+      }
+    } catch (_) {}
 
     const docs = db.getAllBusinessDocuments ? db.getAllBusinessDocuments() : [];
     if (docs && docs.length > 0) {
@@ -623,6 +699,15 @@ function buildContext(message, mode = 'bisnis', contact = null) {
   try {
     const parts = [];
 
+    // Injeksi konteks khusus Mode Admin / Owner Assistant
+    if (mode === 'admin') {
+      const adminCtx = buildAdminContext(message);
+      if (adminCtx) parts.push(adminCtx);
+      const historyContext = contact ? buildChatHistoryContext(contact) : '';
+      if (historyContext) parts.push(historyContext);
+      return parts.join('\n\n');
+    }
+
     // Injeksi konteks waktu & status pelanggan (Mode Bisnis)
     if (mode === 'bisnis') {
       const timeCtx = buildTimeAndCustomerContext(contact);
@@ -655,7 +740,7 @@ function buildContext(message, mode = 'bisnis', contact = null) {
     const sampleContext = buildFewShotSamplesContext();
     if (sampleContext) parts.push(sampleContext);
 
-    const historyContext = contact ? buildChatHistoryContext(contact, 5) : '';
+    const historyContext = contact ? buildChatHistoryContext(contact) : '';
     if (historyContext) parts.push(historyContext);
 
     return parts.join('\n\n');
@@ -737,6 +822,59 @@ function extractCustomerNameFromReply(reply) {
   return { name, cleanReply };
 }
 
+/**
+ * Membangun konteks data operasional dan ringkasan bisnis untuk Mode Admin / Owner Assistant.
+ * @param {string} [message] 
+ * @returns {string}
+ */
+function buildAdminContext(message = '') {
+  try {
+    const products = db.getAllProducts ? db.getAllProducts() : [];
+    const orders = db.getAllOrders ? db.getAllOrders() : [];
+    const pausedContacts = db.getAllPausedContacts ? db.getAllPausedContacts() : [];
+    const pendingHandoverCount = db.getPendingHandoverCount ? db.getPendingHandoverCount() : 0;
+    
+    // Hitung omset total & pesanan hari ini
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayOrders = orders.filter(o => o.created_at && o.created_at.startsWith(todayStr));
+    const todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const pendingOrders = orders.filter(o => o.status === 'pending');
+    
+    const lowStockProducts = products.filter(p => Number(p.stock) <= 5);
+
+    let ctx = `[DATA OPERASIONAL TOKO REAL-TIME]:\n`;
+    ctx += `- Total Produk di Katalog: ${products.length} item\n`;
+    ctx += `- Total Pesanan Hari Ini (${todayStr}): ${todayOrders.length} transaksi (Total Omset: Rp${todayRevenue.toLocaleString('id-ID')})\n`;
+    ctx += `- Pesanan Pending/Belum Diproses: ${pendingOrders.length} pesanan\n`;
+    ctx += `- Tiket Handover Pending: ${pendingHandoverCount} tiket\n`;
+    ctx += `- Kontak Pelanggan Sedang Dijeda: ${pausedContacts.length} kontak\n`;
+
+    if (lowStockProducts.length > 0) {
+      ctx += `\n[PRODUK DENGAN STOK MENIPIS (<= 5)]:\n`;
+      lowStockProducts.forEach(p => {
+        ctx += `- ${p.name}: Sisa ${p.stock} unit (Harga: Rp${Number(p.price).toLocaleString('id-ID')})\n`;
+      });
+    }
+
+    if (pendingOrders.length > 0) {
+      ctx += `\n[5 PESANAN PENDING TERBARU]:\n`;
+      pendingOrders.slice(0, 5).forEach(o => {
+        ctx += `- #${o.id} | Pelanggan: ${o.customer_name || o.contact} | Pesanan: ${o.order_summary} | Total: Rp${Number(o.total_amount || 0).toLocaleString('id-ID')}\n`;
+      });
+    }
+
+    ctx += `\n[PANDUAN PERINTAH CEPAT OWNER]:\n`;
+    ctx += `- Untuk unpause bot / selesaikan handover pelanggan: ketik \`!aktifkan [nomor]\` atau \`!selesai\`\n`;
+    ctx += `- Untuk jeda bot manual: ketik \`!jeda [nomor] [durasi_jam]\`\n`;
+    ctx += `- Untuk input pesanan baru via WhatsApp: ketik format form pesanan (nama: ... no: ... pesanan: ... total: ...)\n`;
+    ctx += `- Untuk cek status antrean: ketik \`!status\`\n`;
+
+    return ctx;
+  } catch (err) {
+    return '[DATA OPERASIONAL TOKO]: Data tidak dapat dimuat.';
+  }
+}
+
 module.exports = {
   extractKeywords,
   buildBusinessProfileContext,
@@ -751,6 +889,8 @@ module.exports = {
   buildCustomerProfileContext,
   extractCustomerNameFromReply,
   buildOrderContext,
+  buildAdminContext,
   buildContext
 };
+
 

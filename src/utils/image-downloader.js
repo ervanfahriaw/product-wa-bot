@@ -75,9 +75,17 @@ async function downloadAndCacheImage(url, maxRedirects = 5) {
 
   return new Promise((resolve) => {
     const protocol = normalized.startsWith('https') ? https : http;
-    const timeout = 10000; // 10 detik
+    const requestOptions = {
+      timeout: 15000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+        'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Referer': normalized
+      }
+    };
 
-    const req = protocol.get(normalized, { timeout }, (res) => {
+    const req = protocol.get(normalized, requestOptions, (res) => {
       // Handle HTTP Redirects (301, 302, 303, 307, 308)
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
         if (maxRedirects <= 0) {

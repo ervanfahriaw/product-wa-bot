@@ -1,10 +1,45 @@
 const db = require('../../db');
 const { getConfig, saveConfig } = require('../../config');
 const { normalizePhoneNumber, toWhatsAppJid } = require('../../utils/phone');
-const { findLidForPhoneNumber, formatIndonesianPhone } = require('../../utils/contact-resolver');
+const { 
+  findLidForPhoneNumber, 
+  formatIndonesianPhone, 
+  findContactByQuery,
+  resolveCustomerInfo,
+  formatCustomerDisplay 
+} = require('../../utils/contact-resolver');
+
+/**
+ * Mendaftarkan / memperbarui JID LID akun Owner di database settings dan customer_profiles.
+ * @param {string} lid 
+ * @param {string} [ownerPhone] 
+ */
+function registerOwnerLid(lid, ownerPhone = null) {
+  if (!lid) return;
+  try {
+    const config = getConfig();
+    const cleanOwner = normalizePhoneNumber(ownerPhone || (db.getSetting ? db.getSetting('owner_phone') : null) || config.owner_phone || '');
+    if (db.setSetting) {
+      db.setSetting('owner_lid', lid);
+    }
+    if (cleanOwner && db.upsertCustomerProfile) {
+      db.upsertCustomerProfile(lid, {
+        phone_number: cleanOwner,
+        lid_jid: lid,
+        notes: 'Akun WhatsApp Owner / Admin Toko'
+      });
+      db.upsertCustomerProfile(`${cleanOwner}@c.us`, {
+        phone_number: cleanOwner,
+        lid_jid: lid,
+        notes: 'Akun WhatsApp Owner / Admin Toko'
+      });
+    }
+  } catch (_) {}
+}
 
 /**
  * Memeriksa apakah pesan masuk berasal dari nomor Owner / Pemilik Toko.
+ * Mendukung format nomor biasa (@c.us), Linked ID WhatsApp modern (@lid), dan auto-registrasi.
  * @param {import('whatsapp-web.js').Message} message 
  * @returns {boolean}
  */
@@ -14,14 +49,62 @@ function isOwnerMessage(message) {
 
   const sender = message.from || '';
   const cleanSender = normalizePhoneNumber(sender);
-  if (!cleanSender) return false;
+  if (!cleanSender && !sender) return false;
 
   const config = getConfig();
-  const ownerPhone = db.getSetting('owner_phone') || config.owner_phone || '';
+  const ownerPhone = (db.getSetting ? db.getSetting('owner_phone') : null) || config.owner_phone || '';
   const cleanOwner = normalizePhoneNumber(ownerPhone);
 
-  if (!cleanOwner) return false;
-  return cleanSender.includes(cleanOwner) || cleanOwner.includes(cleanSender);
+  // 1. Jika nomor HP sender cocok langsung dengan owner_phone
+  if (cleanOwner && cleanSender && (cleanSender === cleanOwner || cleanSender.includes(cleanOwner) || cleanOwner.includes(cleanSender))) {
+    if (sender.endsWith('@lid')) {
+      registerOwnerLid(sender, cleanOwner);
+    }
+    return true;
+  }
+
+  // 2. Cek apakah LID pengirim terdaftar sebagai owner_lid di database settings
+  const registeredLid = db.getSetting ? db.getSetting('owner_lid') : null;
+  if (registeredLid && (sender === registeredLid || cleanSender === normalizePhoneNumber(registeredLid))) {
+    return true;
+  }
+
+  // 3. Cek mapping LID di customer_profiles
+  if (cleanOwner) {
+    const mappedLid = findLidForPhoneNumber(cleanOwner);
+    if (mappedLid && (mappedLid === sender || normalizePhoneNumber(mappedLid) === cleanSender)) {
+      return true;
+    }
+
+    try {
+      if (db.db && typeof db.db.prepare === 'function') {
+        const row = db.db.prepare(`
+          SELECT contact, phone_number, lid_jid FROM customer_profiles 
+          WHERE (contact = ? OR lid_jid = ?) AND (phone_number = ? OR contact = ? OR contact LIKE ?)
+          LIMIT 1
+        `).get(sender, sender, cleanOwner, `${cleanOwner}@c.us`, `%${cleanOwner}%`);
+        if (row) {
+          registerOwnerLid(sender, cleanOwner);
+          return true;
+        }
+      }
+    } catch (_) {}
+  }
+
+  // 4. Jika pesan memuat command admin yang valid (misal: !aktifkan, !selesai, !status, !jeda, !handover, !help)
+  // dan format sender adalah LID/nomor, kenali sebagai Owner dan auto-daftarkan LID-nya
+  if (message.body && typeof message.body === 'string') {
+    const trimmed = message.body.trim();
+    if (trimmed.startsWith('!') || /^(?:aktifkan|selesai|unpause|jeda|pause|status|list|handover|help|menu)\b/i.test(trimmed)) {
+      const parsed = parseOwnerCommand(message.body);
+      if (parsed) {
+        if (cleanOwner) registerOwnerLid(sender, cleanOwner);
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -241,15 +324,12 @@ function parseOwnerCommand(text = '') {
     }
   }
 
-  // 3. Perintah Unpause / Selesai dengan Nomor: !aktifkan [nomor], !unpause [nomor], !selesai [nomor], !resume [nomor]
-  const unpausePrefixMatch = trimmed.match(/^!?(?:aktifkan|unpause|selesai|resume|done)\b\s*(.*)$/i);
+  // 3. Perintah Unpause / Selesai: !aktifkan [target], !unpause [target], !selesai [target], !resume [target], !done
+  const unpausePrefixMatch = trimmed.match(/^!?(?:aktifkan|unpause|selesai|resume|done|buka\s+bot)\b\s*(.*)$/i);
   if (unpausePrefixMatch) {
     const rest = unpausePrefixMatch[1].trim();
-    if (rest) {
-      const cleanNum = normalizePhoneNumber(rest);
-      if (cleanNum) {
-        return { action: 'unpause', targetNumber: cleanNum };
-      }
+    if (rest && !/^(?:bot|sekarang|ya|dong|dulu)$/i.test(rest)) {
+      return { action: 'unpause', targetQuery: rest };
     } else {
       return { action: 'unpause_single' };
     }
@@ -350,16 +430,22 @@ async function handleOwnerCommand(message, client) {
     }
   }
 
-  // AKSI 1: Unpause / Aktifkan kembali bot untuk nomor target
+  // AKSI 1: Unpause / Aktifkan kembali bot untuk target tertentu (Nama / No. HP / LID)
   if (parsed.action === 'unpause') {
-    const target = parsed.targetNumber;
+    const query = parsed.targetQuery || parsed.targetNumber || '';
+    const resolvedJid = findContactByQuery(query) || query;
+    const cleanNum = normalizePhoneNumber(resolvedJid) || normalizePhoneNumber(query);
+    const target = cleanNum || query;
     const targetJid = toWhatsAppJid(target);
 
-    // Unpause format JID @c.us, @lid, dan mapping JID asli dari customer_profiles
+    // Unpause semua variasi format JID
     db.resumeContact(targetJid);
-    db.resumeContact(`${target}@c.us`);
-    db.resumeContact(`${target}@lid`);
+    db.resumeContact(resolvedJid);
     db.resumeContact(target);
+    if (cleanNum) {
+      db.resumeContact(`${cleanNum}@c.us`);
+      db.resumeContact(`${cleanNum}@lid`);
+    }
 
     const mappedLid = findLidForPhoneNumber(target);
     if (mappedLid) {
@@ -372,15 +458,21 @@ async function handleOwnerCommand(message, client) {
     if (db.resolveHandoverByContact) {
       db.resolveHandoverByContact(target);
       db.resolveHandoverByContact(targetJid);
+      db.resolveHandoverByContact(resolvedJid);
+      if (cleanNum) {
+        db.resolveHandoverByContact(`${cleanNum}@c.us`);
+        db.resolveHandoverByContact(`${cleanNum}@lid`);
+      }
     }
 
-    const pretty = formatIndonesianPhone(target) || target;
+    const customerInfo = await resolveCustomerInfo(null, resolvedJid || target);
+    const display = customerInfo.formattedDisplay || target;
     const replyMsg = `✅ *[BOT DIAKTIFKAN KEMBALI]*\n\n` +
-      `Bot WhatsApp telah *DIAKTIFKAN* kembali untuk nomor: *${pretty}* (${target}).\n` +
+      `Bot WhatsApp telah *DIAKTIFKAN* kembali untuk: *${display}*.\n` +
       `Tiket handover ditandai *Selesai*. Pesan berikutnya dari pelanggan ini akan langsung dijawab otomatis oleh AI.`;
 
     await sendReply(replyMsg);
-    console.log(`[OwnerCommandHandler] Sukses mengaktifkan bot untuk ${target} via perintah WhatsApp.`);
+    console.log(`[OwnerCommandHandler] Sukses mengaktifkan bot untuk ${display} via perintah WhatsApp.`);
     return true;
   }
 
@@ -412,12 +504,15 @@ async function handleOwnerCommand(message, client) {
       extraNote = `\n\n📌 _Catatan: Masih ada ${pausedList.length - 1} kontak lain yang dijeda. Ketik \`!status\` untuk melihat daftar._`;
     }
 
+    const customerInfo = await resolveCustomerInfo(null, targetItem.contact);
+    const display = customerInfo.formattedDisplay || (cleanNum ? formatIndonesianPhone(cleanNum) : targetItem.contact);
+
     const replyMsg = `✅ *[TIKET SELESAI & BOT DIAKTIFKAN]*\n\n` +
-      `Bot WhatsApp telah *DIAKTIFKAN* kembali untuk pelanggan: *${cleanNum || targetItem.contact}*.\n` +
+      `Bot WhatsApp telah *DIAKTIFKAN* kembali untuk pelanggan: *${display}*.\n` +
       `Status jeda telah dilepas. Bot kembali melayani pelanggan ini secara otomatis.${extraNote}`;
 
     await sendReply(replyMsg);
-    console.log(`[OwnerCommandHandler] Sukses unpause kontak ${targetItem.contact}.`);
+    console.log(`[OwnerCommandHandler] Sukses unpause kontak ${targetItem.contact} (${display}).`);
     return true;
   }
 

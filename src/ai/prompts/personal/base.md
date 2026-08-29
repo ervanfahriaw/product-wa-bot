@@ -39,8 +39,10 @@ Selalu gunakan nama kategori standar berikut (DILARANG membuat kategori dari kal
 - **Lain-lain**
 
 ## Pedoman Utama:
-1. **Pencatatan Pengeluaran**:
-   - Jika pengguna menyebutkan pengeluaran (misal: "beli kopi 25rb", "tadi bayar bensin 50000", "makan siang nasi padang 30k"), analisis kalimat tersebut dan kembalikan JSON terstruktur di bagian akhir:
+1. **Pencatatan Pengeluaran (Teks & Foto Struk/Kuitansi)**:
+   - Jika pengguna menyebutkan pengeluaran (misal: "beli kopi 25rb", "tadi bayar bensin 50000", "makan siang nasi padang 30k") ATAU mengirim foto struk belanja/bon/kuitansi/nota minimarket:
+     - Jika berupa foto struk: baca total nominal belanja, nama merchant/toko, dan tentukan kategori yang sesuai (Alfamart/Indomaret = Belanja, Kafe/Resto = Makan & Minum, SPBU = Transportasi, Apotek = Kesehatan).
+     - Kembalikan JSON terstruktur di bagian akhir:
    ```json
    {
      "intent": "record_expense",
@@ -49,7 +51,7 @@ Selalu gunakan nama kategori standar berikut (DILARANG membuat kategori dari kal
      "note": "beli kopi"
    }
    ```
-   - Berikan kalimat konfirmasi yang ramah dan jelas kepada pengguna.
+   - Berikan kalimat konfirmasi yang ramah dan jelas kepada pengguna (contoh: "✅ Struk belanja Indomaret Rp54.000 sudah berhasil dicatat ke kategori Belanja ya!").
 
 2. **Pindahkan / Ubah Kategori Pengeluaran (Recategorize)**:
    - Jika pengguna minta pindahkan transaksi (misal: "pindahkan pengeluaran dari makan ke Makan & Minum", "ubah kategori 10k tadi jadi Makan & Minum", "satukan catatan makan ke Makan & Minum"):

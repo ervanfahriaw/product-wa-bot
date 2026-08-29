@@ -11,12 +11,18 @@ const { enqueueIncomingMessage } = require('../message-buffer');
  */
 async function processAggregatedMessage(message, client) {
   try {
-    // 0. Cek apakah pesan berasal dari owner/admin dan berisi perintah manajemen bot
+    // 0. Cek apakah pesan berasal dari owner/admin
     if (isOwnerMessage(message)) {
+      // 0a. Coba jalankan perintah command manajemen bot
       const handled = await handleOwnerCommand(message, client);
       if (handled) {
         return;
       }
+
+      // 0b. Jika bukan perintah, layani khusus sebagai percakapan Owner / Admin Co-Pilot
+      const { handleOwnerAssistantMessage } = require('./owner-assistant-handler');
+      await handleOwnerAssistantMessage(message, client);
+      return;
     }
 
     const config = getConfig();

@@ -19,6 +19,10 @@ const { getUserPreferences } = require('../utils/user-preferences');
 function buildPersonalityPrompt(config = {}, mode = 'bisnis') {
   const instructions = [];
   const isPersonal = mode === 'personal';
+  const isAdmin = mode === 'admin';
+  if (isAdmin) {
+    return '';
+  }
   const userPrefs = isPersonal ? getUserPreferences() : {};
 
   // 1. Gaya Bicara / Tone & Panggilan
@@ -95,57 +99,92 @@ function loadSystemPrompt(mode, config = {}) {
 }
 
 /**
+ * Membersihkan format teks agar rapi dan sesuai format WhatsApp (*tebal*, bukan **tebal**).
+ * Menghilangkan tag scratchpad/thinking atau kebocoran chain-of-thought AI jika ada.
+ * @param {string} text 
+ * @returns {string}
+ */
+function cleanWhatsAppFormatting(text = '') {
+  if (!text) return '';
+  let cleaned = text;
+
+  // 1. Bersihkan tag XML/HTML thinking & scratchpad
+  cleaned = cleaned.replace(/<thought>[\s\S]*?<\/thought>/gi, '');
+  cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
+  cleaned = cleaned.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
+  cleaned = cleaned.replace(/<scratchpad>[\s\S]*?<\/scratchpad>/gi, '');
+
+  // 2. Bersihkan blok "Thinking Process: ... \n\n" secara tuntas
+  cleaned = cleaned.replace(/^\s*(?:Thinking\s+Process|Internal\s+Reasoning|Analysis|Reasoning Process|Scratchpad):[\s\S]*?\n\n/gim, '');
+
+  // 3. Bersihkan blok CoT / Scratchpad / Rule Check multi-baris di awal
+  cleaned = cleaned.replace(/^(?:\s*['"]?s\s+check|\s*Let'?s\s+check|\s*Check(?:ing)?\s+Rule|\s*Thought:|\s*Internal\s+check|\s*Rule\s+\d+:)[\s\S]*?(?=\n\s*(?:\b(?:Halo|Hai|Pagi|Siang|Sore|Malam|Iya|Siap|Baik|Wah|Terima|Kak|Harga|Outlet|Berikut|Menu|Untuk|Mohon)\b|[*#]))/gim, '');
+
+  // 3. Bersihkan baris-baris sisa CoT (apapun variasinya)
+  cleaned = cleaned.replace(/^\s*(?:['"]?s\s+check|Let'?s\s+check|Thinking\s+process:?|Thought:|Internal\s+reasoning:?|Rule\s+\d+:?|Here,\s+the\s+customer\s+asked).*$/gim, '');
+  cleaned = cleaned.replace(/^\s*".*DILARANG\s+SPAM\s+HARGA.*$/gim, '');
+  cleaned = cleaned.replace(/^\s*".*Sebutkan\s+harga\s+HANYA.*$/gim, '');
+  cleaned = cleaned.replace(/^\s*Here,\s+the\s+customer\s+asked.*$/gim, '');
+
+  // 4. Ubah markdown heading (### Judul / ## Judul / # Judul) -> *Judul*
+  cleaned = cleaned.replace(/^#{1,4}\s+(.+)$/gm, '*$1*');
+
+  // 5. Ubah double asterisks (**tebal**) -> single asterisk (*tebal*)
+  cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, '*$1*');
+
+  // 6. Rapikan baris kosong berlebih
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
+
+  return cleaned;
+}
+
+/**
  * Menghasilkan balasan AI dari pesan pengguna (Router Tunggal AI).
  * @param {object} params
  * @param {string} params.message
  * @param {'bisnis'|'personal'} [params.mode]
  * @param {string|null} [params.imageBase64]
+ * @param {string|null} [params.mimeType]
  * @param {string|null} [params.apiKeyOverride]
  * @param {string|null} [params.contact]
  * @returns {Promise<{reply: string, error: string|null, handledBy: string, handoverRequired: boolean}>}
  */
-async function generateReply({ message, mode = null, imageBase64 = null, apiKeyOverride = null, contact = null }) {
+async function generateReply({ message, mode = null, imageBase64 = null, mimeType = 'image/jpeg', apiKeyOverride = null, contact = null }) {
   const config = getConfig();
   const activeMode = mode || config.mode || 'bisnis';
   const geminiKey = apiKeyOverride || config.gemini_api_key;
   const grokKey = config.grok_api_key;
   const selectedModel = config.ai_model || 'gemini-3.7-flash';
 
+  const effectiveMessage = (message && message.trim())
+    ? message
+    : (imageBase64 
+        ? (activeMode === 'personal' 
+            ? 'Tolong baca dan catat pengeluaran dari foto struk/bon/kuitansi ini.' 
+            : 'Tolong analisis foto barang/produk yang dikirim pelanggan ini, kenali nama barang dan bantu informasikan ketersediaan stok atau keterangannya.')
+        : '');
+
   // 1. Bangun RAG Context dari database SQLite + Riwayat Chat
-  const dbContext = buildContext(message, activeMode, contact);
+  const dbContext = buildContext(effectiveMessage, activeMode, contact);
   
   // 2. Susun System Prompt dengan kustomisasi persona
   const systemPrompt = loadSystemPrompt(activeMode, config);
-  const fullPrompt = `${dbContext}\n\nPesan Pelanggan / User:\n"${message}"`;
+  const userLabel = activeMode === 'admin' ? 'Pesan dari Pemilik Toko / Admin:' : 'Pesan Pelanggan / User:';
+  const fullPrompt = `${dbContext}\n\n${userLabel}\n"${effectiveMessage}"`;
 
   let response;
 
   // 3. Routing ke provider AI yang sesuai
-  if (imageBase64 && grokKey) {
-    response = await callGrok(message, imageBase64, { apiKey: grokKey });
+  if (imageBase64 && config.vision_provider === 'grok' && grokKey) {
+    response = await callGrok(effectiveMessage, imageBase64, { apiKey: grokKey });
   } else {
     response = await callGemini(fullPrompt, systemPrompt, { 
       apiKey: geminiKey,
-      model: selectedModel
+      model: selectedModel,
+      imageBase64: imageBase64 || null,
+      mimeType: mimeType || 'image/jpeg'
     });
   }
-
-/**
- * Membersihkan format teks agar rapi dan sesuai format WhatsApp (*tebal*, bukan **tebal**).
- * @param {string} text 
- * @returns {string}
- */
-function cleanWhatsAppFormatting(text = '') {
-  if (!text) return '';
-  return text
-    // Ubah markdown heading (### Judul / ## Judul / # Judul) -> *Judul*
-    .replace(/^#{1,4}\s+(.+)$/gm, '*$1*')
-    // Ubah double asterisks (**tebal**) -> single asterisk (*tebal*)
-    .replace(/\*\*(.*?)\*\*/g, '*$1*')
-    // Rapikan baris kosong berlebih
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
 
   // 4. Deteksi kebutuhan human handover & bersihkan format teks untuk WhatsApp
   const rawReply = response.reply || '';
@@ -177,5 +216,6 @@ async function validateKey(provider, apiKey) {
 module.exports = {
   generateReply,
   validateKey,
-  loadSystemPrompt
+  loadSystemPrompt,
+  cleanWhatsAppFormatting
 };

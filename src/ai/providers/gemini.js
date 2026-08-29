@@ -93,16 +93,26 @@ async function callGemini(prompt, systemInstruction = '', options = {}) {
       maxOutputTokens: 2048
     };
 
-    // thinkingConfig hanya didukung oleh model 3.7 / 2.5
-    if (model.includes('3.7') || model.includes('2.5')) {
+    // Nonaktifkan thinking budget pada model yang mendukung thinkingConfig
+    if (model.includes('3.7') || model.includes('2.5') || model.includes('2.0') || model.includes('thinking')) {
       genConfig.thinkingConfig = { thinkingBudget: 0 };
+    }
+
+    const userParts = [{ text: prompt }];
+    if (options.imageBase64) {
+      userParts.push({
+        inlineData: {
+          mimeType: options.mimeType || 'image/jpeg',
+          data: options.imageBase64
+        }
+      });
     }
 
     const payload = {
       contents: [
         {
           role: 'user',
-          parts: [{ text: prompt }]
+          parts: userParts
         }
       ],
       generationConfig: genConfig

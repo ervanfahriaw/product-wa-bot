@@ -2,6 +2,7 @@ const db = require('../../db');
 const { getConfig } = require('../../config');
 const { normalizePhoneNumber, toWhatsAppJid } = require('../../utils/phone');
 const { parseOwnerOrderForm } = require('./owner-command-handler');
+const { formatCustomerDisplay, formatIndonesianPhone } = require('../../utils/contact-resolver');
 
 /**
  * Memeriksa apakah teks pesan pelanggan merupakan form pemesanan yang telah diisi.
@@ -139,18 +140,19 @@ async function handleCustomerOrderSubmission(message, client) {
       const ownerJid = `${cleanOwnerPhone}@c.us`;
       // Jangan kirim notifikasi ke nomor yang sama jika yang order adalah owner sendiri
       if (ownerJid !== resolvedContact) {
+        const customerDisplay = formatCustomerDisplay(senderContact, { customerName, phoneNumber: cleanSenderPhone });
         const ownerNotification = `🔔 *[PESANAN BARU DARI CHAT PELANGGAN]*\n\n` +
           `Ada pelanggan baru saja mengirim format pemesanan:\n` +
           `━━━━━━━━━━━━━━━━━━━━\n` +
           `📦 *ID Pesanan:* #${orderId}\n` +
           `👤 *Nama:* ${customerName}\n` +
-          `📱 *No. WA:* ${cleanSenderPhone ? '+' + cleanSenderPhone : resolvedContact}\n` +
+          `📱 *No. WA / Kontak:* ${customerDisplay}\n` +
           (addressOnly ? `📍 *Alamat:* ${addressOnly}\n` : '') +
           `🛒 *Pesanan:* ${orderItems}\n` +
           (parsed.total_amount ? `💰 *Total Produk:* Rp${Number(parsed.total_amount).toLocaleString('id-ID')}\n` : '') +
           `━━━━━━━━━━━━━━━━━━━━\n\n` +
           `👉 *Tiket telah masuk ke Handover Inbox & Bot dijeda 2 jam* agar Anda dapat mengecek ongkir dan mengirim rekening dengan nyaman.\n\n` +
-          `💡 *Kontrol via WA:* Balas chat ini dengan \`!aktifkan ${cleanSenderPhone || resolvedContact}\` atau \`!selesai\` jika sudah selesai.`;
+          `💡 *Kontrol via WA:* Balas chat ini dengan \`!selesai\` atau \`!aktifkan\` jika sudah selesai.`;
 
         try {
           await client.sendMessage(ownerJid, ownerNotification);

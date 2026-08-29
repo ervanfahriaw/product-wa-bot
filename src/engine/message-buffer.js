@@ -69,6 +69,17 @@ function enqueueIncomingMessage(message, client, onBatchReady, overrideDebounceM
       aggregatedMessage.bubbleCount = collected.length;
       aggregatedMessage.originalMessages = collected;
 
+      // Pertahankan media jika salah satu pesan dalam batch berisi gambar/media
+      const mediaMsg = collected.find(m => m.hasMedia || m.imageBase64 || (typeof m.downloadMedia === 'function'));
+      if (mediaMsg) {
+        aggregatedMessage.hasMedia = true;
+        if (mediaMsg.imageBase64) aggregatedMessage.imageBase64 = mediaMsg.imageBase64;
+        if (mediaMsg.mimeType) aggregatedMessage.mimeType = mediaMsg.mimeType;
+        if (typeof mediaMsg.downloadMedia === 'function') {
+          aggregatedMessage.downloadMedia = mediaMsg.downloadMedia.bind(mediaMsg);
+        }
+      }
+
       console.log(`[MessageBuffer] ✅ Pelanggan ${contact} selesai mengirim (${collected.length} gelembung chat). Mengirim ke AI:\n"${combinedBody}"`);
       await onBatchReady(aggregatedMessage, entry.client, collected);
     }

@@ -63,12 +63,12 @@ function sanitizeDistributionFolder(targetFolder) {
     try { fs.unlinkSync(licenseJson); } catch (_) {}
   }
 
-  // 4. Hapus file log
+  // 4. Hapus file log dan temporary backup
   try {
     const files = fs.readdirSync(targetFolder);
     for (const f of files) {
-      if (f.endsWith('.log')) {
-        fs.unlinkSync(path.join(targetFolder, f));
+      if (f.endsWith('.log') || f.endsWith('.old') || f.endsWith('.bak')) {
+        try { fs.unlinkSync(path.join(targetFolder, f)); } catch (_) {}
       }
     }
   } catch (_) {}
@@ -163,6 +163,18 @@ function buildEditionPackage(edition) {
   // 6. Jalankan pkg builder
   console.log(`   Menjalankan packaging binary .exe (${exeName})...`);
   const outExePath = path.join(targetFolder, exeName);
+  if (fs.existsSync(outExePath)) {
+    try {
+      fs.unlinkSync(outExePath);
+    } catch (_) {
+      try {
+        const tempBak = path.join(targetFolder, `${exeName}.old`);
+        if (fs.existsSync(tempBak)) fs.unlinkSync(tempBak);
+        fs.renameSync(outExePath, tempBak);
+      } catch (_) {}
+    }
+  }
+
   try {
     const pkgCommand = `npx pkg . --targets node18-win-x64 --output "${outExePath}"`;
     execSync(pkgCommand, {
@@ -199,9 +211,17 @@ function buildEditionPackage(edition) {
     if (fs.existsSync(zipPath)) {
       fs.unlinkSync(zipPath);
     }
-    const psZipCmd = `powershell -Command "Compress-Archive -Path '${targetFolder}\\*' -DestinationPath '${zipPath}' -Force"`;
-    execSync(psZipCmd, { stdio: 'ignore' });
-    console.log(`   ✅ File ZIP siap jual selesai dibuat: ${zipPath}`);
+    // Kumpulkan file dan folder esensial (hindari folder runtime data yang mungkin sedang terkunci)
+    const validItems = fs.readdirSync(targetFolder)
+      .filter(item => item !== 'data' && !item.endsWith('.old') && !item.endsWith('.log') && item !== '.wwebjs_auth' && item !== '.wwebjs_cache')
+      .map(item => `'${path.join(targetFolder, item)}'`)
+      .join(', ');
+
+    if (validItems) {
+      const psZipCmd = `powershell -Command "Compress-Archive -Path ${validItems} -DestinationPath '${zipPath}' -Force"`;
+      execSync(psZipCmd, { stdio: 'ignore' });
+      console.log(`   ✅ File ZIP siap jual selesai dibuat: ${zipPath}`);
+    }
   } catch (zErr) {
     console.warn(`   ⚠️ Gagal membuat ZIP otomatis: ${zErr.message}`);
   }

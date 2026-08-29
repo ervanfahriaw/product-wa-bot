@@ -20,6 +20,7 @@
     "test:faq": "node scripts/test-fase3-auto-faq.js",
     "test:followup": "node scripts/test-fase5-follow-ups.js",
     "test:enhancement": "node scripts/test-enhancement-fixes.js",
+    "test:vision": "node scripts/test-vision-image-reader.js",
     "test:qa": "node scripts/test-qa-final.js",
     "test": "node scripts/test-full-qa-a-to-z.js"
   },

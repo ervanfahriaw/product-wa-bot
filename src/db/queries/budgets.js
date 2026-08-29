@@ -12,19 +12,20 @@ const { normalizeCategory } = require('../../utils/categories');
  */
 function setBudget({ category, monthly_limit, alert_at_percent = 80 }) {
   const normCat = normalizeCategory(category);
-  const existing = getBudgetByCategory(category) || getBudgetByCategory(normCat);
+  const rawCat = (category || '').trim();
+  const existing = db.prepare('SELECT * FROM budgets WHERE LOWER(category) = LOWER(?) OR LOWER(category) = LOWER(?)').get(rawCat, normCat);
   
   if (existing) {
     db.prepare(`
-      UPDATE budgets SET category = ?, monthly_limit = ?, alert_at_percent = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE budgets SET category = ?, monthly_limit = ?, alert_at_percent = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).run(normCat, monthly_limit, alert_at_percent, existing.id);
     return existing.id;
   }
 
   const result = db.prepare(`
-    INSERT INTO budgets (category, monthly_limit, alert_at_percent)
-    VALUES (?, ?, ?)
+    INSERT INTO budgets (category, monthly_limit, alert_at_percent, is_active)
+    VALUES (?, ?, ?, 1)
   `).run(normCat, monthly_limit, alert_at_percent);
   return result.lastInsertRowid;
 }

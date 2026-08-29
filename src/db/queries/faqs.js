@@ -100,8 +100,9 @@ function incrementFaqMatchCount(id) {
 function matchFaq(message) {
   if (!message || !message.trim()) return null;
 
-  // JANGAN cocokkan FAQ jika pesan merupakan format pemesanan/order dari pelanggan
   const msgLower = message.toLowerCase().trim();
+
+  // 1. JANGAN cocokkan FAQ jika pesan merupakan format pemesanan/order
   if (
     (msgLower.includes('nama') && msgLower.includes('alamat')) ||
     (msgLower.includes('nama') && msgLower.includes('pesanan')) ||
@@ -110,6 +111,14 @@ function matchFaq(message) {
     msgLower.includes('alamat lengkap') ||
     msgLower.includes('pesanan & jumlah')
   ) {
+    return null;
+  }
+
+  // 2. JANGAN mencegat dengan template FAQ statis jika pesan merupakan pertanyaan bernuansa khusus/kondisional
+  // (misal: "saya lokasi di jakarta bisa ga?", "kalau kirim ke luar kota?", "apakah bisa...")
+  // Pesan seperti ini WAJIB dialirkan ke AI agar dijawab cerdas sesuai konteks kalimat utuh.
+  const isContextualQuestion = /(?:bisa\s+ga|bisa\s+tidak|bisa\s+ngga|bisa\s+kah|apakah\s+bisa|bisa\s+kirim\s+ke|lokasi\s+di|posisi\s+di|luar\s+kota|keluar\s+kota|kirim\s+ke\s+[a-z]+|kalau\s+ke\s+[a-z]+|saya\s+di\s+[a-z]+)/i.test(msgLower);
+  if (isContextualQuestion) {
     return null;
   }
 

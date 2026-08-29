@@ -4,6 +4,7 @@ const ai = require('../../ai');
 const { splitIntoBubbles, sendMultiBubbleMessages } = require('../bubble-sender');
 const { normalizeCategory, isSameCategory } = require('../../utils/categories');
 const { detectPreferenceUpdatesFromText, saveUserPreferences } = require('../../utils/user-preferences');
+const { resolveCustomerInfo } = require('../../utils/contact-resolver');
 
 /**
  * Ekstraksi nilai nominal dan kategori pengeluaran dari teks kalimat bebas (Fallback / Rule-based Parser).
@@ -32,13 +33,22 @@ function extractExpenseFromText(text = '') {
     return null;
   }
 
-  let baseNum = parseFloat(match[1].replace(',', '.'));
+  const numStr = match[1];
   const unit = (match[2] || '').toLowerCase().trim();
 
+  let baseNum = 0;
   if (unit === 'rb' || unit === 'ribu' || unit === 'k') {
-    baseNum *= 1000;
+    baseNum = parseFloat(numStr.replace(',', '.')) * 1000;
   } else if (unit === 'jt' || unit === 'juta') {
-    baseNum *= 1000000;
+    baseNum = parseFloat(numStr.replace(',', '.')) * 1000000;
+  } else {
+    // Tanpa unit suffix: cth 50.000 atau 50000 atau 1.500.000
+    if (/^\d{1,3}(?:[.,]\d{3})+$/.test(numStr)) {
+      // Thousand separator (50.000, 1.500.000, 50,000)
+      baseNum = parseFloat(numStr.replace(/[.,]/g, ''));
+    } else {
+      baseNum = parseFloat(numStr.replace(',', '.'));
+    }
   }
 
   const category = normalizeCategory(lower);
@@ -112,17 +122,41 @@ async function handlePersonalMessage(message, client) {
   try {
     const config = getConfig();
 
+    // 0. Eagerly catat profil pengguna jika ada pushname/nomor
+    try {
+      await resolveCustomerInfo(message, contact);
+    } catch (_) {}
+
     // 1. Deteksi & simpan preferensi panggilan/nama secara otomatis
     detectPreferenceUpdatesFromText(messageBody);
 
     // 2. Simulasikan jeda manusiawi & status typing untuk anti-banned
     await simulateHumanTyping(message);
 
-    // 3. Dapatkan respons AI dengan RAG context + riwayat chat
+    // 2b. Ekstraksi Gambar / Media jika pengguna mengirim foto struk/kuitansi/dokumen
+    let imageBase64 = message.imageBase64 || null;
+    let mimeType = message.mimeType || 'image/jpeg';
+
+    if (!imageBase64 && (message.hasMedia || message.type === 'image') && typeof message.downloadMedia === 'function') {
+      try {
+        const downloaded = await message.downloadMedia();
+        if (downloaded && downloaded.data) {
+          imageBase64 = downloaded.data;
+          mimeType = downloaded.mimetype || 'image/jpeg';
+          console.log(`[PersonalHandler] Berhasil mengunduh foto pengguna (${mimeType}) dari ${contact}. Meneruskan ke AI Vision...`);
+        }
+      } catch (mediaErr) {
+        console.warn('[PersonalHandler] Gagal mengunduh foto dari pesan WhatsApp:', mediaErr.message);
+      }
+    }
+
+    // 3. Dapatkan respons AI dengan RAG context + riwayat chat + Vision Multimodal
     const aiResult = await ai.generateReply({
       message: messageBody,
       mode: 'personal',
-      contact
+      contact,
+      imageBase64,
+      mimeType
     });
 
     let finalReply = aiResult.reply || '';
@@ -841,9 +875,13 @@ async function handlePersonalMessage(message, client) {
     });
 
     // 6. Catat ke tabel chat_logs SQLite
+    const recordedInMessage = imageBase64 
+      ? (messageBody ? `[Foto] ${messageBody}` : '[Foto Struk/Dokumen]') 
+      : messageBody;
+
     db.createChatLog({
       contact,
-      message_in: messageBody,
+      message_in: recordedInMessage,
       message_out: finalReply,
       handled_by: 'ai'
     });

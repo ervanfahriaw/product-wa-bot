@@ -89,7 +89,7 @@ function isHandoverTriggered(messageText = '', isAiHandover = false, config = nu
  * @param {any} client 
  * @param {object} config 
  */
-async function triggerHandoverActions(contact, messageBody, reason, client, config) {
+async function triggerHandoverActions(contact, messageBody, reason, client, config, message = null) {
   // 1. Otomatis pause bot untuk kontak ini selama 2 jam agar obrolan manual owner tidak tersela
   db.pauseContact(contact, 2, reason || 'Handover Nego Harga / Kebutuhan Owner');
   console.log(`[BusinessHandler] Bot otomatis DIJEDA 2 jam untuk kontak ${contact}.`);
@@ -116,17 +116,16 @@ async function triggerHandoverActions(contact, messageBody, reason, client, conf
     const cleanPhone = normalizePhoneNumber(ownerPhone);
     const targetJid = toWhatsAppJid(ownerPhone);
 
-    const customerInfo = await resolveCustomerInfo(null, contact);
-    const customerDisplay = customerInfo.formattedDisplay || contact;
-    const unpauseTarget = customerInfo.phoneNumber || normalizePhoneNumber(contact) || contact;
+    const customerInfo = await resolveCustomerInfo(message, contact);
+    const customerDisplay = customerInfo.formattedDisplay || 'Pelanggan';
 
     if (targetJid && cleanPhone.length >= 9) {
       const handoverNotice = `🔔 *[NOTIFIKASI HANDOVER - WA BOT]*\n\n` +
-        `Pelanggan (*${customerDisplay}*) membutuhkan penanganan langsung oleh Admin / Owner:\n\n` +
+        `Pelanggan: *${customerDisplay}* membutuhkan penanganan langsung oleh Admin / Owner:\n\n` +
         `💬 *Pesan Pelanggan:* "${messageBody}"\n` +
         `⚠️ *Status:* ${reason || 'Nego Harga / Permintaan Khusus / Komplain'}\n\n` +
         `👉 *Bot telah OTOMATIS DIJEDA (PAUSED)* untuk kontak ini selama 2 jam agar obrolan manual Anda tidak tertimpa bot.\n\n` +
-        `💡 *Kontrol via WA:* Balas chat ini dengan \`!aktifkan ${unpauseTarget}\` atau \`!selesai\` jika sudah selesai melayani agar bot aktif kembali.`;
+        `💡 *Kontrol via WA:* Balas chat ini dengan \`!selesai\` atau \`!aktifkan\` jika sudah selesai melayani.`;
       
       try {
         let finalJid = targetJid;
@@ -218,23 +217,141 @@ async function createMessageMediaFromFile(filePathOrUrl) {
   }
 }
 
+// Cache pengiriman gambar produk per kontak: Map<contact, Map<productId, timestamp>>
+const sentProductImageCache = new Map();
+
+/**
+ * Menghitung jarak Levenshtein antara dua string (untuk toleransi typo).
+ * @param {string} s1 
+ * @param {string} s2 
+ * @returns {number}
+ */
+function levenshteinDistance(s1 = '', s2 = '') {
+  if (!s1 || !s2) return (s1 || '').length + (s2 || '').length;
+  const a = s1.toLowerCase();
+  const b = s2.toLowerCase();
+  const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
+  for (let i = 0; i <= a.length; i += 1) matrix[0][i] = i;
+  for (let j = 0; j <= b.length; j += 1) matrix[j][0] = j;
+  for (let j = 1; j <= b.length; j += 1) {
+    for (let i = 1; i <= a.length; i += 1) {
+      const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[j][i] = Math.min(
+        matrix[j][i - 1] + 1,
+        matrix[j - 1][i] + 1,
+        matrix[j - 1][i - 1] + indicator
+      );
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+/**
+ * Memeriksa apakah dua kata memiliki kemiripan fonetik/teks tinggi (toleransi typo).
+ * @param {string} w1 
+ * @param {string} w2 
+ * @returns {boolean}
+ */
+function isWordSimilar(w1 = '', w2 = '') {
+  if (w1 === w2) return true;
+  if (!w1 || !w2) return false;
+  if (w1.length < 3 || w2.length < 3) return false;
+  if (w1.includes(w2) || w2.includes(w1)) return true;
+  const maxLen = Math.max(w1.length, w2.length);
+  const dist = levenshteinDistance(w1, w2);
+  return (1 - dist / maxLen) >= 0.70; // 70% threshold kemiripan (misal: "maringgi" vs "maranggi" = 87.5%)
+}
+
+/**
+ * Mencatat waktu pengiriman gambar produk ke kontak tertentu.
+ * Menyimpan berdasarkan ID dan Nama Produk agar tidak ada celah spam.
+ * @param {string} contact 
+ * @param {number|string} productId 
+ * @param {string} [productName]
+ */
+function recordSentProductImage(contact, productId, productName = '') {
+  if (!contact) return;
+  let map = sentProductImageCache.get(contact);
+  if (!map) {
+    map = new Map();
+    sentProductImageCache.set(contact, map);
+  }
+  if (productId) {
+    map.set(String(productId), Date.now());
+  }
+  if (productName) {
+    map.set(productName.trim().toLowerCase(), Date.now());
+  }
+}
+
+/**
+ * Memeriksa apakah gambar produk ini baru saja dikirim ke kontak dalam batas waktu tertentu.
+ * @param {string} contact 
+ * @param {number|string} productId 
+ * @param {string} [productName]
+ * @param {number} [ttlMs=900000] 15 menit default cooldown
+ * @returns {boolean}
+ */
+function wasProductImageRecentlySent(contact, productId, productName = '', ttlMs = 15 * 60 * 1000) {
+  if (!contact) return false;
+  const map = sentProductImageCache.get(contact);
+  if (!map) return false;
+
+  if (productId) {
+    const key = String(productId);
+    const sentTime = map.get(key);
+    if (sentTime && (Date.now() - sentTime) < ttlMs) return true;
+  }
+
+  if (productName) {
+    const key = productName.trim().toLowerCase();
+    const sentTime = map.get(key);
+    if (sentTime && (Date.now() - sentTime) < ttlMs) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Membersihkan seluruh cache pengiriman gambar (untuk testing).
+ */
+function clearSentProductImageCache() {
+  sentProductImageCache.clear();
+}
+
 /**
  * Mencari apakah ada produk relevan dengan gambar yang perlu dikirim.
- * Mendukung file lokal, link gambar Google Drive/URL, dan riwayat obrolan pelanggan.
+ * Menerapkan:
+ * 1. Full-Sentence Contextual Intent (memahami kalimat utuh, bukan cuma 1 kata trigger)
+ * 2. Anti-Complaint & Negation Guard (blokir jika pelanggan komplain/menolak foto)
+ * 3. Explicit Product Matching (nama lengkap, SKU, & fuzzy typo tolerance)
+ * 4. Conversational Context Resolution (membaca riwayat chat untuk kalimat seperti "Liat fotonya coba", "Mana fotonya ka")
+ * 5. Re-send Intent & Cooldown Management
+ * 
  * @param {string} messageText 
  * @param {string} [contact]
  * @returns {{product: object, fullPath: string|null, url: string|null, isUrl: boolean}|null}
  */
 function findProductImageToSend(messageText = '', contact = null) {
-  const lower = messageText.toLowerCase();
-  const isAskingImage = lower.includes('foto') || lower.includes('gambar') || 
-                        lower.includes('lihat') || lower.includes('liat') ||
-                        lower.includes('katalog') || lower.includes('model') || 
-                        lower.includes('bentuk') || lower.includes('spill') ||
-                        lower.includes('penampakan') || lower.includes('contoh') ||
-                        lower.includes('pic') || lower.includes('pict');
+  if (!messageText || typeof messageText !== 'string') return null;
+  const lower = messageText.toLowerCase().trim();
 
-  const products = db.getAllProducts();
+  // Guard 1: Deteksi keluhan / komplain / negasi pengiriman foto
+  const isComplaintOrNegation = /(?:tidak\s+minta|gak\s+minta|ga\s+minta|bukan\s+minta|ngapain\s+kirim|kenapa\s+(?:kamu\s+)?(?:kasih|kirim)\s+terus|jangan\s+kirim|stop\s+kirim|jangan\s+kasih|ga\s+butuh|gak\s+butuh|tidak\s+butuh|gak\s+usah|ga\s+usah|nggak\s+usah|tidak\s+usah|gausah|salah\s+foto|bukan\s+yang\s+ini|bukan\s+itu|stop\s+spam)/i.test(lower);
+  if (isComplaintOrNegation) {
+    return null;
+  }
+
+  // Guard 2: Periksa apakah kalimat mengandung maksud melihat/meminta foto produk
+  const isAskingImage = /(?:foto|fotonya|gambar|gambarnya|liat|lihat|liatkan|tunjukin|spill|pic|pict|picture|penampakan|penampakannya|contoh|model|modelnya|bentuk|bentuknya|tengok|mana\s+(?:fotonya|gambarnya)|cek\s+foto|minta\s+foto|minta\s+gambar|kirim\s+foto|kirim\s+gambar|ada\s+fotonya|ada\s+gambarnya|liat\s+fotonya|liat\s+gambarnya|penasaran)/i.test(lower);
+  const isAskingReSend = /(?:kirim\s+lagi|minta\s+lagi|kirim\s+ulang|liat\s+lagi|lihat\s+lagi|belum\s+(?:muncul|masuk|ada|keliatan|terkirim)|mana\s+(?:fotonya|gambarnya)|fotonya\s+mana|gambarnya\s+mana|kok\s+(?:fotonya|gambarnya)\s+belum)/i.test(lower);
+
+  // Jika pelanggan sama sekali tidak meminta foto/gambar, JANGAN KIRIM GAMBAR!
+  if (!isAskingImage && !isAskingReSend) {
+    return null;
+  }
+
+  const products = db.getAllProducts ? db.getAllProducts() : [];
   if (products.length === 0) return null;
 
   // Filter produk yang memiliki file gambar lokal atau link gambar valid
@@ -255,32 +372,59 @@ function findProductImageToSend(messageText = '', contact = null) {
 
   if (productsWithImage.length === 0) return null;
 
-  // 1. Cek pencocokan kata-kata dalam nama produk (Fuzzy Word Overlap Scoring)
+  // Kata-kata umum/percakapan yang diabaikan agar tidak salah mencocokkan produk secara bias
+  const GENERIC_WORDS = new Set([
+    'sate', 'makanan', 'menu', 'minuman', 'baju', 'kaos', 'celana', 'sepatu',
+    'produk', 'barang', 'isi', 'porsi', 'harga', 'berapa', 'ready', 'ada',
+    'gak', 'ga', 'nggak', 'tidak', 'nih', 'dong', 'kak', 'ka', 'min', 'gan', 'bro', 'yang', 'dan', 'ini',
+    'itu', 'mau', 'beli', 'pesan', 'order', 'untuk', 'dari', 'bisa', 'liat',
+    'lihat', 'liatkan', 'liatnya', 'foto', 'fotonya', 'gambar', 'gambarnya', 'katalog',
+    'spill', 'pic', 'pict', 'picture', 'contoh', 'coba', 'cobain', 'mana', 'manakah',
+    'tengok', 'tunjukin', 'kasih', 'kirim', 'kirimkan', 'deh', 'kan', 'sih',
+    'lah', 'ya', 'yaa', 'yah', 'yuk', 'kah', 'aja', 'saja', 'punya', 'kok', 'apa',
+    'apakah', 'gimana', 'bagaimana', 'bentuk', 'bentuknya', 'penampakan', 'penampakannya',
+    'model', 'modelnya', 'penasaran', 'pengen', 'ingin', 'tolong', 'minta', 'lagi', 'ulang'
+  ]);
+
   const queryWords = lower.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
+  const nonGenericQueryWords = queryWords.filter(w => !GENERIC_WORDS.has(w));
+
   let bestMatch = null;
   let highestScore = 0;
 
+  // 1. PENCARIAN EKSPLISIT: Apakah ada nama produk / SKU yang disebutkan di kalimat ini?
   for (const item of productsWithImage) {
     const prodName = item.product.name.toLowerCase();
     const prodSku = (item.product.sku || '').toLowerCase();
     const prodWords = prodName.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
+    const nonGenericProdWords = prodWords.filter(w => !GENERIC_WORDS.has(w));
 
     // Jika SKU cocok langsung
     if (prodSku && lower.includes(prodSku)) {
-      return item;
-    }
-
-    // Hitung berapa kata dari nama produk yang muncul dalam pesan
-    let score = 0;
-    for (const pw of prodWords) {
-      if (queryWords.includes(pw) || lower.includes(pw)) {
-        score++;
+      if (isAskingReSend || !wasProductImageRecentlySent(contact, item.product.id, item.product.name)) {
+        return item;
       }
     }
 
-    // Jika seluruh frasa nama produk ada di query
+    let score = 0;
+
+    // Jika seluruh frasa nama produk ada di query (misal "susu aren" dalam "liat foto susu aren coba")
     if (lower.includes(prodName)) {
-      score += 10;
+      score += 30;
+    }
+
+    // Kecocokan kata spesifik non-generic dengan toleransi typo (misal: maringgi -> Maranggi)
+    for (const qw of nonGenericQueryWords) {
+      for (const pw of nonGenericProdWords) {
+        if (isWordSimilar(qw, pw)) {
+          score += 15;
+        }
+      }
+    }
+
+    // Jika produk ini baru saja dikirim ke pelanggan dan bukan permintaan kirim ulang, kurangi skor agar tidak spam
+    if (wasProductImageRecentlySent(contact, item.product.id, item.product.name) && !isAskingReSend) {
+      score = 0;
     }
 
     if (score > highestScore) {
@@ -293,28 +437,50 @@ function findProductImageToSend(messageText = '', contact = null) {
     return bestMatch;
   }
 
-  // 2. Jika pesan menanyakan foto, tapi tidak menyebut nama produk spesifik:
-  //    Cek riwayat obrolan terakhir (chat_logs) pelanggan untuk mengetahui produk apa yang sedang dibahas!
-  if (isAskingImage && contact) {
+  // 2. PENCARIAN KONTEKSTUAL (CHAT HISTORY RESOLUTION):
+  // Jika pembeli meminta foto tanpa menyebut nama produk spesifik (cth: "Liat fotonya coba", "Mana fotonya ka", "Spill dong"),
+  // periksa riwayat chat pelanggan untuk menemukan produk yang paling baru dibahas.
+  if (contact) {
     try {
       if (db.getChatLogsByContact) {
-        const recentLogs = db.getChatLogsByContact(contact, 5);
+        const recentLogs = db.getChatLogsByContact(contact, 10);
         if (recentLogs && recentLogs.length > 0) {
-          const combinedHistory = recentLogs.map(l => `${l.message_in} ${l.message_out}`).join(' ').toLowerCase();
+          // Cari dari log yang paling baru (index 0 adalah yang terbaru)
+          for (const l of recentLogs) {
+            const combinedText = `${l.message_in || ''} ${l.message_out || ''}`.toLowerCase();
 
-          for (const item of productsWithImage) {
-            const prodName = item.product.name.toLowerCase();
-            const prodWords = prodName.split(/\s+/).filter(w => w.length >= 3);
-            if (combinedHistory.includes(prodName) || prodWords.some(pw => combinedHistory.includes(pw))) {
-              return item;
+            for (const item of productsWithImage) {
+              const isSentRecently = wasProductImageRecentlySent(contact, item.product.id, item.product.name);
+              if (isSentRecently && !isAskingReSend) {
+                continue;
+              }
+
+              const prodName = item.product.name.toLowerCase();
+              const prodWords = prodName.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
+              const nonGenericProdWords = prodWords.filter(w => !GENERIC_WORDS.has(w));
+
+              if (combinedText.includes(prodName)) {
+                return item;
+              }
+
+              // Cocokkan jika minimal 2 kata produk (atau seluruh kata jika nama produk pendek 1-2 kata) ada di obrolan
+              const matchedWords = nonGenericProdWords.filter(pw => combinedText.includes(pw));
+              const requiredCount = Math.min(2, nonGenericProdWords.length);
+              if (matchedWords.length >= requiredCount && matchedWords.length > 0) {
+                return item;
+              }
             }
           }
         }
       }
     } catch (_) {}
 
-    // Fallback: Jika umum ("minta foto katalog"), ambil produk pertama yang punya gambar
-    return productsWithImage[0];
+    // Fallback: Jika umum ("minta foto katalog") dan belum pernah dikirim, ambil produk pertama yang belum dikirim
+    for (const item of productsWithImage) {
+      if (!wasProductImageRecentlySent(contact, item.product.id, item.product.name) || isAskingReSend) {
+        return item;
+      }
+    }
   }
 
   return null;
@@ -367,9 +533,15 @@ async function handleBusinessMessage(message, client) {
   const messageBody = message.body || '';
 
   try {
+    // Eagerly catat dan selesaikan profil pelanggan (nama profil / pushname / nomor telepon)
+    let customerInfo = { formattedDisplay: 'Pelanggan' };
+    try {
+      customerInfo = await resolveCustomerInfo(message, contact);
+    } catch (_) {}
+
     // 0. Cek apakah kontak sedang dalam status Dijeda (Paused / Handover Owner)
     if (db.isContactPaused(contact)) {
-      console.log(`[BusinessHandler] Kontak ${contact} sedang dalam status DIJEDA (Paused/Handover). Mengabaikan balasan otomatis.`);
+      console.log(`[BusinessHandler] Kontak ${contact} (${customerInfo.formattedDisplay}) sedang dalam status DIJEDA (Paused/Handover). Mengabaikan balasan otomatis.`);
 
       // 1. Simpan pesan masuk ke tabel chat_logs agar selalu muncul di Web Controller Chat Logs & CRM
       try {
@@ -401,7 +573,13 @@ async function handleBusinessMessage(message, client) {
           const cleanPhone = normalizePhoneNumber(ownerPhone);
           const targetJid = toWhatsAppJid(ownerPhone);
           if (targetJid && !contact.includes(cleanPhone)) {
-            const followUpNotice = `🔔 *[PESAN BARU - HANDOVER AKTIF]*\n\nPelanggan (*${contact}*) mengirim pesan lanjutan:\n\n💬 "${messageBody}"\n\n_Status bot masih DIJEDA. Silakan balas langsung melalui WhatsApp Anda._`;
+            const customerDisplay = customerInfo.formattedDisplay || 'Pelanggan';
+            const followUpNotice = `🔔 *[PESAN BARU - HANDOVER AKTIF]*\n\n` +
+              `Pelanggan: *${customerDisplay}* mengirim pesan lanjutan:\n\n` +
+              `💬 "${messageBody}"\n\n` +
+              `👉 _Status bot masih DIJEDA. Silakan balas langsung melalui WhatsApp Anda._\n` +
+              `💡 _Ketik \`!selesai\` atau \`!aktifkan\` jika obrolan sudah selesai._`;
+
             let finalJid = targetJid;
             if (typeof client.getNumberId === 'function') {
               const numberId = await client.getNumberId(cleanPhone).catch(() => null);
@@ -537,7 +715,7 @@ async function handleBusinessMessage(message, client) {
         await client.sendMessage(contact, handoverReply);
       }
 
-      await triggerHandoverActions(contact, messageBody, 'Nego Harga / Permintaan Khusus / Komplain', client, config);
+      await triggerHandoverActions(contact, messageBody, 'Nego Harga / Permintaan Khusus / Komplain', client, config, message);
 
       db.createChatLog({
         contact,
@@ -556,11 +734,30 @@ async function handleBusinessMessage(message, client) {
     // 4. Simulasikan jeda manusiawi & status typing untuk anti-banned
     await simulateHumanTyping(message);
 
-    // 5. Generate balasan dari AI Router (dengan konteks riwayat chat pelanggan)
+    // 4b. Ekstraksi Gambar / Media jika pelanggan mengirim foto
+    let imageBase64 = message.imageBase64 || null;
+    let mimeType = message.mimeType || 'image/jpeg';
+
+    if (!imageBase64 && (message.hasMedia || message.type === 'image') && typeof message.downloadMedia === 'function') {
+      try {
+        const downloaded = await message.downloadMedia();
+        if (downloaded && downloaded.data) {
+          imageBase64 = downloaded.data;
+          mimeType = downloaded.mimetype || 'image/jpeg';
+          console.log(`[BusinessHandler] Berhasil mengunduh foto pelanggan (${mimeType}) dari ${contact}. Meneruskan ke AI Vision...`);
+        }
+      } catch (mediaErr) {
+        console.warn('[BusinessHandler] Gagal mengunduh foto dari pesan WhatsApp:', mediaErr.message);
+      }
+    }
+
+    // 5. Generate balasan dari AI Router (dengan konteks riwayat chat pelanggan + Vision Multimodal)
     const aiResult = await generateReply({
       message: messageBody,
       mode: 'bisnis',
-      contact
+      contact,
+      imageBase64,
+      mimeType
     });
 
     let replyText = aiResult.reply || 'Halo, ada yang bisa kami bantu seputar produk kami?';
@@ -600,23 +797,50 @@ async function handleBusinessMessage(message, client) {
           const caption = `📸 *${imgInfo.product.name}*\n💰 Rp${Number(imgInfo.product.price).toLocaleString('id-ID')}`;
           let sent = false;
 
+          // 1. Coba kirim via client.sendMessage ke contact langsung
           if (typeof client.sendMessage === 'function') {
             try {
               await client.sendMessage(contact, media, { caption });
               sent = true;
-            } catch (_) {}
+            } catch (sendErr) {
+              console.warn(`[BusinessHandler] client.sendMessage media gagal (${sendErr.message}), mencoba fallback message.reply...`);
+            }
           }
 
+          // 2. Fallback: coba kirim via message.reply
           if (!sent && message && typeof message.reply === 'function') {
             try {
               await message.reply(media, undefined, { caption });
               sent = true;
-            } catch (_) {}
+            } catch (replyErr) {
+              console.warn(`[BusinessHandler] message.reply media gagal (${replyErr.message}), mencoba fallback berikutnya...`);
+            }
+          }
+
+          // 3. Fallback: jika contact adalah @lid, coba selesaikan ke nomor @c.us
+          if (!sent && contact && contact.endsWith('@lid') && typeof client.sendMessage === 'function') {
+            try {
+              const { findContactByQuery } = require('../../utils/contact-resolver');
+              const resolved = findContactByQuery(contact);
+              if (resolved && resolved.phoneNumber) {
+                const targetCus = `${resolved.phoneNumber}@c.us`;
+                await client.sendMessage(targetCus, media, { caption });
+                sent = true;
+                console.log(`[BusinessHandler] Berhasil mengirim foto via fallback nomor resolved ${targetCus}`);
+              }
+            } catch (lidErr) {
+              console.warn(`[BusinessHandler] Fallback media ke resolved @c.us gagal:`, lidErr.message);
+            }
           }
 
           if (sent) {
-            console.log(`[BusinessHandler] Berhasil mengirim foto produk "${imgInfo.product.name}" ke ${contact}`);
+            recordSentProductImage(contact, imgInfo.product.id, imgInfo.product.name);
+            console.log(`[BusinessHandler] ✅ Berhasil mengirim foto produk "${imgInfo.product.name}" ke ${contact}`);
+          } else {
+            console.error(`[BusinessHandler] ❌ Gagal mengirim foto produk "${imgInfo.product.name}" ke ${contact} setelah semua percobaan.`);
           }
+        } else {
+          console.warn(`[BusinessHandler] createMessageMediaFromFile mengembalikan null untuk produk "${imgInfo.product.name}" (sumber: ${imgInfo.fullPath || imgInfo.url}).`);
         }
       } catch (mediaErr) {
         console.error('[BusinessHandler] Gagal mengirim media gambar:', mediaErr.message);
@@ -626,7 +850,7 @@ async function handleBusinessMessage(message, client) {
     // 8. Cek & Notifikasi jika AI menandai handoverRequired (hanya jika fitur handover aktif)
     const needsAiHandover = isHandoverEnabled(config) && Boolean(aiResult.handoverRequired);
     if (needsAiHandover) {
-      await triggerHandoverActions(contact, messageBody, 'Permintaan Eskalasi AI', client, config);
+      await triggerHandoverActions(contact, messageBody, 'Permintaan Eskalasi AI', client, config, message);
     }
 
     // Cek apakah pesan mengandung nama produk dari katalog untuk menjadwalkan follow-up (Fase 5)
@@ -649,10 +873,14 @@ async function handleBusinessMessage(message, client) {
       console.error('[BusinessHandler] Gagal menjadwalkan follow-up otomatis:', e.message);
     }
 
-    // 6. Catat ke tabel chat_logs SQLite
+    // 9. Catat ke tabel chat_logs SQLite
+    const recordedInMessage = imageBase64 
+      ? (messageBody ? `[Foto] ${messageBody}` : '[Foto Produk/Dokumen]') 
+      : messageBody;
+
     db.createChatLog({
       contact,
-      message_in: messageBody,
+      message_in: recordedInMessage,
       message_out: replyText,
       handled_by: needsAiHandover ? 'human' : 'ai'
     });
@@ -668,5 +896,9 @@ module.exports = {
   isHandoverEnabled,
   findProductImageToSend,
   resolveProductImagePath,
-  createMessageMediaFromFile
+  createMessageMediaFromFile,
+  clearSentProductImageCache,
+  wasProductImageRecentlySent,
+  recordSentProductImage
 };
+
