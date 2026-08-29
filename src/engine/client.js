@@ -45,11 +45,16 @@ function forceKillBrowserProcess() {
         } catch (_) {}
       }
 
-      // Bunuh SEMUA proses browser zombie sisa yang menggunakan session-wa-bot-main
+      // Bunuh SEMUA proses browser zombie sisa yang menggunakan session-wa-bot-main pada Windows
       try {
         const psCmd = `Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'msedge.exe' -or $_.Name -eq 'chrome.exe' -or $_.Name -eq 'chromium.exe') -and ($_.CommandLine -like '*session-wa-bot-main*' -or $_.CommandLine -like '*data*session*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`;
         execSync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCmd}"`, { stdio: 'ignore', timeout: 5000 });
       } catch (_) {}
+    } catch (_) {}
+  } else {
+    // Platform Linux (VPS) & macOS: Bunuh proses browser zombie yang mengunci folder sesi
+    try {
+      execSync(`pkill -f 'session-wa-bot-main'`, { stdio: 'ignore' });
     } catch (_) {}
   }
 }
