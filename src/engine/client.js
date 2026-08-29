@@ -44,6 +44,12 @@ function forceKillBrowserProcess() {
           }
         } catch (_) {}
       }
+
+      // Bunuh SEMUA proses browser zombie sisa yang menggunakan session-wa-bot-main
+      try {
+        const psCmd = `Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'msedge.exe' -or $_.Name -eq 'chrome.exe' -or $_.Name -eq 'chromium.exe') -and ($_.CommandLine -like '*session-wa-bot-main*' -or $_.CommandLine -like '*data*session*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`;
+        execSync(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psCmd}"`, { stdio: 'ignore', timeout: 5000 });
+      } catch (_) {}
     } catch (_) {}
   }
 }
@@ -60,20 +66,31 @@ function cleanSessionLocks() {
     'lockfile',
     'SingletonLock',
     'SingletonSocket',
-    'SingletonCookie'
+    'SingletonCookie',
+    'CrashpadMetrics-active.pma'
   ];
 
-  const targetDirs = [sessionPath, path.join(sessionPath, 'Default')];
+  const targetDirs = [
+    sessionPath,
+    path.join(sessionPath, 'Default'),
+    path.join(sessionPath, 'Crashpad')
+  ];
+
   for (const dir of targetDirs) {
     if (fs.existsSync(dir)) {
-      for (const file of lockFiles) {
-        const fullPath = path.join(dir, file);
-        try {
-          if (fs.existsSync(fullPath)) {
-            fs.unlinkSync(fullPath);
+      try {
+        const files = fs.readdirSync(dir);
+        for (const file of files) {
+          if (lockFiles.includes(file) || file.startsWith('Singleton') || file.endsWith('.pma') || file.endsWith('.lock')) {
+            const fullPath = path.join(dir, file);
+            try {
+              if (fs.existsSync(fullPath)) {
+                fs.unlinkSync(fullPath);
+              }
+            } catch (_) {}
           }
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
     }
   }
 }
@@ -97,7 +114,9 @@ async function forceWipeSessionDirectory() {
       break;
     } catch (err) {
       if (i < 4) {
-        await new Promise(r => setTimeout(r, 250));
+        forceKillBrowserProcess();
+        cleanSessionLocks();
+        await new Promise(r => setTimeout(r, 300));
       } else {
         console.warn('[Engine] Catatan pembersihan sesi:', err.message);
       }
@@ -123,6 +142,7 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
     return clientInstance;
   }
 
+  forceKillBrowserProcess();
   cleanSessionLocks();
   isInitializing = true;
   setStatus(ENGINE_STATUS.CONNECTING, {
@@ -148,7 +168,16 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--disable-crash-reporter',
+        '--disable-crashpad',
+        '--disable-breakpad',
+        '--disable-metrics',
+        '--disable-metrics-repo',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding'
       ],
       ...(detectedExecutable ? { executablePath: detectedExecutable } : {}),
       ...customPuppeteerOptions
