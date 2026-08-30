@@ -330,23 +330,76 @@ function clearSentProductImageCache() {
  * 
  * @param {string} messageText 
  * @param {string} [contact]
+ * @returns {{product: object, fullPath: string|null, url: string|null, isUrl: boole/**
+ * Ekstraksi token identitas produk (nama bersih, akronim, SKU, dan kata kunci).
+ * @param {object} product 
+ * @returns {object}
+ */
+function extractProductSearchTokens(product) {
+  const rawName = (product.name || '').trim().toLowerCase();
+  const rawSku = (product.sku || '').trim().toLowerCase();
+  
+  // Ekstrak teks dalam kurung sebagai akronim/alias (contoh: "Albino Full Red (AFR)" -> "afr")
+  const parenMatch = rawName.match(/\(([^)]+)\)/);
+  const parenthetical = parenMatch ? parenMatch[1].trim().toLowerCase() : '';
+
+  // Bersihkan nama dari tanda kurung & karakter khusus
+  const cleanName = rawName.replace(/\([^)]*\)/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  
+  // Buat inisial / akronim dari huruf pertama tiap kata (contoh: "albino full red" -> "afr")
+  const words = cleanName.split(' ').filter(w => w.length > 0);
+  const initials = words.length >= 2 ? words.map(w => w[0]).join('') : '';
+
+  const GENERIC_WORDS = new Set([
+    'sate', 'makanan', 'menu', 'minuman', 'baju', 'kaos', 'celana', 'sepatu',
+    'produk', 'barang', 'isi', 'porsi', 'harga', 'berapa', 'ready', 'ada',
+    'gak', 'ga', 'nggak', 'tidak', 'nih', 'dong', 'kak', 'ka', 'min', 'gan', 'bro', 'yang', 'dan', 'ini',
+    'itu', 'mau', 'beli', 'pesan', 'order', 'untuk', 'dari', 'bisa', 'liat',
+    'lihat', 'liatkan', 'liatnya', 'foto', 'fotonya', 'gambar', 'gambarnya', 'katalog',
+    'spill', 'pic', 'pict', 'picture', 'contoh', 'coba', 'cobain', 'mana', 'manakah',
+    'tengok', 'tunjukin', 'kasih', 'kirim', 'kirimkan', 'deh', 'kan', 'sih',
+    'lah', 'ya', 'yaa', 'yah', 'yuk', 'kah', 'aja', 'saja', 'punya', 'kok', 'apa',
+    'apakah', 'gimana', 'bagaimana', 'bentuk', 'bentuknya', 'penampakan', 'penampakannya',
+    'model', 'modelnya', 'penasaran', 'pengen', 'ingin', 'tolong', 'minta', 'lagi', 'ulang'
+  ]);
+
+  const nonGenericWords = words.filter(w => !GENERIC_WORDS.has(w) && w.length >= 2);
+
+  return {
+    rawName,
+    cleanName,
+    parenthetical,
+    initials,
+    rawSku,
+    nonGenericWords
+  };
+}
+
+/**
+ * Mencari apakah ada produk relevan dengan gambar yang perlu dikirim.
+ * Menggunakan Arsitektur Dual-Lock (2 Kunci Pengaman):
+ * 1. Kunci 1: Memverifikasi niat pelanggan meminta foto (Zero False Positives).
+ * 2. Kunci 2: Resolusi target produk cerdas (Eksplisit -> Akronim -> Riwayat Chat -> Fallback).
+ * 
+ * @param {string} messageText 
+ * @param {string} [contact]
  * @returns {{product: object, fullPath: string|null, url: string|null, isUrl: boolean}|null}
  */
 function findProductImageToSend(messageText = '', contact = null) {
   if (!messageText || typeof messageText !== 'string') return null;
   const lower = messageText.toLowerCase().trim();
 
-  // Guard 1: Deteksi keluhan / komplain / negasi pengiriman foto
+  // KUNCI 1: Deteksi keluhan / komplain / negasi pengiriman foto (Tolak jika negasi)
   const isComplaintOrNegation = /(?:tidak\s+minta|gak\s+minta|ga\s+minta|bukan\s+minta|ngapain\s+kirim|kenapa\s+(?:kamu\s+)?(?:kasih|kirim)\s+terus|jangan\s+kirim|stop\s+kirim|jangan\s+kasih|ga\s+butuh|gak\s+butuh|tidak\s+butuh|gak\s+usah|ga\s+usah|nggak\s+usah|tidak\s+usah|gausah|salah\s+foto|bukan\s+yang\s+ini|bukan\s+itu|stop\s+spam)/i.test(lower);
   if (isComplaintOrNegation) {
     return null;
   }
 
-  // Guard 2: Periksa apakah kalimat mengandung maksud melihat/meminta foto produk
+  // KUNCI 1: Periksa apakah kalimat aktif meminta foto / melihat produk
   const isAskingImage = /(?:foto|fotonya|gambar|gambarnya|liat|lihat|liatkan|tunjukin|spill|pic|pict|picture|penampakan|penampakannya|contoh|model|modelnya|bentuk|bentuknya|tengok|mana\s+(?:fotonya|gambarnya)|cek\s+foto|minta\s+foto|minta\s+gambar|kirim\s+foto|kirim\s+gambar|ada\s+fotonya|ada\s+gambarnya|liat\s+fotonya|liat\s+gambarnya|penasaran)/i.test(lower);
   const isAskingReSend = /(?:kirim\s+lagi|minta\s+lagi|kirim\s+ulang|liat\s+lagi|lihat\s+lagi|belum\s+(?:muncul|masuk|ada|keliatan|terkirim)|mana\s+(?:fotonya|gambarnya)|fotonya\s+mana|gambarnya\s+mana|kok\s+(?:fotonya|gambarnya)\s+belum)/i.test(lower);
 
-  // Jika pelanggan sama sekali tidak meminta foto/gambar, JANGAN KIRIM GAMBAR!
+  // Jika pelanggan sama sekali tidak meminta foto/gambar, KUNCI 1 TERKUNCI (100% TIDAK KIRIM FOTO)
   if (!isAskingImage && !isAskingReSend) {
     return null;
   }
@@ -363,8 +416,9 @@ function findProductImageToSend(messageText = '', contact = null) {
         productsWithImage.push({ 
           product: prod, 
           fullPath: res.fullPath || null, 
-          url: res.url || null,
-          isUrl: res.isUrl
+          url: res.url || null, 
+          isUrl: res.isUrl,
+          tokens: extractProductSearchTokens(prod)
         });
       }
     }
@@ -372,100 +426,95 @@ function findProductImageToSend(messageText = '', contact = null) {
 
   if (productsWithImage.length === 0) return null;
 
-  // Kata-kata umum/percakapan yang diabaikan agar tidak salah mencocokkan produk secara bias
-  const GENERIC_WORDS = new Set([
-    'sate', 'makanan', 'menu', 'minuman', 'baju', 'kaos', 'celana', 'sepatu',
-    'produk', 'barang', 'isi', 'porsi', 'harga', 'berapa', 'ready', 'ada',
-    'gak', 'ga', 'nggak', 'tidak', 'nih', 'dong', 'kak', 'ka', 'min', 'gan', 'bro', 'yang', 'dan', 'ini',
-    'itu', 'mau', 'beli', 'pesan', 'order', 'untuk', 'dari', 'bisa', 'liat',
-    'lihat', 'liatkan', 'liatnya', 'foto', 'fotonya', 'gambar', 'gambarnya', 'katalog',
-    'spill', 'pic', 'pict', 'picture', 'contoh', 'coba', 'cobain', 'mana', 'manakah',
-    'tengok', 'tunjukin', 'kasih', 'kirim', 'kirimkan', 'deh', 'kan', 'sih',
-    'lah', 'ya', 'yaa', 'yah', 'yuk', 'kah', 'aja', 'saja', 'punya', 'kok', 'apa',
-    'apakah', 'gimana', 'bagaimana', 'bentuk', 'bentuknya', 'penampakan', 'penampakannya',
-    'model', 'modelnya', 'penasaran', 'pengen', 'ingin', 'tolong', 'minta', 'lagi', 'ulang'
-  ]);
+  // KUNCI 2: RESOLUSI TARGET PRODUK
 
-  const queryWords = lower.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
-  const nonGenericQueryWords = queryWords.filter(w => !GENERIC_WORDS.has(w));
-
-  let bestMatch = null;
+  // 1. PENCARIAN EKSPLISIT DALAM PESAN SAAT INI (Nama, SKU, Alias, Akronim)
+  let bestExplicitMatch = null;
   let highestScore = 0;
 
-  // 1. PENCARIAN EKSPLISIT: Apakah ada nama produk / SKU yang disebutkan di kalimat ini?
   for (const item of productsWithImage) {
-    const prodName = item.product.name.toLowerCase();
-    const prodSku = (item.product.sku || '').toLowerCase();
-    const prodWords = prodName.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
-    const nonGenericProdWords = prodWords.filter(w => !GENERIC_WORDS.has(w));
+    const { rawName, cleanName, parenthetical, initials, rawSku, nonGenericWords } = item.tokens;
+    let score = 0;
 
-    // Jika SKU cocok langsung
-    if (prodSku && lower.includes(prodSku)) {
-      if (isAskingReSend || !wasProductImageRecentlySent(contact, item.product.id, item.product.name)) {
-        return item;
+    // Kecocokan SKU langsung
+    if (rawSku && lower.includes(rawSku)) {
+      score += 60;
+    }
+
+    // Kecocokan nama lengkap atau nama bersih
+    if (rawName && lower.includes(rawName)) {
+      score += 50;
+    } else if (cleanName && cleanName.length >= 4 && lower.includes(cleanName)) {
+      score += 45;
+    }
+
+    // Kecocokan akronim dalam kurung (misal "afr", "bm" sebagai kata utuh)
+    if (parenthetical) {
+      const regexParen = new RegExp(`\\b${parenthetical}\\b`, 'i');
+      if (regexParen.test(lower)) {
+        score += 40;
       }
     }
 
-    let score = 0;
-
-    // Jika seluruh frasa nama produk ada di query (misal "susu aren" dalam "liat foto susu aren coba")
-    if (lower.includes(prodName)) {
-      score += 30;
+    // Kecocokan inisial kata (misal "afr" dari Albino Full Red)
+    if (initials && initials.length >= 2) {
+      const regexInit = new RegExp(`\\b${initials}\\b`, 'i');
+      if (regexInit.test(lower)) {
+        score += 35;
+      }
     }
 
-    // Kecocokan kata spesifik non-generic dengan toleransi typo (misal: maringgi -> Maranggi)
-    for (const qw of nonGenericQueryWords) {
-      for (const pw of nonGenericProdWords) {
-        if (isWordSimilar(qw, pw)) {
+    // Kecocokan kata per kata dengan toleransi typo
+    const queryTokens = lower.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+    for (const qw of queryTokens) {
+      for (const pw of nonGenericWords) {
+        if (qw === pw) {
           score += 15;
+        } else if (isWordSimilar(qw, pw)) {
+          score += 10;
         }
       }
     }
 
-    // Jika produk ini baru saja dikirim ke pelanggan dan bukan permintaan kirim ulang, kurangi skor agar tidak spam
-    if (wasProductImageRecentlySent(contact, item.product.id, item.product.name) && !isAskingReSend) {
-      score = 0;
-    }
-
     if (score > highestScore) {
       highestScore = score;
-      bestMatch = item;
+      bestExplicitMatch = item;
     }
   }
 
-  if (highestScore > 0 && bestMatch) {
-    return bestMatch;
+  if (highestScore >= 30 && bestExplicitMatch) {
+    return bestExplicitMatch;
   }
 
-  // 2. PENCARIAN KONTEKSTUAL (CHAT HISTORY RESOLUTION):
-  // Jika pembeli meminta foto tanpa menyebut nama produk spesifik (cth: "Liat fotonya coba", "Mana fotonya ka", "Spill dong"),
-  // periksa riwayat chat pelanggan untuk menemukan produk yang paling baru dibahas.
+  // 2. PENCARIAN KONTEKSTUAL (Membaca Riwayat Chat untuk pesan pendek "liat fotonya", "mana fotonya ka")
   if (contact) {
     try {
       if (db.getChatLogsByContact) {
         const recentLogs = db.getChatLogsByContact(contact, 10);
         if (recentLogs && recentLogs.length > 0) {
-          // Cari dari log yang paling baru (index 0 adalah yang terbaru)
           for (const l of recentLogs) {
-            const combinedText = `${l.message_in || ''} ${l.message_out || ''}`.toLowerCase();
+            const combinedLog = `${l.message_out || ''} ${l.message_in || ''}`.toLowerCase();
 
             for (const item of productsWithImage) {
-              const isSentRecently = wasProductImageRecentlySent(contact, item.product.id, item.product.name);
-              if (isSentRecently && !isAskingReSend) {
-                continue;
+              const { rawName, cleanName, parenthetical, initials, nonGenericWords } = item.tokens;
+
+              // Jika nama lengkap atau nama bersih produk ada di riwayat chat terbaru
+              if (rawName && combinedLog.includes(rawName)) return item;
+              if (cleanName && cleanName.length >= 4 && combinedLog.includes(cleanName)) return item;
+
+              // Jika akronim / inisial ada di riwayat chat
+              if (parenthetical) {
+                const regexParen = new RegExp(`\\b${parenthetical}\\b`, 'i');
+                if (regexParen.test(combinedLog)) return item;
+              }
+              if (initials && initials.length >= 2) {
+                const regexInit = new RegExp(`\\b${initials}\\b`, 'i');
+                if (regexInit.test(combinedLog)) return item;
               }
 
-              const prodName = item.product.name.toLowerCase();
-              const prodWords = prodName.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3);
-              const nonGenericProdWords = prodWords.filter(w => !GENERIC_WORDS.has(w));
-
-              if (combinedText.includes(prodName)) {
-                return item;
-              }
-
-              // Cocokkan jika minimal 2 kata produk (atau seluruh kata jika nama produk pendek 1-2 kata) ada di obrolan
-              const matchedWords = nonGenericProdWords.filter(pw => combinedText.includes(pw));
-              const requiredCount = Math.min(2, nonGenericProdWords.length);
+              // Jika minimal 2 kata produk yang cocok di riwayat chat
+              const matchedWords = nonGenericWords.filter(pw => combinedLog.includes(pw));
+              const requiredCount = Math.min(2, nonGenericWords.length);
               if (matchedWords.length >= requiredCount && matchedWords.length > 0) {
                 return item;
               }
@@ -474,16 +523,14 @@ function findProductImageToSend(messageText = '', contact = null) {
         }
       }
     } catch (_) {}
-
-    // Fallback: Jika umum ("minta foto katalog") dan belum pernah dikirim, ambil produk pertama yang belum dikirim
-    for (const item of productsWithImage) {
-      if (!wasProductImageRecentlySent(contact, item.product.id, item.product.name) || isAskingReSend) {
-        return item;
-      }
-    }
   }
 
-  return null;
+  // 3. FALLBACK: Jika permintaan umum ("liat foto katalog") atau best match dengan skor moderat
+  if (bestExplicitMatch && highestScore > 0) {
+    return bestExplicitMatch;
+  }
+
+  return productsWithImage[0] || null;
 }
 
 /**
