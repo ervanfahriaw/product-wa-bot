@@ -83,14 +83,22 @@ async function main() {
     assert.ok(vbsContent.includes('localhost:3000'), 'VBS must open localhost:3000');
   })) passed++;
 
-  // 4. Verifikasi struktur folder portabel lengkap (runtime, src, node_modules, config)
+  // 4. Verifikasi struktur folder portabel lengkap (root cleaner + sistem/ subfolder)
   total++;
-  if (runTest('Package Integrity', 'Package folder must contain self-contained runtime, src, and dependencies', () => {
+  if (runTest('Package Integrity', 'Package folder must contain clean root files and sistem/ subfolder with runtime, src, and dependencies', () => {
     const pkgDir = path.join(DIST_DIR, 'wa-bot-bisnis');
-    assert.ok(fs.existsSync(path.join(pkgDir, 'runtime/node.exe')), 'runtime/node.exe must exist in package');
-    assert.ok(fs.existsSync(path.join(pkgDir, 'src/server/index.js')), 'src/server/index.js must exist in package');
-    assert.ok(fs.existsSync(path.join(pkgDir, 'node_modules/express')), 'node_modules/express must exist in package');
-    assert.ok(fs.existsSync(path.join(pkgDir, 'config/edition.json')), 'config/edition.json must exist in package');
+    const sistemDir = path.join(pkgDir, 'sistem');
+    
+    // Root files
+    assert.ok(fs.existsSync(path.join(pkgDir, 'Buka-Bot-Bisnis.vbs')), 'Buka-Bot-Bisnis.vbs must exist in root');
+    assert.ok(fs.existsSync(path.join(pkgDir, 'Matikan-Bot-Bisnis.vbs')), 'Matikan-Bot-Bisnis.vbs must exist in root');
+    assert.ok(fs.existsSync(path.join(pkgDir, 'Buku_Panduan_Lengkap_WA_Bot_Bisnis_AI.docx')), 'Buku panduan docx must exist in root');
+    
+    // Sistem files
+    assert.ok(fs.existsSync(path.join(sistemDir, 'runtime/node.exe')), 'runtime/node.exe must exist in sistem/');
+    assert.ok(fs.existsSync(path.join(sistemDir, 'src/server/index.js')), 'src/server/index.js must exist in sistem/');
+    assert.ok(fs.existsSync(path.join(sistemDir, 'node_modules/express')), 'node_modules/express must exist in sistem/');
+    assert.ok(fs.existsSync(path.join(sistemDir, 'config/edition.json')), 'config/edition.json must exist in sistem/');
   })) passed++;
 
   // 5. Uji Eksekusi Server dari Package Terisolasi (Simulasi Launching di Komputer Pembeli)
@@ -98,8 +106,9 @@ async function main() {
   const testPort = 3999;
   const launchPassed = await runAsyncTest('Isolated Runtime Launch', `Portable node.exe runs server and responds HTTP 200 on port ${testPort}`, async () => {
     const pkgDir = path.join(DIST_DIR, 'wa-bot-bisnis');
-    const nodeBin = path.join(pkgDir, 'runtime/node.exe');
-    const serverEntry = path.join(pkgDir, 'src/server/index.js');
+    const sistemDir = path.join(pkgDir, 'sistem');
+    const nodeBin = path.join(sistemDir, 'runtime/node.exe');
+    const serverEntry = path.join(sistemDir, 'src/server/index.js');
 
     const env = {
       ...process.env,
@@ -109,7 +118,7 @@ async function main() {
     };
 
     const serverProc = spawn(nodeBin, [serverEntry], {
-      cwd: pkgDir,
+      cwd: sistemDir,
       env,
       stdio: 'pipe'
     });

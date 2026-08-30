@@ -33,8 +33,15 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce
 
 [Files]
-; Salin semua file bersih dari folder dist/wa-bot-personal (kecuali data runtime & cache sesi)
-Source: "..\dist\wa-bot-personal\*"; DestDir: "{app}"; Excludes: "data, data\*, .wwebjs_auth, .wwebjs_auth\*, .wwebjs_cache, .wwebjs_cache\*, *.old, *.log, config\config.json, config\license.json"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Root Files
+Source: "..\dist\wa-bot-personal\Buka-Bot-Personal.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\wa-bot-personal\Buka-Bot-Personal.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\wa-bot-personal\Matikan-Bot-Personal.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\wa-bot-personal\Matikan-Bot-Personal.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\wa-bot-personal\1-KLIK-IZINKAN-APLIKASI.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\wa-bot-personal\Buku_Panduan_Lengkap_WA_Asisten_Pribadi_AI.docx"; DestDir: "{app}"; Flags: ignoreversion
+; Sistem Folder
+Source: "..\dist\wa-bot-personal\sistem\*"; DestDir: "{app}\sistem"; Excludes: "data, data\*, .wwebjs_auth, .wwebjs_auth\*, .wwebjs_cache, .wwebjs_cache\*, *.old, *.log, config\config.json, config\license.json"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 ; Shortcut di Start Menu
