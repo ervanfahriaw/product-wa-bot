@@ -309,13 +309,89 @@
       </div>
     </div>
 
-    <!-- User Profile Item -->
-    <div class="flex items-center space-x-2.5 px-2 py-1.5 border-t border-[#E4E4E7]/60 pt-2.5">
-      <div class="w-7 h-7 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-xs font-semibold text-[#18181B]">
-        <%= ownerInitial %>
+    <!-- User Profile Item & Shutdown Button -->
+    <div x-data="{ showShutdownModal: false, isShuttingDown: false, isShutDownDone: false }">
+      <div class="flex items-center justify-between px-2 py-1.5 border-t border-[#E4E4E7]/60 pt-2.5">
+        <div class="flex items-center space-x-2.5 min-w-0">
+          <div class="w-7 h-7 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-xs font-semibold text-[#18181B] flex-shrink-0">
+            <%= ownerInitial %>
+          </div>
+          <div class="text-xs truncate font-medium text-[#18181B]">
+            <%= ownerName %>
+          </div>
+        </div>
+        <button type="button" 
+                @click="showShutdownModal = true" 
+                title="Matikan WhatsApp Bot & Server"
+                class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                aria-label="Matikan Bot">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+            <line x1="12" y1="2" x2="12" y2="12"></line>
+          </svg>
+        </button>
       </div>
-      <div class="text-xs truncate font-medium text-[#18181B]">
-        <%= ownerName %>
+
+      <!-- Shutdown Confirmation Modal -->
+      <div x-show="showShutdownModal" 
+           x-cloak
+           class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div @click.away="if (!isShuttingDown) showShutdownModal = false" 
+             class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-zinc-200 text-center space-y-4">
+          
+          <template x-if="!isShutDownDone">
+            <div class="space-y-4">
+              <div class="w-12 h-12 rounded-full bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                  <line x1="12" y1="2" x2="12" y2="12"></line>
+                </svg>
+              </div>
+              <div class="space-y-1">
+                <h3 class="text-base font-bold text-zinc-900">Matikan WhatsApp Bot?</h3>
+                <p class="text-xs text-zinc-500 leading-relaxed">
+                  Server lokal dan koneksi WhatsApp akan dimatikan secara aman. Anda dapat menjalankannya kembali kapan saja lewat file peluncur (VBS / Shortcut).
+                </p>
+              </div>
+              <div class="flex items-center justify-center gap-3 pt-2">
+                <button type="button" 
+                        @click="showShutdownModal = false" 
+                        :disabled="isShuttingDown"
+                        class="px-4 py-2 text-xs font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-xl transition-colors">
+                  Batal
+                </button>
+                <button type="button" 
+                        @click="
+                          isShuttingDown = true;
+                          fetch('/api/shutdown', { method: 'POST' }).catch(() => {});
+                          setTimeout(() => { isShuttingDown = false; isShutDownDone = true; }, 1200);
+                        "
+                        :disabled="isShuttingDown"
+                        class="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors inline-flex items-center gap-1.5">
+                  <span x-show="!isShuttingDown">Ya, Matikan Bot</span>
+                  <span x-show="isShuttingDown">Mematikan...</span>
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <template x-if="isShutDownDone">
+            <div class="space-y-3 py-2">
+              <div class="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              </div>
+              <div class="space-y-1">
+                <h3 class="text-base font-bold text-zinc-900">Bot Berhasil Dimatikan</h3>
+                <p class="text-xs text-zinc-500">
+                  Layanan telah dinonaktifkan. Anda sekarang dapat menutup jendela atau tab browser ini dengan aman.
+                </p>
+              </div>
+            </div>
+          </template>
+
+        </div>
       </div>
     </div>
   </div>

@@ -70,7 +70,8 @@ app.get('/', (req, res) => {
 
 // Jalankan Server & Inisialisasi WhatsApp Engine
 let server = null;
-if (!process.env.TEST_MODE) {
+const isTestMode = process.env.TEST_MODE === 'true' || process.env.TEST_MODE === '1';
+if (!isTestMode) {
   const HOST = process.env.HOST || '127.0.0.1';
   server = app.listen(PORT, HOST, async () => {
     const url = `http://localhost:${PORT}`;
@@ -90,6 +91,13 @@ if (!process.env.TEST_MODE) {
       }
       startAutoSyncScheduler();
     }, 500);
+
+    // Tulis file PID untuk kemudahan shutdown mandiri
+    try {
+      const { DATA_DIR } = require('../utils/paths');
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+      fs.writeFileSync(path.join(DATA_DIR, 'bot.pid'), process.pid.toString(), 'utf-8');
+    } catch (_) {}
 
     // Auto-open browser jika dijalankan secara lokal
     if (!process.env.NO_AUTO_OPEN) {
@@ -112,6 +120,14 @@ if (!process.env.TEST_MODE) {
 // Penanganan penghentian server
 const handleShutdown = async () => {
   console.log('\nMematikan Web Controller & WhatsApp Engine...');
+  try {
+    const { DATA_DIR } = require('../utils/paths');
+    const pidFile = path.join(DATA_DIR, 'bot.pid');
+    if (fs.existsSync(pidFile)) {
+      try { fs.unlinkSync(pidFile); } catch (_) {}
+    }
+  } catch (_) {}
+
   try {
     await destroyClient();
   } catch (_) {}

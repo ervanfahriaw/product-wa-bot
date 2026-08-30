@@ -54,4 +54,23 @@ router.post('/reset-session', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/shutdown
+ * Mematikan bot dan server secara aman dan anggun.
+ */
+router.post('/shutdown', async (req, res) => {
+  res.json({
+    success: true,
+    message: 'Bot sedang dimatikan secara aman...'
+  });
+
+  setTimeout(async () => {
+    try {
+      const { destroyClient } = require('../../engine');
+      await destroyClient();
+    } catch (_) {}
+    process.exit(0);
+  }, 400);
+});
+
 module.exports = router;

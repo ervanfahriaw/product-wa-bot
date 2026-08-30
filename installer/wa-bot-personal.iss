@@ -6,8 +6,8 @@
 #define MyAppName "WA Asisten Pribadi AI"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Digital Solution"
-#define MyAppExeName "wa-bot-personal.exe"
-#define MyAppLauncher "Buka-Bot-Personal.bat"
+#define MyAppBatLauncher "Buka-Bot-Personal.bat"
+#define MyAppVbsLauncher "Buka-Bot-Personal.vbs"
 
 [Setup]
 ; Informasi Aplikasi
@@ -15,7 +15,7 @@ AppId={{C7B2E9D8-7E63-4B12-8C3B-WABOTPERSONAL01}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\{#MyAppName}
+DefaultDirName={localappdata}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=..\dist
@@ -38,16 +38,18 @@ Source: "..\dist\wa-bot-personal\*"; DestDir: "{app}"; Excludes: "data, data\*, 
 
 [Icons]
 ; Shortcut di Start Menu
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppLauncher}"; WorkingDir: "{app}"
-Name: "{group}\Buku Panduan PDF"; Filename: "{app}\Buku_Panduan_Lengkap_WA_Asisten_Pribadi_AI.docx"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppVbsLauncher}"; WorkingDir: "{app}"
+Name: "{group}\Buka Bot (Terminal Log)"; Filename: "{app}\{#MyAppBatLauncher}"; WorkingDir: "{app}"
+Name: "{group}\Matikan {#MyAppName}"; Filename: "{app}\Matikan-Bot-Personal.vbs"; WorkingDir: "{app}"
+Name: "{group}\Buku Panduan Lengkap"; Filename: "{app}\Buku_Panduan_Lengkap_WA_Asisten_Pribadi_AI.docx"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 ; Shortcut di Desktop
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppLauncher}"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppVbsLauncher}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-; 1. Buka blokir Windows SmartScreen (Mark-of-the-Web) secara otomatis pada seluruh file yang diinstall
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-ChildItem -Path '{app}' -Recurse | Unblock-File"""; Flags: runhidden waituntilterminated
+; 1. Buka blokir Windows SmartScreen secara otomatis pada seluruh file yang diinstall
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-ChildItem -Path '{app}' -Recurse | Unblock-File -ErrorAction SilentlyContinue"""; Flags: runhidden waituntilterminated
 
 ; 2. Opsi jalankan aplikasi setelah selesai instalasi
-Filename: "{app}\{#MyAppLauncher}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: shellexec postinstall skipifsilent
+Filename: "{app}\{#MyAppVbsLauncher}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: shellexec postinstall skipifsilent
