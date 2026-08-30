@@ -75,6 +75,10 @@ function sanitizeDistributionFolder(targetFolder) {
   if (fs.existsSync(authDir)) {
     try { fs.rmSync(authDir, { recursive: true, force: true }); } catch (_) {}
   }
+  const srcSessionDir = path.join(targetFolder, 'src', 'engine', 'session');
+  if (fs.existsSync(srcSessionDir)) {
+    try { fs.rmSync(srcSessionDir, { recursive: true, force: true }); } catch (_) {}
+  }
 
   // 3. Hapus config.json dan license.json lama (JANGAN SAMPAI API KEY / LISENSI TESTER KETINGGALAN)
   const configJson = path.join(targetFolder, 'config', 'config.json');
@@ -146,7 +150,7 @@ function buildEditionPackage(edition) {
   console.log(`\n📦 Memproses Paket: ${titleClean}`);
   console.log(`   Folder Tujuan: ${targetFolder}`);
 
-  // 0. Bersihkan folder paket dari data testing lama
+  // Sanitasi awal
   sanitizeDistributionFolder(targetFolder);
 
   if (!fs.existsSync(targetFolder)) fs.mkdirSync(targetFolder, { recursive: true });
@@ -167,17 +171,24 @@ function buildEditionPackage(edition) {
   console.log('   📂 Menyalin source code aplikasi (src/)...');
   fs.cpSync(path.join(ROOT_DIR, 'src'), targetSrcDir, {
     recursive: true,
-    filter: (src) => !src.includes('.git') && !src.includes('test')
+    filter: (src) => !src.includes('.git') && !src.includes('test') && !src.includes('session') && !src.includes('.log') && !src.includes('.old')
   });
 
   // 3. Salin Dependensi Produksi (node_modules/)
   console.log('   📦 Menyalin modul & dependensi (node_modules/)...');
   const srcNodeModules = path.join(ROOT_DIR, 'node_modules');
   if (fs.existsSync(srcNodeModules)) {
-    fs.cpSync(srcNodeModules, targetNodeModulesDir, {
-      recursive: true,
-      filter: (src) => !src.includes('.bin') && !src.includes('.cache')
-    });
+    const isAlreadyCopied = fs.existsSync(path.join(targetNodeModulesDir, 'whatsapp-web.js')) && fs.existsSync(path.join(targetNodeModulesDir, 'express'));
+    if (!isAlreadyCopied) {
+      try {
+        fs.cpSync(srcNodeModules, targetNodeModulesDir, {
+          recursive: true,
+          filter: (src) => !src.includes('.bin') && !src.includes('.cache')
+        });
+      } catch (err) {
+        console.warn('   (Info node_modules copy):', err.message);
+      }
+    }
   }
 
   // 4. Salin package.json
