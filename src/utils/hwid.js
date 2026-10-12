@@ -87,6 +87,19 @@ function getHwid() {
           rawId += `MAC_UUID:${match[1]};`;
         }
       } catch (_) {}
+    } else if (platform === 'android' || Boolean(process.env.ANDROID_DATA_DIR)) {
+      try {
+        if (process.env.ANDROID_ID) {
+          rawId += `ANDROID_ID:${process.env.ANDROID_ID};`;
+        }
+        if (fs.existsSync('/system/build.prop')) {
+          const prop = fs.readFileSync('/system/build.prop', 'utf8');
+          const fpMatch = prop.match(/ro\.build\.fingerprint=([^\r\n]+)/);
+          if (fpMatch && fpMatch[1]) {
+            rawId += `ANDROID_FINGERPRINT:${fpMatch[1].trim()};`;
+          }
+        }
+      } catch (_) {}
     }
   } catch (err) {
     // Silent fallback

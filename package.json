@@ -10,6 +10,9 @@
     "build:bisnis": "node scripts/build-exe.js --edition=bisnis",
     "build:personal": "node scripts/build-exe.js --edition=personal",
     "build:all": "node scripts/build-exe.js --edition=all",
+    "build:apk": "node scripts/build-apk.js --edition=bisnis",
+    "build:apk:personal": "node scripts/build-apk.js --edition=personal",
+    "build:apk:all": "node scripts/build-apk.js --edition=all",
     "test:db": "node scripts/test-db.js",
     "test:ai": "node scripts/test-ai.js",
     "test:business": "node scripts/test-business-mode.js",
@@ -22,6 +25,13 @@
     "test:enhancement": "node scripts/test-enhancement-fixes.js",
     "test:vision": "node scripts/test-vision-image-reader.js",
     "test:qa": "node scripts/test-qa-final.js",
+    "test:android:a1": "node scripts/test-android-a1-adapter-interface.js",
+    "test:android:a2": "node scripts/test-android-a2-baileys-adapter.js",
+    "test:android:a3": "node scripts/test-android-a3-business-parity.js",
+    "test:android:a4": "node scripts/test-android-a4-storage-paths.js",
+    "test:android:a5": "node scripts/test-android-a5-service-manifest.js",
+    "test:android:a6": "node scripts/test-android-master-qc.js",
+    "test:android:master": "node scripts/test-android-master-qc.js",
     "test": "node scripts/test-full-qa-a-to-z.js"
   },
   "pkg": {
@@ -38,15 +48,19 @@
     "outputPath": "dist"
   },
   "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc14",
     "better-sqlite3": "^11.8.1",
     "ejs": "^3.1.10",
     "express": "^4.19.2",
     "node-cron": "^3.0.3",
     "open": "^10.1.0",
+    "pino": "^10.4.0",
     "qrcode": "^1.5.4",
+    "sql.js": "^1.14.2",
     "whatsapp-web.js": "^1.26.0"
   },
   "devDependencies": {
+    "mammoth": "^1.12.2",
     "pkg": "^5.8.1"
   }
 }

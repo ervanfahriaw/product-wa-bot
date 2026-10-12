@@ -5,6 +5,7 @@ const statusEmitter = new EventEmitter();
 const ENGINE_STATUS = {
   DISCONNECTED: 'disconnected',
   CONNECTING: 'connecting',
+  RECONNECTING: 'reconnecting',
   QR_READY: 'qr_ready',
   AUTHENTICATED: 'authenticated',
   READY: 'ready',

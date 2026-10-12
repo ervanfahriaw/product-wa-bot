@@ -309,6 +309,91 @@
       </div>
     </div>
 
+    <!-- Restart Bot & Engine Recovery Action (Kiri Bawah) -->
+    <div x-data="{
+      isRestarting: false,
+      restartSuccess: false,
+      restartError: null,
+      async restartBot() {
+        if (this.isRestarting) return;
+        this.isRestarting = true;
+        this.restartSuccess = false;
+        this.restartError = null;
+        try {
+          const res = await fetch('/api/restart', { method: 'POST' });
+          const data = await res.json();
+          if (data.success) {
+            let checks = 0;
+            const timer = setInterval(async () => {
+              checks++;
+              try {
+                const stRes = await fetch('/api/status');
+                const stData = await stRes.json();
+                const st = (stData && stData.data && stData.data.state) ? stData.data.state.toLowerCase() : '';
+                if (st === 'ready' || st === 'authenticated' || checks >= 12) {
+                  clearInterval(timer);
+                  this.isRestarting = false;
+                  this.restartSuccess = true;
+                  setTimeout(() => { this.restartSuccess = false; }, 3500);
+                }
+              } catch (_) {
+                if (checks >= 12) {
+                  clearInterval(timer);
+                  this.isRestarting = false;
+                }
+              }
+            }, 1500);
+          } else {
+            this.isRestarting = false;
+            this.restartError = data.message || 'Gagal memulai ulang.';
+            setTimeout(() => { this.restartError = null; }, 4000);
+          }
+        } catch (err) {
+          this.isRestarting = false;
+          this.restartError = err.message || 'Terjadi kesalahan jaringan.';
+          setTimeout(() => { this.restartError = null; }, 4000);
+        }
+      }
+    }" class="space-y-1.5 pt-1">
+      
+      <!-- Button Restart Bot -->
+      <button type="button" 
+              @click="restartBot()" 
+              :disabled="isRestarting"
+              title="Mulai ulang WhatsApp engine dan pulihkan koneksi jika PC baru bangun dari sleep / mati"
+              class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-800 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed group">
+        <div class="flex items-center space-x-2">
+          <svg class="w-3.5 h-3.5 text-amber-500 transition-transform duration-300" :class="isRestarting ? 'animate-spin' : 'group-hover:rotate-180'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+          </svg>
+          <span x-text="isRestarting ? 'Memulai Ulang...' : 'Mulai Ulang Bot'"></span>
+        </div>
+        <span class="text-[10px] font-normal px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 group-hover:bg-zinc-200 transition-colors" x-text="isRestarting ? 'Proses' : 'Restart'"></span>
+      </button>
+
+      <!-- Feedback Success Toast -->
+      <template x-if="restartSuccess">
+        <div class="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center gap-1.5 animate-fade-in">
+          <svg class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span>Bot berhasil di-restart & aktif!</span>
+        </div>
+      </template>
+
+      <!-- Feedback Error Toast -->
+      <template x-if="restartError">
+        <div class="p-2 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px] font-medium flex items-center gap-1.5 animate-fade-in">
+          <svg class="w-3.5 h-3.5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          <span x-text="restartError"></span>
+        </div>
+      </template>
+    </div>
+
     <!-- User Profile Item & Shutdown Button -->
     <div x-data="{ showShutdownModal: false, isShuttingDown: false, isShutDownDone: false }">
       <div class="flex items-center justify-between px-2 py-1.5 border-t border-[#E4E4E7]/60 pt-2.5">

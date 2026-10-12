@@ -13,3 +13,14 @@ dist/
 license-server/.env
 license-server/data/
 .tools/
+
+# Android local & build artifacts
+.gradle/
+android/.gradle/
+android/app/build/
+.cxx/
+android/app/.cxx/
+android/local.properties
+android/node_modules.zip
+android/app/src/main/assets/nodejs-project/
+foto.png

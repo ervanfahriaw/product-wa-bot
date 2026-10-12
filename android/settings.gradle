@@ -1,0 +1,2 @@
+rootProject.name = "WABotAssistant"
+include ':app'

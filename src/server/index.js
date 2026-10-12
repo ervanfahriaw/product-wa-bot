@@ -1,5 +1,43 @@
-const express = require('express');
+const fs = require('fs');
 const path = require('path');
+const express = require('express');
+
+// Pengaman runtime host Android: mencegah process.exit() mematikan proses aplikasi Android & logging diagnostik
+if (process.env.ANDROID_DATA_DIR) {
+  const logFile = path.join(process.env.ANDROID_DATA_DIR, 'node_server.log');
+  const errFile = path.join(process.env.ANDROID_DATA_DIR, 'startup_error.txt');
+
+  function writeAndroidLog(tag, msg) {
+    try {
+      fs.appendFileSync(logFile, `[${new Date().toISOString()}] [${tag}] ${msg}\n`);
+    } catch (_) {}
+  }
+
+  writeAndroidLog('BOOT', 'Memulai runtime Node.js ' + process.version + ' di Android');
+
+  process.on('uncaughtException', (err) => {
+    const text = err && err.stack ? err.stack : String(err);
+    console.error('[Android Host SafeGuard] Uncaught Exception:', text);
+    writeAndroidLog('UNCAUGHT_EXCEPTION', text);
+    try { fs.writeFileSync(errFile, text, 'utf-8'); } catch (_) {}
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    const text = reason && reason.stack ? reason.stack : String(reason);
+    console.error('[Android Host SafeGuard] Unhandled Rejection:', text);
+    writeAndroidLog('UNHANDLED_REJECTION', text);
+  });
+
+  process.exit = function(code) {
+    console.warn('[Android Host SafeGuard] process.exit(' + code + ') dicegah demi menjaga kestabilan aplikasi Android.');
+    writeAndroidLog('PREVENT_EXIT', 'process.exit(' + code + ') dicegah.');
+  };
+
+  // Heartbeat timer: Menjaga event loop Node.js tetap aktif agar tidak drain / terminate mandiri
+  setInterval(() => {
+    writeAndroidLog('HEARTBEAT', 'Event loop aktif');
+  }, 45000);
+}
 
 const { getConfig, isSetupComplete } = require('../config');
 const { initClient, destroyClient } = require('../engine');
@@ -17,8 +55,10 @@ const PORT = process.env.PORT || config.port || 3000;
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-const { UPLOADS_DIR } = require('../utils/paths');
+const { UPLOADS_DIR, ensureDirectoriesExist } = require('../utils/paths');
 const { checkLocalLicense } = require('../utils/license-client');
+
+ensureDirectoriesExist();
 
 // Body Parser & Static Middleware
 app.use(express.json());
@@ -68,6 +108,42 @@ app.get('/', (req, res) => {
   return res.redirect('/dashboard');
 });
 
+// Global Express Error Handler (Mencegah web controller crash jika ada kesalahan render / database)
+app.use((err, req, res, next) => {
+  console.error('[Web Controller Error]', err.stack || err.message || err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  if (req.path.startsWith('/api')) {
+    return res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+  }
+  return res.status(500).send(`
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>Panel Kontrol - Sedang Memproses</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #F7F7F8; color: #18181B; margin: 0; padding: 40px 16px; display: flex; align-items: center; justify-content: center; min-height: 80vh; }
+        .card { background: #FFFFFF; border: 1px solid #E4E4E7; border-radius: 16px; padding: 32px; max-width: 480px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.03); text-align: center; }
+        h2 { font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 8px; }
+        p { font-size: 13px; color: #71717A; line-height: 1.5; margin-bottom: 24px; }
+        .btn { display: inline-block; padding: 10px 24px; background: #18181B; color: #FFFFFF; font-size: 12px; font-weight: 600; border-radius: 99px; text-decoration: none; transition: background 0.2s; }
+        .btn:hover { background: #27272A; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <h2>⚡ Sedang Menyesuaikan Pengaturan</h2>
+        <p>Web controller tetap aktif. Silakan kembali ke halaman utama dashboard untuk melanjutkan:</p>
+        <a href="/dashboard" class="btn">Buka Dashboard &rarr;</a>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
 // Jalankan Server & Inisialisasi WhatsApp Engine
 let server = null;
 const isTestMode = process.env.TEST_MODE === 'true' || process.env.TEST_MODE === '1';
@@ -78,6 +154,14 @@ if (!isTestMode) {
     console.log(`\n======================================================`);
     console.log(`  🚀 WA Bot Web Controller berjalan di ${url}`);
     console.log(`======================================================\n`);
+
+    if (process.env.ANDROID_DATA_DIR) {
+      try {
+        const errFile = path.join(process.env.ANDROID_DATA_DIR, 'startup_error.txt');
+        if (fs.existsSync(errFile)) fs.unlinkSync(errFile);
+        fs.writeFileSync(path.join(process.env.ANDROID_DATA_DIR, 'server_ready.txt'), 'READY', 'utf-8');
+      } catch (_) {}
+    }
 
     // Inisialisasi WhatsApp client & Auto-Sync Google Sheets di latar belakang
     // Delayed agar server HTTP sudah 100% ready sebelum engine init

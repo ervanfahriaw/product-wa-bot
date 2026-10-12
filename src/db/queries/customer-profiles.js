@@ -48,7 +48,7 @@ function upsertCustomerProfile(contactOrData, data = {}) {
   if (!contact) return;
 
   const customerName = payload.customer_name || payload.name || null;
-  const leadStatus = payload.customer_status || payload.lead_status || 'new';
+  const leadStatus = payload.customer_status || payload.lead_status || payload.status || 'new';
 
   const existing = getCustomerProfile(contact);
 
@@ -79,7 +79,7 @@ function upsertCustomerProfile(contactOrData, data = {}) {
       updates.push('customer_name = ?'); 
       values.push(customerName); 
     }
-    if (typeof payload.customer_status !== 'undefined' || typeof payload.lead_status !== 'undefined') { 
+    if (typeof payload.customer_status !== 'undefined' || typeof payload.lead_status !== 'undefined' || typeof payload.status !== 'undefined') { 
       updates.push('customer_status = ?'); 
       values.push(leadStatus); 
     }

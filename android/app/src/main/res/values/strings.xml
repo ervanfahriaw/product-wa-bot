@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">WA Bot Bisnis AI</string>
+    <string name="notification_channel_name">WA Bot Background Service</string>
+    <string name="notification_channel_desc">Menjaga koneksi WhatsApp Bot dan pelayanan chat pelanggan tetap aktif di latar belakang.</string>
+    <string name="notification_title">WA Bot Bisnis AI Aktif</string>
+    <string name="notification_text">Melayani pesan pelanggan 24/7 di latar belakang...</string>
+    <string name="btn_battery_opt">Optimasi Baterai</string>
+    <string name="loading_server">Menyiapkan Engine WhatsApp Bot...</string>
+</resources>

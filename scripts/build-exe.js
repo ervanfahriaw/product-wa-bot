@@ -396,6 +396,9 @@ MsgBox "✅ ${titleClean} berhasil dimatikan secara aman." & vbCrLf & "Anda dapa
       'sistem',
       'Buku_Panduan_Lengkap_WA_Bot_Bisnis_AI.docx',
       'Buku_Panduan_Lengkap_WA_Asisten_Pribadi_AI.docx',
+      'WA_Bot_Bisnis_AI_Buku_Panduan_Profesional.docx',
+      'Buku_Panduan_WA_Bot_Bisnis_AI.html',
+      'panduan-images',
       vbsLauncherName,
       batLauncherName,
       vbsShutdownName,
@@ -413,6 +416,12 @@ MsgBox "✅ ${titleClean} berhasil dimatikan secara aman." & vbCrLf & "Anda dapa
       execSync(psZipCmd, { stdio: 'ignore' });
       if (fs.existsSync(zipPath)) {
         console.log(`   ✅ File ZIP siap jual selesai dibuat: ${zipPath}`);
+        // Sinkronisasi ke nama tanpa suffix jika ada
+        const plainZipPath = path.join(DIST_DIR, `${folderName}.zip`);
+        try {
+          fs.copyFileSync(zipPath, plainZipPath);
+          console.log(`   ✅ File ZIP komersial disinkronkan ke: ${plainZipPath}`);
+        } catch (_) {}
       }
     }
   } catch (zErr) {

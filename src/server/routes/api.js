@@ -55,6 +55,46 @@ router.post('/reset-session', async (req, res) => {
 });
 
 /**
+ * POST /api/restart
+ * Memulai ulang WhatsApp engine (Soft Reconnect) secara instan tanpa menghapus sesi login.
+ */
+router.post('/restart', async (req, res) => {
+  try {
+    const { reconnectClient } = require('../../engine');
+    await reconnectClient();
+    return res.json({
+      success: true,
+      message: 'WhatsApp Engine berhasil dimulai ulang.'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/reconnect
+ * Menyambungkan ulang WhatsApp engine (Soft Reconnect) tanpa menghapus sesi login.
+ */
+router.post('/reconnect', async (req, res) => {
+  try {
+    const { reconnectClient } = require('../../engine');
+    await reconnectClient();
+    return res.json({
+      success: true,
+      message: 'Menyambungkan ulang WhatsApp Engine...'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
  * POST /api/shutdown
  * Mematikan bot dan server secara aman dan anggun.
  */

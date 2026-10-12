@@ -76,38 +76,17 @@ function parseAiIntent(text = '') {
   return null;
 }
 
+const { simulateHumanPacing } = require('../human-pacing');
+
 /**
- * Mensimulasikan jeda alami manusia (Anti-Ban) dan status 'sedang mengetik' di WhatsApp.
+ * Mensimulasikan jeda alami manusia (Anti-Ban):
+ * Jeda Pesan Masuk -> Tandai Dibaca (sendSeen / Centang Biru) -> Jeda Membaca -> Status Mengetik -> Jeda Mengetik Alami.
  * @param {import('whatsapp-web.js').Message} message 
  * @param {number} [minMs] 
  * @param {number} [maxMs] 
  */
 async function simulateHumanTyping(message, minMs = null, maxMs = null) {
-  if (process.env.NODE_ENV === 'test' || process.env.NO_DELAY) {
-    return;
-  }
-
-  try {
-    const config = getConfig();
-    const resolvedMin = minMs || (Number(config.min_delay_sec) || 5) * 1000;
-    const resolvedMax = maxMs || (Number(config.max_delay_sec) || 12) * 1000;
-
-    const chat = typeof message.getChat === 'function' ? await message.getChat().catch(() => null) : null;
-    if (chat && typeof chat.sendStateTyping === 'function') {
-      await chat.sendStateTyping().catch(() => {});
-    }
-
-    const minTime = Math.min(resolvedMin, resolvedMax);
-    const maxTime = Math.max(resolvedMin, resolvedMax);
-    const randomDelay = Math.floor(Math.random() * (maxTime - minTime + 1)) + minTime;
-
-    console.log(`[Anti-Ban] Mensimulasikan jeda mengetik selama ${(randomDelay / 1000).toFixed(1)} detik...`);
-    await new Promise(resolve => setTimeout(resolve, randomDelay));
-
-    if (chat && typeof chat.clearState === 'function') {
-      await chat.clearState().catch(() => {});
-    }
-  } catch (_) {}
+  return await simulateHumanPacing(message, { minMs, maxMs });
 }
 
 /**
@@ -894,5 +873,7 @@ async function handlePersonalMessage(message, client) {
 module.exports = {
   handlePersonalMessage,
   extractExpenseFromText,
-  parseAiIntent
+  parseAiIntent,
+  simulateHumanTyping,
+  simulateHumanPacing
 };

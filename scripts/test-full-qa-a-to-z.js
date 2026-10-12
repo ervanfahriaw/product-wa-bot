@@ -95,6 +95,33 @@ async function runTestAsync(suiteName, testName, fn) {
     assert.ok(pkg.dependencies.express);
   });
 
+  runTest('Security', 'src/server/index.js dapat di-load tanpa syntax/runtime error', () => {
+    process.env.TEST_MODE = '1';
+    const serverApp = require(path.join(rootDir, 'src/server/index.js'));
+    assert.strictEqual(typeof serverApp, 'function');
+  });
+
+  runTest('Security', 'Engine dan Server dapat di-load di lingkungan mobile (tanpa whatsapp-web.js)', () => {
+    const Module = require('module');
+    const origResolve = Module._resolveFilename;
+    Module._resolveFilename = function(request, ...args) {
+      if (request === 'whatsapp-web.js') {
+        const err = new Error('Cannot find module whatsapp-web.js');
+        err.code = 'MODULE_NOT_FOUND';
+        throw err;
+      }
+      return origResolve.call(this, request, ...args);
+    };
+    try {
+      process.env.ENGINE_TYPE = 'baileys';
+      const engine = require(path.join(rootDir, 'src/engine'));
+      const adapter = engine.getActiveAdapter();
+      assert.strictEqual(adapter.engineName, 'baileys');
+    } finally {
+      Module._resolveFilename = origResolve;
+    }
+  });
+
   // ============================================================
   // BAGIAN 2: INTEGRITAS DATABASE & 21 MODUL QUERIES
   // ============================================================

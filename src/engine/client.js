@@ -1,4 +1,10 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+let Client = null;
+let LocalAuth = null;
+try {
+  const wwebjs = require('whatsapp-web.js');
+  Client = wwebjs.Client;
+  LocalAuth = wwebjs.LocalAuth;
+} catch (_) {}
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
@@ -20,14 +26,17 @@ if (!fs.existsSync(SESSION_DIR)) {
   fs.mkdirSync(SESSION_DIR, { recursive: true });
 }
 
-// Tangkap exception uncaught yang berasal dari whatsapp-web.js (LocalAuth.logout) saat EBUSY pada Windows
+// Tangani exception dan unhandled rejection agar Web Controller tetap hidup 100%
 process.on('uncaughtException', (err) => {
   if (err && (err.code === 'EBUSY' || (err.message && err.message.includes('EBUSY'))) && (err.stack && err.stack.includes('session-wa-bot-main'))) {
     console.warn('[Engine] Warning: Berkas sesi teruji/terkunci saat cleanup logout (EBUSY). Server tetap berjalan.');
     return;
   }
-  console.error('[UncaughtException]', err);
-  process.exit(1);
+  console.error('[Engine Process Error (Non-Fatal)]', err && err.stack ? err.stack : err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Engine Unhandled Rejection (Non-Fatal)]', reason);
 });
 
 /**
@@ -152,6 +161,88 @@ async function forceWipeSessionDirectory() {
 let clientInstance = null;
 let isInitializing = false;
 let initRetryCount = 0;
+let watchdogTimer = null;
+let lastHeartbeatTime = Date.now();
+let isPerformingAutoRecovery = false;
+
+/**
+ * Memulai watchdog heartbeat untuk memantau kesehatan koneksi WhatsApp secara berkala
+ * dan mendeteksi kondisi komputer sleep / suspend / network drop.
+ * @param {number} [intervalMs=20000]
+ */
+function startWatchdog(intervalMs = 20000) {
+  stopWatchdog();
+  lastHeartbeatTime = Date.now();
+
+  watchdogTimer = setInterval(async () => {
+    const now = Date.now();
+    const elapsed = now - lastHeartbeatTime;
+    lastHeartbeatTime = now;
+
+    // Deteksi time-jump jika sistem baru saja bangun dari Sleep/Hibernation
+    const isTimeJump = elapsed > (intervalMs * 1.8);
+    if (isTimeJump) {
+      console.log(`[Engine:Watchdog] ⏰ Terdeteksi sistem baru aktif dari sleep/suspend (jeda ${Math.round(elapsed / 1000)}s). Memverifikasi kesehatan koneksi WhatsApp...`);
+    }
+
+    if (!clientInstance || isInitializing || isPerformingAutoRecovery) {
+      return;
+    }
+
+    const currentSt = getStatus();
+    // Hanya periksa jika status internal tercatat READY atau AUTHENTICATED
+    if (currentSt.state !== ENGINE_STATUS.READY && currentSt.state !== ENGINE_STATUS.AUTHENTICATED) {
+      return;
+    }
+
+    try {
+      // Ping ke konteks halaman Chromium di dalam Puppeteer
+      const pingPromise = (async () => {
+        if (clientInstance.pupPage && !clientInstance.pupPage.isClosed()) {
+          await clientInstance.pupPage.evaluate(() => typeof window !== 'undefined');
+          if (typeof clientInstance.getState === 'function') {
+            const state = await clientInstance.getState();
+            return state;
+          }
+          return 'CONNECTED';
+        }
+        throw new Error('Halaman Puppeteer tertutup atau tidak tersedia');
+      })();
+
+      // Beri batas waktu ping 7 detik
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Watchdog Ping Timeout (7s)')), 7000)
+      );
+
+      const state = await Promise.race([pingPromise, timeoutPromise]);
+      if (state === 'DISCONNECTED' || state === 'UNPAIRED' || state === 'CONFLICT') {
+        throw new Error(`Status WhatsApp Web: ${state}`);
+      }
+    } catch (pingErr) {
+      console.warn(`[Engine:Watchdog] ⚠️ Health-check koneksi WhatsApp gagal (${pingErr.message}). Melakukan auto-recovery soft reconnect...`);
+      isPerformingAutoRecovery = true;
+      try {
+        await reconnectClient();
+      } catch (recErr) {
+        console.error('[Engine:Watchdog] Gagal auto-recovery soft reconnect:', recErr.message);
+      } finally {
+        isPerformingAutoRecovery = false;
+      }
+    }
+  }, intervalMs);
+
+  if (watchdogTimer.unref) watchdogTimer.unref();
+}
+
+/**
+ * Menghentikan watchdog heartbeat.
+ */
+function stopWatchdog() {
+  if (watchdogTimer) {
+    clearInterval(watchdogTimer);
+    watchdogTimer = null;
+  }
+}
 
 /**
  * Menginisialisasi WhatsApp Client dengan strategi LocalAuth.
@@ -207,7 +298,6 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
         '--disable-domain-reliability',
         '--disable-sync',
         '--disable-features=msEdgeStartupBoost,msEdgeBackgroundMode,OptimizationHints,Translate,BackForwardCache,MediaRouter',
-        '--disable-background-networking',
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
         '--disable-renderer-backgrounding'
@@ -246,6 +336,7 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
       console.error('[Engine] Gagal autentikasi sesi WhatsApp:', msg);
       resetStatus(`Gagal autentikasi: ${msg}`);
       stopReminderScheduler();
+      stopWatchdog();
       clientInstance = null;
       isInitializing = false;
     });
@@ -266,6 +357,8 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
       });
       // Aktifkan scheduler reminder otomatis
       startReminderScheduler(clientInstance);
+      // Aktifkan watchdog pemantau kesehatan koneksi
+      startWatchdog(20000);
 
       // Kirim pesan sambutan & panduan pertama kali jika setup sudah selesai dan belum pernah dikirim
       try {
@@ -280,6 +373,7 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
     clientInstance.on('disconnected', (reason) => {
       console.warn(`[Engine] Sesi WhatsApp terputus. Alasan: ${reason}`);
       stopReminderScheduler();
+      stopWatchdog();
       resetStatus(`Terputus: ${reason}`);
       clientInstance = null;
       isInitializing = false;
@@ -296,6 +390,7 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
     }).catch(async (err) => {
       console.error('[Engine] Gagal menjalankan inisialisasi client:', err.message);
       stopReminderScheduler();
+      stopWatchdog();
       try {
         if (clientInstance) await clientInstance.destroy();
       } catch (_) {}
@@ -336,6 +431,7 @@ function initClient(customPuppeteerOptions = {}, forceReinit = false) {
   } catch (error) {
     console.error('[Engine] Exception saat inisialisasi client:', error.message);
     stopReminderScheduler();
+    stopWatchdog();
     clientInstance = null;
     isInitializing = false;
     cleanSessionLocks();
@@ -358,6 +454,7 @@ function getClient() {
  */
 async function destroyClient() {
   stopReminderScheduler();
+  stopWatchdog();
   if (clientInstance) {
     try {
       if (clientInstance.pupBrowser) {
@@ -385,10 +482,58 @@ async function destroyClient() {
 }
 
 /**
+ * Melakukan penyambungan ulang (Soft Reconnect) tanpa menghapus sesi login WhatsApp.
+ * @param {object} [customPuppeteerOptions]
+ * @returns {Promise<Client>}
+ */
+async function reconnectClient(customPuppeteerOptions = {}) {
+  console.log('[Engine] 🔄 Memulai proses penyambungan ulang / restart bot (Soft Reconnect)...');
+  stopReminderScheduler();
+  stopWatchdog();
+  
+  setStatus(ENGINE_STATUS.RECONNECTING, {
+    errorMessage: null
+  });
+
+  try {
+    if (clientInstance) {
+      try {
+        if (clientInstance.pupBrowser) {
+          const proc = clientInstance.pupBrowser.process();
+          if (proc && proc.pid) {
+            if (process.platform === 'win32') {
+              execSync(`taskkill /F /T /PID ${proc.pid}`, { stdio: 'ignore' });
+            } else {
+              proc.kill('SIGKILL');
+            }
+          }
+        }
+        await clientInstance.destroy();
+      } catch (_) {}
+    }
+  } catch (_) {} finally {
+    clientInstance = null;
+    isInitializing = false;
+    forceKillBrowserProcess();
+    cleanSessionLocks();
+  }
+
+  // Jeda sejenak agar OS melepaskan lock file
+  await new Promise(r => setTimeout(r, 600));
+  cleanSessionLocks();
+
+  // Inisialisasi ulang dengan sesi yang sudah tersimpan di disk (tanpa hapus folder auth)
+  return initClient(customPuppeteerOptions, true);
+}
+
+/**
  * Reset total sesi WhatsApp (menghapus folder session lokal).
  */
 async function resetSession() {
   console.log('[Engine] Memulai proses reset sesi total...');
+  stopReminderScheduler();
+  stopWatchdog();
+
   setStatus(ENGINE_STATUS.CONNECTING, {
     qrCodeDataUrl: null,
     rawQr: null,
@@ -406,5 +551,10 @@ module.exports = {
   initClient,
   getClient,
   destroyClient,
-  resetSession
+  reconnectClient,
+  resetSession,
+  startWatchdog,
+  stopWatchdog,
+  cleanSessionLocks,
+  forceKillBrowserProcess
 };
