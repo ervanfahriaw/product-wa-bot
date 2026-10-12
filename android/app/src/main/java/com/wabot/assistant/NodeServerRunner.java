@@ -116,9 +116,10 @@ public class NodeServerRunner {
                 File projectDir = new File(internalFilesDir, "nodejs-project");
                 long apkTimestamp = new File(context.getPackageCodePath()).lastModified();
                 File versionMarker = new File(projectDir, ".apk_v_" + apkTimestamp);
+                File icuPatchMarker = new File(projectDir, ".icu_patched_v2");
                 File nodeModulesDir = new File(projectDir, "node_modules");
 
-                boolean needsNodeModules = !nodeModulesDir.exists() || nodeModulesDir.list() == null || nodeModulesDir.list().length == 0;
+                boolean needsNodeModules = !nodeModulesDir.exists() || nodeModulesDir.list() == null || nodeModulesDir.list().length == 0 || !icuPatchMarker.exists();
                 boolean needsAppExtract = !versionMarker.exists() || needsNodeModules;
 
                 // 2. Ekstrak assets proyek Node.js dari APK jika belum up-to-date
@@ -132,6 +133,7 @@ public class NodeServerRunner {
                             for (File oldM : oldMarkers) oldM.delete();
                         }
                         versionMarker.createNewFile();
+                        icuPatchMarker.createNewFile();
                         Log.i(TAG, "Aset berhasil diekstrak dan marker file dibuat.");
                     } catch (IOException e) {
                         Log.w(TAG, "Gagal membuat marker file: " + e.getMessage());

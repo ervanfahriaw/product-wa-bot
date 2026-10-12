@@ -8,7 +8,35 @@ try {
   process.chdir(projectRoot);
 } catch (_) {}
 
-// 0. Polyfill Global Crypto untuk Node 18 & Android embedded environment
+// 0. Polyfill TextDecoder untuk Node.js non-ICU (mengatasi error fatal option is not supported on Android libnode.so)
+const OrigTextDecoder = globalThis.TextDecoder;
+if (OrigTextDecoder) {
+  let isFatalSupported = true;
+  try {
+    new OrigTextDecoder('utf-8', { fatal: true });
+  } catch (_) {
+    isFatalSupported = false;
+  }
+
+  if (!isFatalSupported) {
+    class SafeTextDecoder extends OrigTextDecoder {
+      constructor(label = 'utf-8', options = {}) {
+        const safeOpts = { ...options };
+        delete safeOpts.fatal;
+        super(label, safeOpts);
+      }
+    }
+    globalThis.TextDecoder = SafeTextDecoder;
+    try {
+      const util = require('util');
+      if (util && util.TextDecoder) {
+        util.TextDecoder = SafeTextDecoder;
+      }
+    } catch (_) {}
+  }
+}
+
+// 0b. Polyfill Global Crypto untuk Node 18 & Android embedded environment
 const nodeCrypto = require('crypto');
 if (typeof globalThis.crypto === 'undefined') {
   globalThis.crypto = nodeCrypto.webcrypto || nodeCrypto;

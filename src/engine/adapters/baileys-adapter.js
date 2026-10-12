@@ -10,6 +10,33 @@ const { setStatus, setQrCode, resetStatus } = require('../status');
 const { SESSION_DIR } = require('../../utils/paths');
 
 // Polyfills untuk kompatibilitas WebAssembly & Crypto di Node 18 / Android
+const OrigTextDecoder = globalThis.TextDecoder;
+if (OrigTextDecoder) {
+  let isFatalSupported = true;
+  try {
+    new OrigTextDecoder('utf-8', { fatal: true });
+  } catch (_) {
+    isFatalSupported = false;
+  }
+
+  if (!isFatalSupported) {
+    class SafeTextDecoder extends OrigTextDecoder {
+      constructor(label = 'utf-8', options = {}) {
+        const safeOpts = { ...options };
+        delete safeOpts.fatal;
+        super(label, safeOpts);
+      }
+    }
+    globalThis.TextDecoder = SafeTextDecoder;
+    try {
+      const util = require('util');
+      if (util && util.TextDecoder) {
+        util.TextDecoder = SafeTextDecoder;
+      }
+    } catch (_) {}
+  }
+}
+
 const nodeCrypto = require('crypto');
 if (typeof globalThis.crypto === 'undefined') {
   globalThis.crypto = nodeCrypto.webcrypto || nodeCrypto;
