@@ -26,7 +26,7 @@ import java.util.zip.ZipInputStream;
 public class NodeServerRunner {
     private static final String TAG = "NodeServerRunner";
     public static final String SERVER_URL = "http://127.0.0.1:3000";
-    private static final String EXTRACTED_MARKER = ".extracted_build_v5";
+    private static final String EXTRACTED_MARKER = ".extracted_build_v6";
 
     private static volatile String currentStatus = "Menyiapkan sistem bot...";
     private static volatile File appInternalDir = null;

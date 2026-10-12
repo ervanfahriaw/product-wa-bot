@@ -59,7 +59,8 @@ function initClient(options = {}, forceReinit = false) {
  */
 function getClient() {
   if (isBaileysMode()) {
-    return getActiveAdapter();
+    const adapter = getActiveAdapter();
+    return (adapter && adapter.sock) ? adapter : null;
   }
   return getLegacyClient().getClient();
 }

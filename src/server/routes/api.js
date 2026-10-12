@@ -113,4 +113,25 @@ router.post('/shutdown', async (req, res) => {
   }, 400);
 });
 
+/**
+ * GET /api/logs
+ * Mengambil baris log runtime terbaru untuk keperluan diagnostik.
+ */
+router.get('/logs', (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const { BASE_DIR } = require('../../utils/paths');
+    const logFile = path.join(BASE_DIR, 'node_server.log');
+    if (fs.existsSync(logFile)) {
+      const content = fs.readFileSync(logFile, 'utf-8');
+      const lines = content.trim().split('\n');
+      return res.json({ success: true, logs: lines.slice(-80) });
+    }
+    return res.json({ success: true, logs: ['Belum ada berkas log.'] });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

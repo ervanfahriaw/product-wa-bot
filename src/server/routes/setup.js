@@ -168,10 +168,9 @@ router.get('/step-2', (req, res) => {
 
   // Pastikan engine aktif untuk generate QR jika belum
   try {
-    if (typeof getClient === 'function' && typeof initClient === 'function') {
-      if (!getClient()) {
-        initClient();
-      }
+    const status = typeof getStatus === 'function' ? getStatus() : {};
+    if (!status || (status.state !== 'ready' && status.state !== 'qr_ready')) {
+      initClient();
     }
   } catch (err) {
     console.warn('[Setup] Inisialisasi client di step-2:', err.message);

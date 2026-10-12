@@ -102,8 +102,11 @@
       loadingText: 'Menyiapkan sesi WhatsApp...',
       pollInterval: null,
 
-      startPolling() {
-        this.fetchStatus();
+      async startPolling() {
+        await this.fetchStatus();
+        if (this.state !== 'ready' && this.state !== 'qr_ready') {
+          this.initEngine();
+        }
         this.pollInterval = setInterval(() => this.fetchStatus(), 1500);
       },
 

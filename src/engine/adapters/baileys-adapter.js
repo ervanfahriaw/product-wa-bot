@@ -90,6 +90,7 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
     this.authPath = path.join(SESSION_DIR, 'baileys-auth');
     this.logger = pino({ level: 'silent' });
     this.isDestroyed = false;
+    this.reconnectTimer = null;
     this.saveCreds = null;
     this.myJid = null;
     this.toBaileysJid = toBaileysJid;
@@ -118,6 +119,11 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
       return this.sock;
     }
 
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
     this.isDestroyed = false;
     this.isInitializing = true;
 
@@ -138,24 +144,30 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
       const { state, saveCreds } = await useMultiFileAuthState(this.authPath);
       this.saveCreds = saveCreds;
 
-      this.sock = makeWASocket({
+      const currentSock = makeWASocket({
         auth: state,
         logger: this.logger,
         printQRInTerminal: false,
         syncFullHistory: false,
-        browser: ['WA Bot Assistant', 'Chrome', '1.0.0'],
+        browser: (baileys.Browsers ? baileys.Browsers.ubuntu('Chrome') : ['Ubuntu', 'Chrome', '22.04.4']),
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 25000,
         ...options
       });
+      this.sock = currentSock;
 
       // 1. Simpan perubahan kredensial sesi
-      this.sock.ev.on('creds.update', async () => {
+      currentSock.ev.on('creds.update', async () => {
+        if (this.sock !== currentSock || this.isDestroyed) return;
         if (typeof this.saveCreds === 'function') {
           await this.saveCreds();
         }
       });
 
       // 2. Pantau update status koneksi & QR code
-      this.sock.ev.on('connection.update', async (update) => {
+      currentSock.ev.on('connection.update', async (update) => {
+        if (this.sock !== currentSock || this.isDestroyed) return;
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
@@ -171,23 +183,33 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
 
         if (connection === 'close') {
           const statusCode = lastDisconnect?.error?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason?.loggedOut;
-          console.warn(`[Baileys] Koneksi WhatsApp terputus (status code: ${statusCode}). Reconnect: ${shouldReconnect}`);
+          const isLoggedOut = statusCode === DisconnectReason?.loggedOut;
+          console.warn(`[Baileys] Koneksi WhatsApp terputus (status code: ${statusCode}). Reconnect: ${!isLoggedOut}`);
 
-          resetStatus(lastDisconnect?.error?.message || 'Koneksi terputus');
-          this.emitDisconnected(lastDisconnect?.error?.message);
+          if (isLoggedOut) {
+            resetStatus('Sesi telah keluar. Silakan scan ulang.');
+            this.emitDisconnected('Sesi telah keluar');
+          } else {
+            setStatus(ENGINE_STATUS.CONNECTING, {
+              errorMessage: null
+            });
+            this.emitDisconnected(lastDisconnect?.error?.message || 'Menyambungkan ulang...');
 
-          if (shouldReconnect && !this.isDestroyed) {
-            console.log('[Baileys] 🔄 Melakukan penyambungan ulang otomatis...');
-            setTimeout(() => {
-              this.reconnect().catch(err => {
-                console.error('[Baileys] Gagal auto-reconnect:', err.message);
-              });
-            }, 3000);
+            if (!this.isDestroyed) {
+              console.log('[Baileys] 🔄 Menjadwalkan reconnect otomatis...');
+              if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+              this.reconnectTimer = setTimeout(() => {
+                if (this.sock === currentSock && !this.isDestroyed) {
+                  this.reconnect().catch(err => {
+                    console.error('[Baileys] Gagal auto-reconnect:', err.message);
+                  });
+                }
+              }, 2500);
+            }
           }
         } else if (connection === 'open') {
           this.isInitializing = false;
-          const user = this.sock.user || {};
+          const user = currentSock.user || {};
           const pushname = user.name || user.notify || 'User';
           const phone = (user.id || '').split(':')[0].replace(/[^0-9]/g, '');
           this.myJid = user.id ? toInternalJid(user.id.split(':')[0] + '@s.whatsapp.net') : null;
@@ -251,13 +273,25 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
    */
   async destroy() {
     this.isDestroyed = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.sock) {
+      const oldSock = this.sock;
+      this.sock = null;
       try {
-        if (typeof this.sock.end === 'function') {
-          this.sock.end(new Error('Engine destroyed'));
+        if (oldSock.ev && typeof oldSock.ev.removeAllListeners === 'function') {
+          oldSock.ev.removeAllListeners('connection.update');
+          oldSock.ev.removeAllListeners('creds.update');
+          oldSock.ev.removeAllListeners('messages.upsert');
         }
       } catch (_) {}
-      this.sock = null;
+      try {
+        if (typeof oldSock.end === 'function') {
+          oldSock.end(new Error('Engine destroyed'));
+        }
+      } catch (_) {}
     }
     resetStatus();
   }

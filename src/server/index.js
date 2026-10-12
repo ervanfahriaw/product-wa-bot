@@ -33,6 +33,29 @@ if (process.env.ANDROID_DATA_DIR) {
     writeAndroidLog('PREVENT_EXIT', 'process.exit(' + code + ') dicegah.');
   };
 
+  // DNS Fallback untuk runtime Android (mengatasi c-ares yang tidak menemukan /etc/resolv.conf)
+  try {
+    const dns = require('dns');
+    dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
+    writeAndroidLog('DNS', 'DNS fallback diaktifkan (8.8.8.8, 1.1.1.1)');
+  } catch (_) {}
+
+  const origLog = console.log;
+  const origWarn = console.warn;
+  const origError = console.error;
+  console.log = function(...args) {
+    origLog.apply(console, args);
+    writeAndroidLog('LOG', args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+  };
+  console.warn = function(...args) {
+    origWarn.apply(console, args);
+    writeAndroidLog('WARN', args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+  };
+  console.error = function(...args) {
+    origError.apply(console, args);
+    writeAndroidLog('ERROR', args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+  };
+
   // Heartbeat timer: Menjaga event loop Node.js tetap aktif agar tidak drain / terminate mandiri
   setInterval(() => {
     writeAndroidLog('HEARTBEAT', 'Event loop aktif');
