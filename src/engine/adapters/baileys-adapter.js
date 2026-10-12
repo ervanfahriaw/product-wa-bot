@@ -45,29 +45,74 @@ let baileys = null;
 let baileysLoadingPromise = null;
 
 /**
- * Memuat dependensi Baileys secara dinamis (dukungan CJS dan ESM di Node 18+).
+ * Memuat dependensi Baileys secara dinamis via native file:// URL ESM import (dukungan penuh Node 18+).
  * @returns {Promise<any>}
  */
 async function loadBaileys() {
   if (baileys) return baileys;
   if (!baileysLoadingPromise) {
     baileysLoadingPromise = (async () => {
+      const { pathToFileURL } = require('url');
+      const candidates = [];
+
+      // 1. Coba require.resolve untuk mendapatkan path absolut file fisik index.js
+      try {
+        const resolved = require.resolve('@whiskeysockets/baileys');
+        if (resolved && fs.existsSync(resolved)) {
+          candidates.push(resolved);
+        }
+      } catch (_) {}
+
+      // 2. Coba path relatif dari __dirname (src/engine/adapters/../../.. -> nodejs-project)
+      const relCandidate = path.resolve(__dirname, '../../../node_modules/@whiskeysockets/baileys/lib/index.js');
+      if (fs.existsSync(relCandidate) && !candidates.includes(relCandidate)) {
+        candidates.push(relCandidate);
+      }
+
+      // 3. Coba path berbasis ANDROID_DATA_DIR
+      if (process.env.ANDROID_DATA_DIR) {
+        const androidCandidate = path.join(process.env.ANDROID_DATA_DIR, 'nodejs-project', 'node_modules', '@whiskeysockets/baileys', 'lib', 'index.js');
+        if (fs.existsSync(androidCandidate) && !candidates.includes(androidCandidate)) {
+          candidates.push(androidCandidate);
+        }
+      }
+
+      // 4. Coba juga path berbasis process.cwd()
+      const cwdCandidate = path.resolve(process.cwd(), 'node_modules/@whiskeysockets/baileys/lib/index.js');
+      if (fs.existsSync(cwdCandidate) && !candidates.includes(cwdCandidate)) {
+        candidates.push(cwdCandidate);
+      }
+
+      console.log('[BaileysAdapter] Memeriksa kandidat berkas Baileys ESM:', candidates);
+
+      let lastError = null;
+
+      // Iterasi kandidat dan muat via native V8 dynamic import menggunakan file:// URL
+      for (const candPath of candidates) {
+        try {
+          const fileUrl = pathToFileURL(candPath).href;
+          const mod = await import(fileUrl);
+          baileys = mod;
+          console.log('[BaileysAdapter] ✅ Modul @whiskeysockets/baileys berhasil dimuat via file URL:', fileUrl);
+          return baileys;
+        } catch (err) {
+          lastError = err;
+          console.warn('[BaileysAdapter] Gagal memuat file URL', candPath, ':', err.message);
+        }
+      }
+
+      // Coba bare specifier dynamic import jika semua file URL belum berhasil
       try {
         const mod = await import('@whiskeysockets/baileys');
         baileys = mod;
-        console.log('[BaileysAdapter] Modul @whiskeysockets/baileys berhasil dimuat via dynamic import.');
+        console.log('[BaileysAdapter] ✅ Modul @whiskeysockets/baileys berhasil dimuat via bare import.');
         return baileys;
-      } catch (importErr) {
-        console.warn('[BaileysAdapter] Dynamic import gagal, mencoba require:', importErr.message);
-        try {
-          baileys = require('@whiskeysockets/baileys');
-          console.log('[BaileysAdapter] Modul @whiskeysockets/baileys berhasil dimuat via require.');
-          return baileys;
-        } catch (requireErr) {
-          console.error('[BaileysAdapter] Gagal memuat @whiskeysockets/baileys:', requireErr.message);
-          throw requireErr;
-        }
+      } catch (bareErr) {
+        lastError = bareErr;
+        console.error('[BaileysAdapter] Gagal memuat @whiskeysockets/baileys via bare import:', bareErr.message);
       }
+
+      throw new Error(`Gagal memuat modul Baileys ESM: ${lastError ? lastError.message : 'Berkas tidak ditemukan'}`);
     })();
   }
   return await baileysLoadingPromise;

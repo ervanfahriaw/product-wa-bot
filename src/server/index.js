@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 
+// Pastikan proses selalu berjalan dengan working directory di root proyek bot
+try {
+  const projectRoot = path.resolve(__dirname, '../..');
+  process.chdir(projectRoot);
+} catch (_) {}
+
 // 0. Polyfill Global Crypto untuk Node 18 & Android embedded environment
 const nodeCrypto = require('crypto');
 if (typeof globalThis.crypto === 'undefined') {
