@@ -535,7 +535,12 @@
         <template x-if="!(qrCodeDataUrl && (statusState === 'qr_ready' || statusState === 'QR_READY')) && statusState !== 'ready' && statusState !== 'READY' && statusState !== 'authenticated' && statusState !== 'AUTHENTICATED'">
           <div class="space-y-3 py-6">
             <div class="w-8 h-8 border-2 border-[#18181B] border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p class="text-xs text-[#71717A]" x-text="modalStatusText || 'Menyiapkan sesi...'"></p>
+            <p class="text-xs text-[#71717A]" x-text="errorMessage || modalStatusText || 'Menyiapkan sesi...'"></p>
+            <div class="pt-2 flex justify-center gap-2">
+              <button @click="startScanModal()" type="button" class="px-3.5 py-1 text-[11px] rounded-full bg-[#18181B] text-white hover:bg-[#27272A] transition-colors">
+                Muat Ulang QR
+              </button>
+            </div>
           </div>
         </template>
       </div>
@@ -586,6 +591,7 @@
       isResetting: false,
       isReconnecting: false,
       modalStatusText: '',
+      errorMessage: '',
       pollInterval: null,
 
       init() {
@@ -600,6 +606,7 @@
             this.statusState = (json.data.state || '').toLowerCase();
             this.accountInfo = json.data.info || {};
             this.qrCodeDataUrl = json.data.qrCodeDataUrl || '';
+            this.errorMessage = json.data.errorMessage || '';
             if (this.qrCodeDataUrl && this.statusState === 'qr_ready') {
               this.isResetting = false;
             }

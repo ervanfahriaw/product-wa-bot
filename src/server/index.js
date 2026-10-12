@@ -2,6 +2,21 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 
+// 0. Polyfill Global Crypto untuk Node 18 & Android embedded environment
+const nodeCrypto = require('crypto');
+if (typeof globalThis.crypto === 'undefined') {
+  globalThis.crypto = nodeCrypto.webcrypto || nodeCrypto;
+}
+if (!globalThis.crypto.subtle && nodeCrypto.webcrypto && nodeCrypto.webcrypto.subtle) {
+  globalThis.crypto.subtle = nodeCrypto.webcrypto.subtle;
+}
+
+// 0b. Mode Non-SIMD WebAssembly untuk jaminan kompatibilitas CPU Android (ARM/x86/Emulator)
+process.env.WHATSAPP_RUST_BRIDGE_FORCE_NOSIMD = 'true';
+
+// 0c. Bypass pemeriksaan root CA cert yang tidak ada di struktur direktori Android (/etc/ssl/certs)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 // Pengaman runtime host Android: mencegah process.exit() mematikan proses aplikasi Android & logging diagnostik
 if (process.env.ANDROID_DATA_DIR) {
   const logFile = path.join(process.env.ANDROID_DATA_DIR, 'node_server.log');
@@ -37,7 +52,10 @@ if (process.env.ANDROID_DATA_DIR) {
   try {
     const dns = require('dns');
     dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4']);
-    writeAndroidLog('DNS', 'DNS fallback diaktifkan (8.8.8.8, 1.1.1.1)');
+    if (typeof dns.setDefaultResultOrder === 'function') {
+      dns.setDefaultResultOrder('ipv4first');
+    }
+    writeAndroidLog('DNS', 'DNS fallback diaktifkan (8.8.8.8, 1.1.1.1, ipv4first)');
   } catch (_) {}
 
   const origLog = console.log;

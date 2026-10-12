@@ -47,9 +47,19 @@
 
       <!-- State 3: Connecting -->
       <template x-if="state === 'connecting'">
-        <div class="text-center space-y-3 py-6">
+        <div class="text-center space-y-3 py-6 max-w-sm">
           <div class="w-8 h-8 border-2 border-[#18181B] border-t-transparent rounded-full animate-spin mx-auto"></div>
           <p class="text-xs text-[#71717A]" x-text="loadingText"></p>
+          <div class="pt-2 flex justify-center gap-2" x-show="pollCount > 6">
+            <button @click="initEngine()" type="button"
+                    class="px-3.5 py-1.5 rounded-full bg-[#18181B] text-white text-[11px] font-medium transition-colors">
+              Muat Ulang QR
+            </button>
+            <button @click="resetSession()" type="button"
+                    class="px-3.5 py-1.5 rounded-full border border-[#E4E4E7] bg-white text-[11px] font-medium text-[#71717A] hover:text-[#18181B] transition-colors">
+              Reset Sesi
+            </button>
+          </div>
         </div>
       </template>
 
@@ -101,6 +111,7 @@
       errorMessage: null,
       loadingText: 'Menyiapkan sesi WhatsApp...',
       pollInterval: null,
+      pollCount: 0,
 
       async startPolling() {
         await this.fetchStatus();
@@ -111,6 +122,7 @@
       },
 
       async fetchStatus() {
+        this.pollCount++;
         try {
           const res = await fetch('/api/status');
           const data = await res.json();
@@ -121,7 +133,7 @@
             this.errorMessage = data.data.errorMessage;
             
             if (this.state === 'connecting') {
-              this.loadingText = 'Menghubungi server WhatsApp Web...';
+              this.loadingText = this.errorMessage || 'Menghubungi server WhatsApp Web...';
             } else if (this.state === 'authenticated') {
               this.loadingText = 'Autentikasi berhasil, memuat data...';
             }
@@ -136,6 +148,7 @@
         this.state = 'connecting';
         this.qrImage = null;
         this.errorMessage = null;
+        this.pollCount = 0;
         try {
           await fetch('/api/init-engine', { method: 'POST' });
         } catch (e) {}
@@ -146,6 +159,7 @@
         this.state = 'connecting';
         this.qrImage = null;
         this.errorMessage = null;
+        this.pollCount = 0;
         try {
           await fetch('/api/reset-session', { method: 'POST' });
         } catch (e) {}

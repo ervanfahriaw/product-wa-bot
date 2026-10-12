@@ -1,5 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
+const dns = require('dns');
 const qrcode = require('qrcode');
 const pino = require('pino');
 
@@ -7,12 +9,74 @@ const { BaseEngineAdapter, ENGINE_STATUS } = require('./base-adapter');
 const { setStatus, setQrCode, resetStatus } = require('../status');
 const { SESSION_DIR } = require('../../utils/paths');
 
-let baileys = null;
-try {
-  baileys = require('@whiskeysockets/baileys');
-} catch (err) {
-  console.warn('[BaileysAdapter] Modul @whiskeysockets/baileys belum terpasang:', err.message);
+// Polyfills untuk kompatibilitas WebAssembly & Crypto di Node 18 / Android
+const nodeCrypto = require('crypto');
+if (typeof globalThis.crypto === 'undefined') {
+  globalThis.crypto = nodeCrypto.webcrypto || nodeCrypto;
 }
+if (!globalThis.crypto.subtle && nodeCrypto.webcrypto && nodeCrypto.webcrypto.subtle) {
+  globalThis.crypto.subtle = nodeCrypto.webcrypto.subtle;
+}
+process.env.WHATSAPP_RUST_BRIDGE_FORCE_NOSIMD = 'true';
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
+// Custom HTTPS Agent untuk Android: Mengatasi ketiadaan root CA dan kendala DNS emulator
+function createAndroidHttpsAgent() {
+  return new https.Agent({
+    rejectUnauthorized: false,
+    keepAlive: true,
+    keepAliveMsecs: 15000,
+    lookup: (hostname, options, callback) => {
+      if (typeof options === 'function') {
+        callback = options;
+        options = {};
+      }
+      dns.resolve4(hostname, (err, addresses) => {
+        if (!err && addresses && addresses.length > 0) {
+          return callback(null, addresses[0], 4);
+        }
+        dns.lookup(hostname, options, callback);
+      });
+    }
+  });
+}
+
+let baileys = null;
+let baileysLoadingPromise = null;
+
+/**
+ * Memuat dependensi Baileys secara dinamis (dukungan CJS dan ESM di Node 18+).
+ * @returns {Promise<any>}
+ */
+async function loadBaileys() {
+  if (baileys) return baileys;
+  if (!baileysLoadingPromise) {
+    baileysLoadingPromise = (async () => {
+      try {
+        const mod = await import('@whiskeysockets/baileys');
+        baileys = mod;
+        console.log('[BaileysAdapter] Modul @whiskeysockets/baileys berhasil dimuat via dynamic import.');
+        return baileys;
+      } catch (importErr) {
+        console.warn('[BaileysAdapter] Dynamic import gagal, mencoba require:', importErr.message);
+        try {
+          baileys = require('@whiskeysockets/baileys');
+          console.log('[BaileysAdapter] Modul @whiskeysockets/baileys berhasil dimuat via require.');
+          return baileys;
+        } catch (requireErr) {
+          console.error('[BaileysAdapter] Gagal memuat @whiskeysockets/baileys:', requireErr.message);
+          throw requireErr;
+        }
+      }
+    })();
+  }
+  return await baileysLoadingPromise;
+}
+
+// Background preload sedini mungkin
+loadBaileys().catch(err => {
+  console.warn('[BaileysAdapter] Preload Baileys info:', err.message);
+});
 
 /**
  * Ekstraksi isi teks dari berbagai jenis payload pesan Baileys.
@@ -88,7 +152,10 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
     super('baileys');
     this.sock = null;
     this.authPath = path.join(SESSION_DIR, 'baileys-auth');
-    this.logger = pino({ level: 'silent' });
+    this.logger = pino({
+      level: 'info',
+      timestamp: () => `,"time":"${new Date().toISOString()}"`
+    });
     this.isDestroyed = false;
     this.reconnectTimer = null;
     this.saveCreds = null;
@@ -111,10 +178,6 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
    * @returns {Promise<any>}
    */
   async init(options = {}) {
-    if (!baileys) {
-      throw new Error('[BaileysAdapter] Dependensi @whiskeysockets/baileys tidak ditemukan. Jalankan npm install @whiskeysockets/baileys.');
-    }
-
     if (this.sock && !options.forceReinit) {
       return this.sock;
     }
@@ -138,18 +201,26 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
     });
 
     try {
-      const makeWASocket = baileys.default || baileys.makeWASocket || baileys;
-      const { useMultiFileAuthState, DisconnectReason } = baileys;
+      const b = await loadBaileys();
+      const makeWASocket = b.default || b.makeWASocket || b;
+      const { useMultiFileAuthState, DisconnectReason, Browsers } = b;
 
       const { state, saveCreds } = await useMultiFileAuthState(this.authPath);
       this.saveCreds = saveCreds;
 
+      const httpsAgent = createAndroidHttpsAgent();
+
       const currentSock = makeWASocket({
         auth: state,
         logger: this.logger,
+        agent: httpsAgent,
+        options: {
+          agent: httpsAgent,
+          rejectUnauthorized: false
+        },
         printQRInTerminal: false,
         syncFullHistory: false,
-        browser: (baileys.Browsers ? baileys.Browsers.ubuntu('Chrome') : ['Ubuntu', 'Chrome', '22.04.4']),
+        browser: (Browsers ? Browsers.ubuntu('Chrome') : ['Ubuntu', 'Chrome', '22.04.4']),
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
         keepAliveIntervalMs: 25000,
@@ -175,7 +246,7 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
             const qrDataUrl = await qrcode.toDataURL(qr, { margin: 2, scale: 6 });
             setQrCode(qr, qrDataUrl);
             this.emitQr(qr, qrDataUrl);
-            console.log('[Baileys] QR Code WhatsApp berhasil dibuat. Silakan scan melalui antarmuka.');
+            console.log('[Baileys] ✅ QR Code WhatsApp berhasil dibuat dan siap dipindai.');
           } catch (qrErr) {
             console.error('[Baileys] Gagal mengonversi QR code ke data URL:', qrErr.message);
           }
@@ -184,16 +255,17 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
         if (connection === 'close') {
           const statusCode = lastDisconnect?.error?.output?.statusCode;
           const isLoggedOut = statusCode === DisconnectReason?.loggedOut;
-          console.warn(`[Baileys] Koneksi WhatsApp terputus (status code: ${statusCode}). Reconnect: ${!isLoggedOut}`);
+          const errorMsg = lastDisconnect?.error?.message || (statusCode ? `Status code ${statusCode}` : 'Koneksi terputus');
+          console.warn(`[Baileys] Koneksi WhatsApp terputus (status code: ${statusCode}, alasan: ${errorMsg}). Reconnect: ${!isLoggedOut}`);
 
           if (isLoggedOut) {
             resetStatus('Sesi telah keluar. Silakan scan ulang.');
             this.emitDisconnected('Sesi telah keluar');
           } else {
             setStatus(ENGINE_STATUS.CONNECTING, {
-              errorMessage: null
+              errorMessage: `Menyambungkan ulang (${errorMsg})...`
             });
-            this.emitDisconnected(lastDisconnect?.error?.message || 'Menyambungkan ulang...');
+            this.emitDisconnected(errorMsg);
 
             if (!this.isDestroyed) {
               console.log('[Baileys] 🔄 Menjadwalkan reconnect otomatis...');
@@ -202,6 +274,9 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
                 if (this.sock === currentSock && !this.isDestroyed) {
                   this.reconnect().catch(err => {
                     console.error('[Baileys] Gagal auto-reconnect:', err.message);
+                    setStatus(ENGINE_STATUS.DISCONNECTED, {
+                      errorMessage: `Gagal menyambung: ${err.message}`
+                    });
                   });
                 }
               }, 2500);
@@ -262,8 +337,8 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
       return this.sock;
     } catch (err) {
       this.isInitializing = false;
-      console.error('[Baileys] Inisialisasi socket gagal:', err.message);
-      resetStatus(err.message);
+      console.error('[Baileys] Inisialisasi socket gagal:', err.message, err.stack);
+      resetStatus(`Gagal inisialisasi: ${err.message}`);
       throw err;
     }
   }
@@ -483,9 +558,10 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
       },
 
       downloadMedia: async () => {
-        if (!baileys || type === 'text') return null;
+        const b = await loadBaileys().catch(() => null);
+        if (!b || type === 'text') return null;
         try {
-          const { downloadMediaMessage } = baileys;
+          const downloadMediaMessage = b.downloadMediaMessage;
           const buffer = await downloadMediaMessage(
             rawMsg,
             'buffer',

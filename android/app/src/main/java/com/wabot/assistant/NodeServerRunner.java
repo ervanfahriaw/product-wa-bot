@@ -114,27 +114,35 @@ public class NodeServerRunner {
                 }
 
                 File projectDir = new File(internalFilesDir, "nodejs-project");
-                File markerFile = new File(projectDir, EXTRACTED_MARKER);
+                long apkTimestamp = new File(context.getPackageCodePath()).lastModified();
+                File versionMarker = new File(projectDir, ".apk_v_" + apkTimestamp);
+                File nodeModulesDir = new File(projectDir, "node_modules");
 
-                // 2. Ekstrak assets proyek Node.js langsung dari file APK jika belum diekstrak
-                if (!markerFile.exists()) {
-                    Log.i(TAG, "Mengekstrak aset proyek Node.js dari APK ke " + projectDir.getAbsolutePath() + "...");
-                    currentStatus = "Mengekstrak berkas sistem bot...";
-                    extractProjectAssets(projectDir);
+                boolean needsNodeModules = !nodeModulesDir.exists() || nodeModulesDir.list() == null || nodeModulesDir.list().length == 0;
+                boolean needsAppExtract = !versionMarker.exists() || needsNodeModules;
+
+                // 2. Ekstrak assets proyek Node.js dari APK jika belum up-to-date
+                if (needsAppExtract) {
+                    Log.i(TAG, "Mengekstrak aset proyek Node.js dari APK (needsNodeModules=" + needsNodeModules + ")...");
+                    currentStatus = "Mengekstrak pembaruan sistem bot...";
+                    extractProjectAssets(projectDir, needsNodeModules);
                     try {
-                        markerFile.createNewFile();
+                        File[] oldMarkers = projectDir.listFiles((dir, name) -> name.startsWith(".apk_v_") || name.startsWith(".extracted_build_"));
+                        if (oldMarkers != null) {
+                            for (File oldM : oldMarkers) oldM.delete();
+                        }
+                        versionMarker.createNewFile();
                         Log.i(TAG, "Aset berhasil diekstrak dan marker file dibuat.");
                     } catch (IOException e) {
                         Log.w(TAG, "Gagal membuat marker file: " + e.getMessage());
                     }
                 } else {
-                    Log.i(TAG, "Aset proyek Node.js sudah tersedia, melewati proses ekstraksi.");
+                    Log.i(TAG, "Aset proyek Node.js sudah up-to-date, melewati proses ekstraksi.");
                 }
 
                 // 3. Konfigurasi Environment Variables ke runtime POSIX
                 currentStatus = "Mengonfigurasi environment Node.js...";
                 String nativeLibDir = context.getApplicationInfo().nativeLibraryDir;
-                File nodeModulesDir = new File(projectDir, "node_modules");
 
                 setEnvironmentVariable("PORT", "3000");
                 setEnvironmentVariable("HOST", "127.0.0.1");
@@ -145,6 +153,8 @@ public class NodeServerRunner {
                 setEnvironmentVariable("ANDROID_DATA_DIR", internalFilesDir.getAbsolutePath());
                 setEnvironmentVariable("ANDROID_NATIVE_LIB_DIR", nativeLibDir);
                 setEnvironmentVariable("NODE_PATH", nodeModulesDir.getAbsolutePath());
+                setEnvironmentVariable("WHATSAPP_RUST_BRIDGE_FORCE_NOSIMD", "true");
+                setEnvironmentVariable("NODE_TLS_REJECT_UNAUTHORIZED", "0");
 
                 Log.i(TAG, "Environment terkonfigurasi. ANDROID_DATA_DIR=" + internalFilesDir.getAbsolutePath()
                         + ", ANDROID_NATIVE_LIB_DIR=" + nativeLibDir);
@@ -199,7 +209,7 @@ public class NodeServerRunner {
      * Mengekstrak seluruh folder asset nodejs-project dan node_modules.zip langsung dari APK
      * menggunakan ZipFile tanpa batas memori atau kompresi AssetManager, dioptimasi dengan buffered I/O.
      */
-    private void extractProjectAssets(File targetDir) {
+    private void extractProjectAssets(File targetDir, boolean extractNodeModules) {
         if (!targetDir.exists()) {
             targetDir.mkdirs();
         }
@@ -225,15 +235,19 @@ public class NodeServerRunner {
                     if (relativePath.isEmpty()) continue;
 
                     if (relativePath.equals("node_modules.zip")) {
-                        Log.i(TAG, "Ditemukan node_modules.zip, melakukan ekstraksi cepat...");
-                        currentStatus = "Mengekstrak paket runtime modul bot...";
-                        File nodeModulesDir = new File(targetDir, "node_modules");
-                        try (InputStream is = apkZip.getInputStream(entry);
-                             BufferedInputStream bis = new BufferedInputStream(is, 65536);
-                             ZipInputStream zis = new ZipInputStream(bis)) {
-                            unzipStream(zis, nodeModulesDir);
+                        if (extractNodeModules) {
+                            Log.i(TAG, "Ditemukan node_modules.zip, melakukan ekstraksi cepat...");
+                            currentStatus = "Mengekstrak paket runtime modul bot...";
+                            File nodeModulesDir = new File(targetDir, "node_modules");
+                            try (InputStream is = apkZip.getInputStream(entry);
+                                 BufferedInputStream bis = new BufferedInputStream(is, 65536);
+                                 ZipInputStream zis = new ZipInputStream(bis)) {
+                                unzipStream(zis, nodeModulesDir);
+                            }
+                            Log.i(TAG, "node_modules berhasil diekstrak sepenuhnya!");
+                        } else {
+                            Log.i(TAG, "node_modules sudah tersedia, melewati ekstraksi zip.");
                         }
-                        Log.i(TAG, "node_modules berhasil diekstrak sepenuhnya!");
                     } else {
                         File outFile = new File(targetDir, relativePath);
                         if (entry.isDirectory()) {
