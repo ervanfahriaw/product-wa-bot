@@ -191,15 +191,9 @@ async function createMessageMediaFromFile(filePathOrUrl) {
 
   if (!localPath || !fs.existsSync(localPath)) return null;
 
-  if (MessageMedia && typeof MessageMedia.fromFilePath === 'function') {
-    try {
-      return MessageMedia.fromFilePath(localPath);
-    } catch (_) {}
-  }
-
-  // Fallback membaca base64 manual jika instance helper whatsapp-web.js belum ready
   try {
-    const base64Data = fs.readFileSync(localPath, { encoding: 'base64' });
+    const fileBuffer = fs.readFileSync(localPath);
+    const base64Data = fileBuffer.toString('base64');
     const ext = path.extname(localPath).toLowerCase();
     let mime = 'image/jpeg';
     if (ext === '.png') mime = 'image/png';
@@ -207,10 +201,24 @@ async function createMessageMediaFromFile(filePathOrUrl) {
     else if (ext === '.gif') mime = 'image/gif';
     const filename = path.basename(localPath);
 
+    let mediaObj = null;
     if (MessageMedia) {
-      return new MessageMedia(mime, base64Data, filename);
+      try {
+        mediaObj = new MessageMedia(mime, base64Data, filename);
+      } catch (_) {}
     }
-    return { mimetype: mime, data: base64Data, filename };
+    if (!mediaObj) {
+      mediaObj = { mimetype: mime, data: base64Data, filename };
+    }
+
+    // Sematkan Buffer binary, mimetype presisi, dan filePath untuk engine Baileys & WWebJS
+    mediaObj.buffer = fileBuffer;
+    mediaObj.filePath = localPath;
+    mediaObj.mimetype = mime;
+    mediaObj.data = base64Data;
+    mediaObj.filename = filename;
+
+    return mediaObj;
   } catch (err) {
     console.error('[BusinessHandler] Gagal membuat MessageMedia:', err.message);
     return null;
@@ -351,7 +359,6 @@ function extractProductSearchTokens(product) {
   const initials = words.length >= 2 ? words.map(w => w[0]).join('') : '';
 
   const GENERIC_WORDS = new Set([
-    'sate', 'makanan', 'menu', 'minuman', 'baju', 'kaos', 'celana', 'sepatu',
     'produk', 'barang', 'isi', 'porsi', 'harga', 'berapa', 'ready', 'ada',
     'gak', 'ga', 'nggak', 'tidak', 'nih', 'dong', 'kak', 'ka', 'min', 'gan', 'bro', 'yang', 'dan', 'ini',
     'itu', 'mau', 'beli', 'pesan', 'order', 'untuk', 'dari', 'bisa', 'liat',
@@ -823,8 +830,21 @@ async function handleBusinessMessage(message, client) {
           const caption = `📸 *${imgInfo.product.name}*\n💰 Rp${Number(imgInfo.product.price).toLocaleString('id-ID')}`;
           let sent = false;
 
-          // 1. Coba kirim via client.sendMessage ke contact langsung
-          if (typeof client.sendMessage === 'function') {
+          // 1. Coba kirim via client.sendMedia (metode standar multi-engine untuk file/buffer)
+          if (typeof client.sendMedia === 'function') {
+            try {
+              await client.sendMedia(contact, media.buffer || media.filePath || media, {
+                caption,
+                mimeType: media.mimetype
+              });
+              sent = true;
+            } catch (mediaErr) {
+              console.warn(`[BusinessHandler] client.sendMedia gagal (${mediaErr.message}), mencoba sendMessage...`);
+            }
+          }
+
+          // 2. Fallback: kirim via client.sendMessage ke contact langsung
+          if (!sent && typeof client.sendMessage === 'function') {
             try {
               await client.sendMessage(contact, media, { caption });
               sent = true;
@@ -833,26 +853,33 @@ async function handleBusinessMessage(message, client) {
             }
           }
 
-          // 2. Fallback: coba kirim via message.reply
+          // 3. Fallback: coba kirim via message.reply
           if (!sent && message && typeof message.reply === 'function') {
             try {
-              await message.reply(media, undefined, { caption });
+              await message.reply(media, { caption });
               sent = true;
             } catch (replyErr) {
               console.warn(`[BusinessHandler] message.reply media gagal (${replyErr.message}), mencoba fallback berikutnya...`);
             }
           }
 
-          // 3. Fallback: jika contact adalah @lid, coba selesaikan ke nomor @c.us
-          if (!sent && contact && contact.endsWith('@lid') && typeof client.sendMessage === 'function') {
+          // 4. Fallback: jika contact adalah @lid, coba selesaikan ke nomor @c.us / @s.whatsapp.net
+          if (!sent && contact && contact.endsWith('@lid')) {
             try {
               const { findContactByQuery } = require('../../utils/contact-resolver');
               const resolved = findContactByQuery(contact);
               if (resolved && resolved.phoneNumber) {
                 const targetCus = `${resolved.phoneNumber}@c.us`;
-                await client.sendMessage(targetCus, media, { caption });
-                sent = true;
-                console.log(`[BusinessHandler] Berhasil mengirim foto via fallback nomor resolved ${targetCus}`);
+                if (typeof client.sendMedia === 'function') {
+                  await client.sendMedia(targetCus, media.buffer || media.filePath || media, { caption, mimeType: media.mimetype });
+                  sent = true;
+                } else if (typeof client.sendMessage === 'function') {
+                  await client.sendMessage(targetCus, media, { caption });
+                  sent = true;
+                }
+                if (sent) {
+                  console.log(`[BusinessHandler] Berhasil mengirim foto via fallback nomor resolved ${targetCus}`);
+                }
               }
             } catch (lidErr) {
               console.warn(`[BusinessHandler] Fallback media ke resolved @c.us gagal:`, lidErr.message);

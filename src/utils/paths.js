@@ -24,12 +24,18 @@ const DATA_DIR = path.join(BASE_DIR, 'data');
 const CONFIG_DIR = path.join(BASE_DIR, 'config');
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 const SESSION_DIR = path.join(DATA_DIR, 'session');
+const TMP_DIR = path.join(BASE_DIR, 'tmp');
+
+// Konfigurasi TMPDIR ke direktori sandbox writable lokal agar runtime (seperti Baileys stream) tidak gagal di Android
+if (!process.env.TMPDIR) process.env.TMPDIR = TMP_DIR;
+if (!process.env.TEMP) process.env.TEMP = TMP_DIR;
+if (!process.env.TMP) process.env.TMP = TMP_DIR;
 
 /**
- * Memastikan semua direktori kerja utama (data, config, uploads, session) telah dibuat.
+ * Memastikan semua direktori kerja utama (data, config, uploads, session, tmp) telah dibuat.
  */
 function ensureDirectoriesExist() {
-  const dirs = [DATA_DIR, CONFIG_DIR, UPLOADS_DIR, SESSION_DIR];
+  const dirs = [DATA_DIR, CONFIG_DIR, UPLOADS_DIR, SESSION_DIR, TMP_DIR];
   for (const dir of dirs) {
     if (!fs.existsSync(dir)) {
       try {
@@ -58,6 +64,8 @@ module.exports = {
   CONFIG_DIR,
   UPLOADS_DIR,
   SESSION_DIR,
+  TMP_DIR,
   ensureDirectoriesExist,
   resolveWritablePath
 };
+

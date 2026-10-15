@@ -143,7 +143,6 @@ async function handleCustomerOrderSubmission(message, client) {
     }
 
     // 6. Kirim notifikasi instan ke WhatsApp Owner
-    const config = getConfig();
     const rawOwnerPhone = (db.getSetting ? db.getSetting('owner_phone') : null) || config.owner_phone || '';
     const cleanOwnerPhone = normalizePhoneNumber(rawOwnerPhone);
 

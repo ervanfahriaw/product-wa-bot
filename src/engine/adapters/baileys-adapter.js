@@ -191,14 +191,20 @@ function extractMessageType(m) {
  */
 function toBaileysJid(jid = '') {
   if (!jid) return '';
-  if (jid.endsWith('@c.us')) {
-    return jid.replace('@c.us', '@s.whatsapp.net');
+  const parts = jid.split('@');
+  const user = parts[0];
+  let server = parts[1];
+
+  let clean = user.replace(/[^0-9]/g, '');
+  if (clean.startsWith('08')) {
+    clean = '62' + clean.slice(1);
   }
-  if (!jid.includes('@')) {
-    const clean = jid.replace(/[^0-9]/g, '');
-    return `${clean}@s.whatsapp.net`;
+
+  if (!server || server === 'c.us') {
+    server = 's.whatsapp.net';
   }
-  return jid;
+
+  return `${clean || user}@${server}`;
 }
 
 /**
@@ -634,16 +640,46 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
 
     const targetJid = toBaileysJid(jid);
 
-    // Jika content adalah objek MessageMedia (WWebJS style)
-    if (content && typeof content === 'object' && content.data) {
-      const buffer = Buffer.from(content.data, 'base64');
-      const caption = options.caption || content.caption || '';
-      const sent = await this.sock.sendMessage(targetJid, {
-        image: buffer,
-        caption
-      });
-      if (sent?.key?.id) this.recordBotSentMessage(sent.key.id);
-      return sent;
+    // Jika content adalah objek MessageMedia (WWebJS style) atau objek media terpadu
+    if (content && typeof content === 'object' && (content.data || content.buffer || content.filePath)) {
+      let buffer = null;
+      if (Buffer.isBuffer(content.buffer)) {
+        buffer = content.buffer;
+      } else if (content.filePath && fs.existsSync(content.filePath)) {
+        buffer = fs.readFileSync(content.filePath);
+      } else if (content.data) {
+        buffer = Buffer.from(content.data, 'base64');
+      }
+
+      if (buffer) {
+        const caption = options.caption || content.caption || '';
+        const mime = content.mimetype || options.mimeType || options.mimetype || 'image/jpeg';
+        let sent = null;
+
+        if (mime.startsWith('image/')) {
+          sent = await this.sock.sendMessage(targetJid, {
+            image: buffer,
+            caption,
+            mimetype: mime
+          });
+        } else if (mime.startsWith('video/')) {
+          sent = await this.sock.sendMessage(targetJid, {
+            video: buffer,
+            caption,
+            mimetype: mime
+          });
+        } else {
+          sent = await this.sock.sendMessage(targetJid, {
+            document: buffer,
+            mimetype: mime,
+            fileName: content.filename || options.filename || 'dokumen',
+            caption
+          });
+        }
+
+        if (sent?.key?.id) this.recordBotSentMessage(sent.key.id);
+        return sent;
+      }
     }
 
     // Jika content adalah objek Baileys murni (misal { text: '...' } atau { image: ... })
@@ -662,8 +698,9 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
 
   /**
    * Mengirim media (gambar/dokumen) ke JID tertentu.
+   * Mendukung path berkas lokal, Buffer binary, maupun objek media.
    * @param {string} jid 
-   * @param {string|Buffer} mediaPathOrBuffer 
+   * @param {string|Buffer|object} mediaPathOrBuffer 
    * @param {object} [options]
    * @returns {Promise<any>}
    */
@@ -674,37 +711,62 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
 
     const targetJid = toBaileysJid(jid);
     let buffer = null;
+    let detectedMime = null;
+    let detectedFilename = null;
 
     if (typeof mediaPathOrBuffer === 'string') {
       if (!fs.existsSync(mediaPathOrBuffer)) {
         throw new Error(`[Baileys] Berkas media tidak ditemukan di: ${mediaPathOrBuffer}`);
       }
       buffer = fs.readFileSync(mediaPathOrBuffer);
+      detectedFilename = path.basename(mediaPathOrBuffer);
+      const ext = path.extname(mediaPathOrBuffer).toLowerCase();
+      if (ext === '.png') detectedMime = 'image/png';
+      else if (ext === '.webp') detectedMime = 'image/webp';
+      else if (ext === '.gif') detectedMime = 'image/gif';
+      else if (['.jpg', '.jpeg'].includes(ext)) detectedMime = 'image/jpeg';
+      else if (ext === '.mp4') detectedMime = 'video/mp4';
+      else if (ext === '.pdf') detectedMime = 'application/pdf';
     } else if (Buffer.isBuffer(mediaPathOrBuffer)) {
       buffer = mediaPathOrBuffer;
-    } else {
-      throw new Error('[Baileys] Format mediaPathOrBuffer tidak valid.');
+    } else if (mediaPathOrBuffer && typeof mediaPathOrBuffer === 'object') {
+      // Objek media terpadu
+      if (Buffer.isBuffer(mediaPathOrBuffer.buffer)) {
+        buffer = mediaPathOrBuffer.buffer;
+      } else if (mediaPathOrBuffer.filePath && fs.existsSync(mediaPathOrBuffer.filePath)) {
+        buffer = fs.readFileSync(mediaPathOrBuffer.filePath);
+      } else if (mediaPathOrBuffer.data) {
+        buffer = Buffer.from(mediaPathOrBuffer.data, 'base64');
+      }
+      detectedMime = mediaPathOrBuffer.mimetype;
+      detectedFilename = mediaPathOrBuffer.filename;
+    }
+
+    if (!buffer) {
+      throw new Error('[Baileys] Format mediaPathOrBuffer tidak valid atau buffer kosong.');
     }
 
     const caption = options.caption || '';
-    const mime = options.mimeType || 'image/jpeg';
+    const mime = options.mimeType || options.mimetype || detectedMime || 'image/jpeg';
     let sent = null;
 
     if (mime.startsWith('image/')) {
       sent = await this.sock.sendMessage(targetJid, {
         image: buffer,
-        caption
+        caption,
+        mimetype: mime
       });
     } else if (mime.startsWith('video/')) {
       sent = await this.sock.sendMessage(targetJid, {
         video: buffer,
-        caption
+        caption,
+        mimetype: mime
       });
     } else {
       sent = await this.sock.sendMessage(targetJid, {
         document: buffer,
         mimetype: mime,
-        fileName: options.filename || 'dokumen',
+        fileName: options.filename || detectedFilename || 'dokumen',
         caption
       });
     }

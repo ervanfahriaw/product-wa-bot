@@ -112,9 +112,19 @@ public class NodeServerRunner {
                     dataDir.mkdirs();
                 }
 
+                File tmpDir = new File(internalFilesDir, "tmp");
+                if (!tmpDir.exists()) {
+                    tmpDir.mkdirs();
+                }
+
                 File uploadsDir = new File(internalFilesDir, "uploads");
                 if (!uploadsDir.exists()) {
                     uploadsDir.mkdirs();
+                }
+
+                File dataUploadsDir = new File(dataDir, "uploads");
+                if (!dataUploadsDir.exists()) {
+                    dataUploadsDir.mkdirs();
                 }
 
                 File projectDir = new File(internalFilesDir, "nodejs-project");
@@ -161,8 +171,12 @@ public class NodeServerRunner {
                 setEnvironmentVariable("NODE_PATH", nodeModulesDir.getAbsolutePath());
                 setEnvironmentVariable("WHATSAPP_RUST_BRIDGE_FORCE_NOSIMD", "true");
                 setEnvironmentVariable("NODE_TLS_REJECT_UNAUTHORIZED", "0");
+                setEnvironmentVariable("TMPDIR", tmpDir.getAbsolutePath());
+                setEnvironmentVariable("TEMP", tmpDir.getAbsolutePath());
+                setEnvironmentVariable("TMP", tmpDir.getAbsolutePath());
 
                 Log.i(TAG, "Environment terkonfigurasi. ANDROID_DATA_DIR=" + internalFilesDir.getAbsolutePath()
+                        + ", TMPDIR=" + tmpDir.getAbsolutePath()
                         + ", ANDROID_NATIVE_LIB_DIR=" + nativeLibDir);
 
                 // 4. Jalankan Node.js entry point (src/server/index.js)

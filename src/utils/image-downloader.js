@@ -164,24 +164,33 @@ function resolveProductImageResource(imagePath) {
     };
   }
 
-  // 2. Jika adalah File Lokal di Komputer
-  const cleanName = path.basename(trimmed);
+  // 2. Jika adalah File Lokal di Komputer (dukung pemisah Windows \ maupun POSIX /)
+  const cleanName = trimmed.replace(/^[\\/]+/, '').split(/[\\/]/).pop();
+  const subPathWithoutUploads = trimmed.replace(/^[\\/]*(data[\\/])?uploads[\\/]/i, '');
   const candidates = [
     trimmed,
-    path.isAbsolute(trimmed) ? trimmed : path.join(BASE_DIR, trimmed),
     path.join(UPLOADS_DIR, cleanName),
-    path.resolve(__dirname, '../../../', trimmed),
+    path.join(UPLOADS_DIR, subPathWithoutUploads),
     path.join(BASE_DIR, 'data', 'uploads', cleanName),
-    path.join(BASE_DIR, 'public', trimmed.startsWith('/') ? trimmed.slice(1) : trimmed)
+    path.join(BASE_DIR, 'uploads', cleanName),
+    path.isAbsolute(trimmed) ? trimmed : path.join(BASE_DIR, trimmed),
+    path.join(BASE_DIR, 'public', cleanName),
+    path.resolve(__dirname, '../../../', trimmed),
+    path.join(process.cwd(), 'data', 'uploads', cleanName)
   ];
 
   for (const c of candidates) {
-    if (c && fs.existsSync(c)) {
-      return {
-        isUrl: false,
-        url: null,
-        fullPath: c
-      };
+    if (c && typeof c === 'string' && fs.existsSync(c)) {
+      try {
+        const stat = fs.statSync(c);
+        if (stat.isFile()) {
+          return {
+            isUrl: false,
+            url: null,
+            fullPath: path.resolve(c)
+          };
+        }
+      } catch (_) {}
     }
   }
 
