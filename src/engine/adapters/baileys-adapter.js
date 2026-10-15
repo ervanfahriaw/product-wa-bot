@@ -221,6 +221,52 @@ function toInternalJid(jid = '') {
 }
 
 /**
+ * 1x1 Minimal Valid JPEG Buffer (~149 bytes).
+ * Digunakan sebagai preview thumbnail yang valid untuk pesan media Baileys.
+ * Menghilangkan dependensi 'sharp' (C++ native) dan 'jimp' sehingga prepareWAMessageMedia
+ * 100% aman dan tidak melempar Boom error 'No image processing library available' di Android.
+ */
+const VALID_MIN_JPEG_BUFFER = Buffer.from([
+  0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x60,
+  0x00, 0x60, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08,
+  0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D, 0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12,
+  0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D, 0x1A, 0x1C, 0x1C, 0x20, 0x24, 0x2E, 0x27, 0x20,
+  0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28, 0x37, 0x29, 0x2C, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1F, 0x27,
+  0x39, 0x3D, 0x38, 0x32, 0x3C, 0x2E, 0x33, 0x34, 0x32, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01,
+  0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xFF, 0xC4, 0x00, 0x1F, 0x00, 0x00, 0x01, 0x05, 0x01, 0x01,
+  0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04,
+  0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F,
+  0x00, 0xBF, 0x80, 0xFF, 0xD9
+]);
+
+/**
+ * Menyediakan buffer thumbnail JPEG yang valid.
+ * @param {Buffer} buffer 
+ * @param {string} mime 
+ * @param {Buffer|string} [userThumb] 
+ * @returns {Buffer}
+ */
+function getOrCreateJpegThumbnail(buffer, mime = 'image/jpeg', userThumb = null) {
+  if (userThumb) {
+    if (Buffer.isBuffer(userThumb)) return userThumb;
+    if (typeof userThumb === 'string') {
+      try {
+        return Buffer.from(userThumb.replace(/^data:image\/[^;]+;base64,/, ''), 'base64');
+      } catch (_) {}
+    }
+  }
+
+  // Jika buffer gambar adalah JPEG dan berukuran kecil (<= 48KB), bisa langsung dipakai sebagai thumbnail
+  if (Buffer.isBuffer(buffer) && buffer.length > 2 && buffer[0] === 0xFF && buffer[1] === 0xD8) {
+    if (buffer.length <= 48 * 1024) {
+      return buffer;
+    }
+  }
+
+  return VALID_MIN_JPEG_BUFFER;
+}
+
+/**
  * BaileysEngineAdapter
  * WhatsApp Engine berbasis WebSocket binary murni (tanpa Chromium / Puppeteer).
  * Dirancang khusus untuk perangkat hemat daya (Android Mobile APK / Low-RAM VPS).
@@ -657,10 +703,12 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
         let sent = null;
 
         if (mime.startsWith('image/')) {
+          const thumb = getOrCreateJpegThumbnail(buffer, mime, options.jpegThumbnail || content.jpegThumbnail);
           sent = await this.sock.sendMessage(targetJid, {
             image: buffer,
             caption,
-            mimetype: mime
+            mimetype: mime,
+            jpegThumbnail: thumb
           });
         } else if (mime.startsWith('video/')) {
           sent = await this.sock.sendMessage(targetJid, {
@@ -751,10 +799,12 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
     let sent = null;
 
     if (mime.startsWith('image/')) {
+      const thumb = getOrCreateJpegThumbnail(buffer, mime, options.jpegThumbnail);
       sent = await this.sock.sendMessage(targetJid, {
         image: buffer,
         caption,
-        mimetype: mime
+        mimetype: mime,
+        jpegThumbnail: thumb
       });
     } else if (mime.startsWith('video/')) {
       sent = await this.sock.sendMessage(targetJid, {

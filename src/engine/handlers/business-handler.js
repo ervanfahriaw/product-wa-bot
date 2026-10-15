@@ -166,6 +166,19 @@ function resolveProductImagePath(imagePath) {
   return null;
 }
 
+const VALID_MIN_JPEG_BUFFER = Buffer.from([
+  0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x60,
+  0x00, 0x60, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08,
+  0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D, 0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12,
+  0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D, 0x1A, 0x1C, 0x1C, 0x20, 0x24, 0x2E, 0x27, 0x20,
+  0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28, 0x37, 0x29, 0x2C, 0x30, 0x31, 0x34, 0x34, 0x34, 0x1F, 0x27,
+  0x39, 0x3D, 0x38, 0x32, 0x3C, 0x2E, 0x33, 0x34, 0x32, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01,
+  0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xFF, 0xC4, 0x00, 0x1F, 0x00, 0x00, 0x01, 0x05, 0x01, 0x01,
+  0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04,
+  0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F,
+  0x00, 0xBF, 0x80, 0xFF, 0xD9
+]);
+
 /**
  * Menghasilkan objek MessageMedia yang siap dikirim oleh WhatsApp Web,
  * mendukung baik file lokal di disk maupun tautan URL remote (Google Drive / HTTP).
@@ -217,6 +230,7 @@ async function createMessageMediaFromFile(filePathOrUrl) {
     mediaObj.mimetype = mime;
     mediaObj.data = base64Data;
     mediaObj.filename = filename;
+    mediaObj.thumbnail = (mime === 'image/jpeg' && fileBuffer.length <= 48 * 1024) ? fileBuffer : VALID_MIN_JPEG_BUFFER;
 
     return mediaObj;
   } catch (err) {
@@ -327,18 +341,21 @@ function clearSentProductImageCache() {
   sentProductImageCache.clear();
 }
 
+// Daftar kata generik yang diabaikan dalam pencocokan nama produk
+const GENERIC_WORDS = new Set([
+  'produk', 'barang', 'isi', 'porsi', 'harga', 'berapa', 'ready', 'ada',
+  'gak', 'ga', 'nggak', 'tidak', 'nih', 'dong', 'kak', 'ka', 'min', 'gan', 'bro', 'yang', 'dan', 'ini',
+  'itu', 'mau', 'beli', 'pesan', 'order', 'untuk', 'dari', 'bisa', 'liat',
+  'lihat', 'liatkan', 'liatnya', 'foto', 'fotonya', 'gambar', 'gambarnya', 'katalog',
+  'spill', 'pic', 'pict', 'picture', 'contoh', 'coba', 'cobain', 'mana', 'manakah',
+  'tengok', 'tunjukin', 'kasih', 'kirim', 'kirimkan', 'deh', 'kan', 'sih',
+  'lah', 'ya', 'yaa', 'yah', 'yuk', 'kah', 'aja', 'saja', 'punya', 'kok', 'apa',
+  'apakah', 'gimana', 'bagaimana', 'bentuk', 'bentuknya', 'penampakan', 'penampakannya',
+  'model', 'modelnya', 'penasaran', 'pengen', 'ingin', 'tolong', 'minta', 'lagi', 'ulang',
+  'sama', 'dengan', 'serta', 'juga', 'atau'
+]);
+
 /**
- * Mencari apakah ada produk relevan dengan gambar yang perlu dikirim.
- * Menerapkan:
- * 1. Full-Sentence Contextual Intent (memahami kalimat utuh, bukan cuma 1 kata trigger)
- * 2. Anti-Complaint & Negation Guard (blokir jika pelanggan komplain/menolak foto)
- * 3. Explicit Product Matching (nama lengkap, SKU, & fuzzy typo tolerance)
- * 4. Conversational Context Resolution (membaca riwayat chat untuk kalimat seperti "Liat fotonya coba", "Mana fotonya ka")
- * 5. Re-send Intent & Cooldown Management
- * 
- * @param {string} messageText 
- * @param {string} [contact]
- * @returns {{product: object, fullPath: string|null, url: string|null, isUrl: boole/**
  * Ekstraksi token identitas produk (nama bersih, akronim, SKU, dan kata kunci).
  * @param {object} product 
  * @returns {object}
@@ -347,30 +364,25 @@ function extractProductSearchTokens(product) {
   const rawName = (product.name || '').trim().toLowerCase();
   const rawSku = (product.sku || '').trim().toLowerCase();
   
-  // Ekstrak teks dalam kurung sebagai akronim/alias (contoh: "Albino Full Red (AFR)" -> "afr")
+  // Ekstrak teks dalam kurung sebagai akronim/alias (contoh: "Albino Full Red (AFR)" -> "afr" atau "AFR (Albino Full Red)" -> "albino full red")
   const parenMatch = rawName.match(/\(([^)]+)\)/);
   const parenthetical = parenMatch ? parenMatch[1].trim().toLowerCase() : '';
 
   // Bersihkan nama dari tanda kurung & karakter khusus
   const cleanName = rawName.replace(/\([^)]*\)/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
   
-  // Buat inisial / akronim dari huruf pertama tiap kata (contoh: "albino full red" -> "afr")
+  // Buat inisial / akronim dari huruf pertama tiap kata di cleanName (contoh: "albino full red" -> "afr")
   const words = cleanName.split(' ').filter(w => w.length > 0);
-  const initials = words.length >= 2 ? words.map(w => w[0]).join('') : '';
+  let initials = words.length >= 2 ? words.map(w => w[0]).join('') : '';
 
-  const GENERIC_WORDS = new Set([
-    'produk', 'barang', 'isi', 'porsi', 'harga', 'berapa', 'ready', 'ada',
-    'gak', 'ga', 'nggak', 'tidak', 'nih', 'dong', 'kak', 'ka', 'min', 'gan', 'bro', 'yang', 'dan', 'ini',
-    'itu', 'mau', 'beli', 'pesan', 'order', 'untuk', 'dari', 'bisa', 'liat',
-    'lihat', 'liatkan', 'liatnya', 'foto', 'fotonya', 'gambar', 'gambarnya', 'katalog',
-    'spill', 'pic', 'pict', 'picture', 'contoh', 'coba', 'cobain', 'mana', 'manakah',
-    'tengok', 'tunjukin', 'kasih', 'kirim', 'kirimkan', 'deh', 'kan', 'sih',
-    'lah', 'ya', 'yaa', 'yah', 'yuk', 'kah', 'aja', 'saja', 'punya', 'kok', 'apa',
-    'apakah', 'gimana', 'bagaimana', 'bentuk', 'bentuknya', 'penampakan', 'penampakannya',
-    'model', 'modelnya', 'penasaran', 'pengen', 'ingin', 'tolong', 'minta', 'lagi', 'ulang'
-  ]);
+  // Jika parenthetical memiliki beberapa kata (contoh: "AFR (Albino Full Red)"), buat inisial juga dari teks dalam kurung
+  const parenWords = parenthetical.split(' ').filter(w => w.length > 0);
+  if (!initials && parenWords.length >= 2) {
+    initials = parenWords.map(w => w[0]).join('');
+  }
 
-  const nonGenericWords = words.filter(w => !GENERIC_WORDS.has(w) && w.length >= 2);
+  const allWords = [...words, ...parenWords];
+  const nonGenericWords = allWords.filter(w => !GENERIC_WORDS.has(w) && w.length >= 2);
 
   return {
     rawName,
@@ -378,41 +390,41 @@ function extractProductSearchTokens(product) {
     parenthetical,
     initials,
     rawSku,
-    nonGenericWords
+    nonGenericWords: Array.from(new Set(nonGenericWords))
   };
 }
 
 /**
- * Mencari apakah ada produk relevan dengan gambar yang perlu dikirim.
+ * Mencari semua produk relevan dengan gambar yang perlu dikirim (mendukung multi-image).
  * Menggunakan Arsitektur Dual-Lock (2 Kunci Pengaman):
  * 1. Kunci 1: Memverifikasi niat pelanggan meminta foto (Zero False Positives).
  * 2. Kunci 2: Resolusi target produk cerdas (Eksplisit -> Akronim -> Riwayat Chat -> Fallback).
  * 
  * @param {string} messageText 
  * @param {string} [contact]
- * @returns {{product: object, fullPath: string|null, url: string|null, isUrl: boolean}|null}
+ * @param {number} [maxCount=2]
+ * @returns {Array<{product: object, fullPath: string|null, url: string|null, isUrl: boolean}>}
  */
-function findProductImageToSend(messageText = '', contact = null) {
-  if (!messageText || typeof messageText !== 'string') return null;
+function findProductImagesToSend(messageText = '', contact = null, maxCount = 2) {
+  if (!messageText || typeof messageText !== 'string') return [];
   const lower = messageText.toLowerCase().trim();
 
   // KUNCI 1: Deteksi keluhan / komplain / negasi pengiriman foto (Tolak jika negasi)
   const isComplaintOrNegation = /(?:tidak\s+minta|gak\s+minta|ga\s+minta|bukan\s+minta|ngapain\s+kirim|kenapa\s+(?:kamu\s+)?(?:kasih|kirim)\s+terus|jangan\s+kirim|stop\s+kirim|jangan\s+kasih|ga\s+butuh|gak\s+butuh|tidak\s+butuh|gak\s+usah|ga\s+usah|nggak\s+usah|tidak\s+usah|gausah|salah\s+foto|bukan\s+yang\s+ini|bukan\s+itu|stop\s+spam)/i.test(lower);
   if (isComplaintOrNegation) {
-    return null;
+    return [];
   }
 
   // KUNCI 1: Periksa apakah kalimat aktif meminta foto / melihat produk
   const isAskingImage = /(?:foto|fotonya|gambar|gambarnya|liat|lihat|liatkan|tunjukin|spill|pic|pict|picture|penampakan|penampakannya|contoh|model|modelnya|bentuk|bentuknya|tengok|mana\s+(?:fotonya|gambarnya)|cek\s+foto|minta\s+foto|minta\s+gambar|kirim\s+foto|kirim\s+gambar|ada\s+fotonya|ada\s+gambarnya|liat\s+fotonya|liat\s+gambarnya|penasaran)/i.test(lower);
   const isAskingReSend = /(?:kirim\s+lagi|minta\s+lagi|kirim\s+ulang|liat\s+lagi|lihat\s+lagi|belum\s+(?:muncul|masuk|ada|keliatan|terkirim)|mana\s+(?:fotonya|gambarnya)|fotonya\s+mana|gambarnya\s+mana|kok\s+(?:fotonya|gambarnya)\s+belum)/i.test(lower);
 
-  // Jika pelanggan sama sekali tidak meminta foto/gambar, KUNCI 1 TERKUNCI (100% TIDAK KIRIM FOTO)
   if (!isAskingImage && !isAskingReSend) {
-    return null;
+    return [];
   }
 
   const products = db.getAllProducts ? db.getAllProducts() : [];
-  if (products.length === 0) return null;
+  if (products.length === 0) return [];
 
   // Filter produk yang memiliki file gambar lokal atau link gambar valid
   const productsWithImage = [];
@@ -431,113 +443,189 @@ function findProductImageToSend(messageText = '', contact = null) {
     }
   }
 
-  if (productsWithImage.length === 0) return null;
+  if (productsWithImage.length === 0) return [];
 
-  // KUNCI 2: RESOLUSI TARGET PRODUK
-
-  // 1. PENCARIAN EKSPLISIT DALAM PESAN SAAT INI (Nama, SKU, Alias, Akronim)
-  let bestExplicitMatch = null;
-  let highestScore = 0;
-
+  // 1. Scoring Eksplisit pada pesan pelanggan saat ini
+  const scoredMatches = [];
   for (const item of productsWithImage) {
     const { rawName, cleanName, parenthetical, initials, rawSku, nonGenericWords } = item.tokens;
     let score = 0;
 
+    const matchedQueryTokens = new Set();
+
     // Kecocokan SKU langsung
     if (rawSku && lower.includes(rawSku)) {
       score += 60;
+      matchedQueryTokens.add(rawSku);
     }
 
-    // Kecocokan nama lengkap atau nama bersih
+    // Kecocokan nama lengkap atau nama bersih (dengan regex word-boundary untuk kata pendek seperti "afr", "bm")
     if (rawName && lower.includes(rawName)) {
       score += 50;
-    } else if (cleanName && cleanName.length >= 4 && lower.includes(cleanName)) {
-      score += 45;
+      for (const w of rawName.split(/\s+/)) {
+        if (!GENERIC_WORDS.has(w) && w.length >= 2 && lower.includes(w)) matchedQueryTokens.add(w);
+      }
+    } else if (cleanName) {
+      if (cleanName.length >= 4 && lower.includes(cleanName)) {
+        score += 45;
+        for (const w of cleanName.split(/\s+/)) {
+          if (!GENERIC_WORDS.has(w) && w.length >= 2 && lower.includes(w)) matchedQueryTokens.add(w);
+        }
+      } else if (cleanName.length >= 2 && new RegExp(`\\b${cleanName}\\b`, 'i').test(lower)) {
+        score += 45;
+        matchedQueryTokens.add(cleanName);
+      }
     }
 
-    // Kecocokan akronim dalam kurung (misal "afr", "bm" sebagai kata utuh)
+    // Kecocokan akronim / alias dalam kurung
     if (parenthetical) {
-      const regexParen = new RegExp(`\\b${parenthetical}\\b`, 'i');
-      if (regexParen.test(lower)) {
+      if (parenthetical.length >= 4 && lower.includes(parenthetical)) {
         score += 40;
+        for (const w of parenthetical.split(/\s+/)) {
+          if (!GENERIC_WORDS.has(w) && w.length >= 2 && lower.includes(w)) matchedQueryTokens.add(w);
+        }
+      } else if (parenthetical.length >= 2 && new RegExp(`\\b${parenthetical}\\b`, 'i').test(lower)) {
+        score += 40;
+        matchedQueryTokens.add(parenthetical);
       }
     }
 
-    // Kecocokan inisial kata (misal "afr" dari Albino Full Red)
-    if (initials && initials.length >= 2) {
-      const regexInit = new RegExp(`\\b${initials}\\b`, 'i');
-      if (regexInit.test(lower)) {
-        score += 35;
-      }
+    // Kecocokan inisial kata (misal "afr" atau "bm")
+    if (initials && initials.length >= 2 && new RegExp(`\\b${initials}\\b`, 'i').test(lower)) {
+      score += 35;
+      matchedQueryTokens.add(initials);
     }
 
     // Kecocokan kata per kata dengan toleransi typo
-    const queryTokens = lower.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+    const queryTokens = lower.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 2 && !GENERIC_WORDS.has(w));
     for (const qw of queryTokens) {
       for (const pw of nonGenericWords) {
         if (qw === pw) {
           score += 15;
+          matchedQueryTokens.add(qw);
         } else if (isWordSimilar(qw, pw)) {
           score += 10;
+          matchedQueryTokens.add(qw);
         }
       }
     }
 
-    if (score > highestScore) {
-      highestScore = score;
-      bestExplicitMatch = item;
+    if (score >= 25) {
+      scoredMatches.push({ item, score, matchedQueryTokens });
     }
   }
 
-  if (highestScore >= 30 && bestExplicitMatch) {
-    return bestExplicitMatch;
+  // Pemilihan hasil dengan diversifikasi kata kunci (Maximal Marginal Relevance)
+  // Menjamin jika pelanggan meminta beberapa produk sekaligus (misal AFR dan Albino Koi),
+  // bot tidak mengirim dua foto produk yang sama melainkan masing-masing produk yang diminta.
+  const remainingCandidates = [...scoredMatches];
+  const results = [];
+  const addedIds = new Set();
+  const coveredQueryTokens = new Set();
+
+  while (results.length < maxCount && remainingCandidates.length > 0) {
+    let bestIdx = -1;
+    let highestDynamicScore = -Infinity;
+
+    for (let i = 0; i < remainingCandidates.length; i++) {
+      const candidate = remainingCandidates[i];
+      let newTokensCount = 0;
+      for (const t of candidate.matchedQueryTokens) {
+        if (!coveredQueryTokens.has(t)) {
+          newTokensCount++;
+        }
+      }
+      const dynamicScore = candidate.score + (newTokensCount * 50);
+      if (dynamicScore > highestDynamicScore) {
+        highestDynamicScore = dynamicScore;
+        bestIdx = i;
+      }
+    }
+
+    if (bestIdx === -1) break;
+
+    const [chosen] = remainingCandidates.splice(bestIdx, 1);
+    if (!addedIds.has(chosen.item.product.id)) {
+      results.push(chosen.item);
+      addedIds.add(chosen.item.product.id);
+      for (const t of chosen.matchedQueryTokens) {
+        coveredQueryTokens.add(t);
+      }
+    }
   }
 
-  // 2. PENCARIAN KONTEKSTUAL (Membaca Riwayat Chat untuk pesan pendek "liat fotonya", "mana fotonya ka")
-  if (contact) {
+  if (results.length > 0) {
+    return results;
+  }
+
+  // 2. Pencarian Kontekstual dari Riwayat Chat (Pesan pendek "liat fotonya", "mana fotonya ka")
+  if (contact && db.getChatLogsByContact) {
     try {
-      if (db.getChatLogsByContact) {
-        const recentLogs = db.getChatLogsByContact(contact, 10);
-        if (recentLogs && recentLogs.length > 0) {
-          for (const l of recentLogs) {
-            const combinedLog = `${l.message_out || ''} ${l.message_in || ''}`.toLowerCase();
+      const recentLogs = db.getChatLogsByContact(contact, 10);
+      if (recentLogs && recentLogs.length > 0) {
+        for (const l of recentLogs) {
+          const combinedLog = `${l.message_out || ''} ${l.message_in || ''}`.toLowerCase();
+          for (const item of productsWithImage) {
+            if (addedIds.has(item.product.id)) continue;
+            const { rawName, cleanName, parenthetical, initials, nonGenericWords } = item.tokens;
 
-            for (const item of productsWithImage) {
-              const { rawName, cleanName, parenthetical, initials, nonGenericWords } = item.tokens;
+            let matched = false;
+            if (rawName && combinedLog.includes(rawName)) matched = true;
+            else if (cleanName) {
+              if (cleanName.length >= 4 && combinedLog.includes(cleanName)) matched = true;
+              else if (cleanName.length >= 2 && new RegExp(`\\b${cleanName}\\b`, 'i').test(combinedLog)) matched = true;
+            }
 
-              // Jika nama lengkap atau nama bersih produk ada di riwayat chat terbaru
-              if (rawName && combinedLog.includes(rawName)) return item;
-              if (cleanName && cleanName.length >= 4 && combinedLog.includes(cleanName)) return item;
+            if (!matched && parenthetical) {
+              if (parenthetical.length >= 4 && combinedLog.includes(parenthetical)) matched = true;
+              else if (parenthetical.length >= 2 && new RegExp(`\\b${parenthetical}\\b`, 'i').test(combinedLog)) matched = true;
+            }
 
-              // Jika akronim / inisial ada di riwayat chat
-              if (parenthetical) {
-                const regexParen = new RegExp(`\\b${parenthetical}\\b`, 'i');
-                if (regexParen.test(combinedLog)) return item;
-              }
-              if (initials && initials.length >= 2) {
-                const regexInit = new RegExp(`\\b${initials}\\b`, 'i');
-                if (regexInit.test(combinedLog)) return item;
-              }
+            if (!matched && initials && initials.length >= 2 && new RegExp(`\\b${initials}\\b`, 'i').test(combinedLog)) {
+              matched = true;
+            }
 
-              // Jika minimal 2 kata produk yang cocok di riwayat chat
+            if (!matched) {
               const matchedWords = nonGenericWords.filter(pw => combinedLog.includes(pw));
               const requiredCount = Math.min(2, nonGenericWords.length);
               if (matchedWords.length >= requiredCount && matchedWords.length > 0) {
-                return item;
+                matched = true;
               }
             }
+
+            if (matched) {
+              results.push(item);
+              addedIds.add(item.product.id);
+              if (results.length >= maxCount) break;
+            }
           }
+          if (results.length > 0) break;
         }
       }
     } catch (_) {}
   }
 
-  // 3. FALLBACK: Jika permintaan umum ("liat foto katalog") atau best match dengan skor moderat
-  if (bestExplicitMatch && highestScore > 0) {
-    return bestExplicitMatch;
+  if (results.length > 0) {
+    return results;
   }
 
-  return productsWithImage[0] || null;
+  // 3. Fallback: Produk pertama dengan gambar valid
+  if (productsWithImage.length > 0) {
+    return [productsWithImage[0]];
+  }
+
+  return [];
+}
+
+/**
+ * Mencari satu produk relevan dengan gambar yang perlu dikirim (backward compatibility).
+ * @param {string} messageText 
+ * @param {string} [contact]
+ * @returns {{product: object, fullPath: string|null, url: string|null, isUrl: boolean}|null}
+ */
+function findProductImageToSend(messageText = '', contact = null) {
+  const images = findProductImagesToSend(messageText, contact, 1);
+  return images.length > 0 ? images[0] : null;
 }
 
 const { simulateHumanPacing } = require('../human-pacing');
@@ -821,82 +909,85 @@ async function handleBusinessMessage(message, client) {
       interBubbleDelay: config.inter_bubble_delay
     });
 
-    // 7. Cek apakah perlu kirim gambar produk
-    const imgInfo = findProductImageToSend(messageBody, contact);
-    if (imgInfo && client) {
-      try {
-        const media = await createMessageMediaFromFile(imgInfo.fullPath || imgInfo.url);
-        if (media) {
-          const caption = `📸 *${imgInfo.product.name}*\n💰 Rp${Number(imgInfo.product.price).toLocaleString('id-ID')}`;
-          let sent = false;
+    // 7. Cek apakah perlu kirim gambar produk (mendukung multi-image)
+    const imagesToSend = findProductImagesToSend(messageBody, contact, 2);
+    if (imagesToSend && imagesToSend.length > 0 && client) {
+      for (const imgInfo of imagesToSend) {
+        try {
+          const media = await createMessageMediaFromFile(imgInfo.fullPath || imgInfo.url);
+          if (media) {
+            const caption = `📸 *${imgInfo.product.name}*\n💰 Rp${Number(imgInfo.product.price).toLocaleString('id-ID')}`;
+            let sent = false;
 
-          // 1. Coba kirim via client.sendMedia (metode standar multi-engine untuk file/buffer)
-          if (typeof client.sendMedia === 'function') {
-            try {
-              await client.sendMedia(contact, media.buffer || media.filePath || media, {
-                caption,
-                mimeType: media.mimetype
-              });
-              sent = true;
-            } catch (mediaErr) {
-              console.warn(`[BusinessHandler] client.sendMedia gagal (${mediaErr.message}), mencoba sendMessage...`);
-            }
-          }
-
-          // 2. Fallback: kirim via client.sendMessage ke contact langsung
-          if (!sent && typeof client.sendMessage === 'function') {
-            try {
-              await client.sendMessage(contact, media, { caption });
-              sent = true;
-            } catch (sendErr) {
-              console.warn(`[BusinessHandler] client.sendMessage media gagal (${sendErr.message}), mencoba fallback message.reply...`);
-            }
-          }
-
-          // 3. Fallback: coba kirim via message.reply
-          if (!sent && message && typeof message.reply === 'function') {
-            try {
-              await message.reply(media, { caption });
-              sent = true;
-            } catch (replyErr) {
-              console.warn(`[BusinessHandler] message.reply media gagal (${replyErr.message}), mencoba fallback berikutnya...`);
-            }
-          }
-
-          // 4. Fallback: jika contact adalah @lid, coba selesaikan ke nomor @c.us / @s.whatsapp.net
-          if (!sent && contact && contact.endsWith('@lid')) {
-            try {
-              const { findContactByQuery } = require('../../utils/contact-resolver');
-              const resolved = findContactByQuery(contact);
-              if (resolved && resolved.phoneNumber) {
-                const targetCus = `${resolved.phoneNumber}@c.us`;
-                if (typeof client.sendMedia === 'function') {
-                  await client.sendMedia(targetCus, media.buffer || media.filePath || media, { caption, mimeType: media.mimetype });
-                  sent = true;
-                } else if (typeof client.sendMessage === 'function') {
-                  await client.sendMessage(targetCus, media, { caption });
-                  sent = true;
-                }
-                if (sent) {
-                  console.log(`[BusinessHandler] Berhasil mengirim foto via fallback nomor resolved ${targetCus}`);
-                }
+            // 1. Coba kirim via client.sendMedia (metode standar multi-engine untuk file/buffer)
+            if (typeof client.sendMedia === 'function') {
+              try {
+                await client.sendMedia(contact, media.buffer || media.filePath || media, {
+                  caption,
+                  mimeType: media.mimetype,
+                  jpegThumbnail: media.thumbnail
+                });
+                sent = true;
+              } catch (mediaErr) {
+                console.warn(`[BusinessHandler] client.sendMedia gagal (${mediaErr.message}), mencoba sendMessage...`);
               }
-            } catch (lidErr) {
-              console.warn(`[BusinessHandler] Fallback media ke resolved @c.us gagal:`, lidErr.message);
             }
-          }
 
-          if (sent) {
-            recordSentProductImage(contact, imgInfo.product.id, imgInfo.product.name);
-            console.log(`[BusinessHandler] ✅ Berhasil mengirim foto produk "${imgInfo.product.name}" ke ${contact}`);
+            // 2. Fallback: kirim via client.sendMessage ke contact langsung
+            if (!sent && typeof client.sendMessage === 'function') {
+              try {
+                await client.sendMessage(contact, media, { caption, jpegThumbnail: media.thumbnail });
+                sent = true;
+              } catch (sendErr) {
+                console.warn(`[BusinessHandler] client.sendMessage media gagal (${sendErr.message}), mencoba fallback message.reply...`);
+              }
+            }
+
+            // 3. Fallback: coba kirim via message.reply
+            if (!sent && message && typeof message.reply === 'function') {
+              try {
+                await message.reply(media, { caption, jpegThumbnail: media.thumbnail });
+                sent = true;
+              } catch (replyErr) {
+                console.warn(`[BusinessHandler] message.reply media gagal (${replyErr.message}), mencoba fallback berikutnya...`);
+              }
+            }
+
+            // 4. Fallback: jika contact adalah @lid, coba selesaikan ke nomor @c.us / @s.whatsapp.net
+            if (!sent && contact && contact.endsWith('@lid')) {
+              try {
+                const { findContactByQuery } = require('../../utils/contact-resolver');
+                const resolved = findContactByQuery(contact);
+                if (resolved && resolved.phoneNumber) {
+                  const targetCus = `${resolved.phoneNumber}@c.us`;
+                  if (typeof client.sendMedia === 'function') {
+                    await client.sendMedia(targetCus, media.buffer || media.filePath || media, { caption, mimeType: media.mimetype, jpegThumbnail: media.thumbnail });
+                    sent = true;
+                  } else if (typeof client.sendMessage === 'function') {
+                    await client.sendMessage(targetCus, media, { caption, jpegThumbnail: media.thumbnail });
+                    sent = true;
+                  }
+                  if (sent) {
+                    console.log(`[BusinessHandler] Berhasil mengirim foto via fallback nomor resolved ${targetCus}`);
+                  }
+                }
+              } catch (lidErr) {
+                console.warn(`[BusinessHandler] Fallback media ke resolved @c.us gagal:`, lidErr.message);
+              }
+            }
+
+            if (sent) {
+              recordSentProductImage(contact, imgInfo.product.id, imgInfo.product.name);
+              console.log(`[BusinessHandler] ✅ Berhasil mengirim foto produk "${imgInfo.product.name}" ke ${contact}`);
+            } else {
+              console.error(`[BusinessHandler] ❌ Gagal mengirim foto produk "${imgInfo.product.name}" ke ${contact} setelah semua percobaan.`);
+            }
           } else {
-            console.error(`[BusinessHandler] ❌ Gagal mengirim foto produk "${imgInfo.product.name}" ke ${contact} setelah semua percobaan.`);
+            console.warn(`[BusinessHandler] createMessageMediaFromFile mengembalikan null untuk produk "${imgInfo.product.name}" (sumber: ${imgInfo.fullPath || imgInfo.url}).`);
           }
-        } else {
-          console.warn(`[BusinessHandler] createMessageMediaFromFile mengembalikan null untuk produk "${imgInfo.product.name}" (sumber: ${imgInfo.fullPath || imgInfo.url}).`);
+        } catch (mediaErr) {
+          console.error('[BusinessHandler] Gagal mengirim media gambar:', mediaErr.message);
         }
-      } catch (mediaErr) {
-        console.error('[BusinessHandler] Gagal mengirim media gambar:', mediaErr.message);
       }
     }
 
@@ -949,6 +1040,7 @@ module.exports = {
   isHandoverTriggered,
   isHandoverEnabled,
   findProductImageToSend,
+  findProductImagesToSend,
   resolveProductImagePath,
   createMessageMediaFromFile,
   clearSentProductImageCache,

@@ -208,6 +208,7 @@
               <input type="file" name="image" accept="image/*"
                      @change="handleImageChange($event)"
                      class="w-full text-xs text-[#71717A] file:mr-2.5 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-medium file:bg-[#F4F4F5] file:text-[#18181B] hover:file:bg-[#E4E4E7] cursor-pointer">
+              <input type="hidden" name="image_path" :value="formData.image_path || ''">
             </div>
           </div>
           <p class="text-[10px] text-[#A1A1AA] mt-1">Format JPG/PNG/WEBP. Bot otomatis mengirim foto ini saat calon pembeli minta gambar produk di WhatsApp.</p>

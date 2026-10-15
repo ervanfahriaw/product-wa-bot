@@ -500,17 +500,23 @@ public class MainActivity extends AppCompatActivity {
             if (mFilePathCallback != null) {
                 Uri[] results = null;
                 if (resultCode == RESULT_OK && data != null) {
-                    if (data.getClipData() != null) {
-                        int count = data.getClipData().getItemCount();
-                        results = new Uri[count];
-                        for (int i = 0; i < count; i++) {
-                            ClipData.Item item = data.getClipData().getItemAt(i);
-                            results[i] = item.getUri();
+                    try {
+                        results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+                    } catch (Exception ignored) {}
+
+                    if (results == null) {
+                        if (data.getClipData() != null) {
+                            int count = data.getClipData().getItemCount();
+                            results = new Uri[count];
+                            for (int i = 0; i < count; i++) {
+                                ClipData.Item item = data.getClipData().getItemAt(i);
+                                results[i] = item.getUri();
+                            }
+                        } else if (data.getData() != null) {
+                            results = new Uri[]{data.getData()};
+                        } else if (data.getDataString() != null) {
+                            results = new Uri[]{Uri.parse(data.getDataString())};
                         }
-                    } else if (data.getData() != null) {
-                        results = new Uri[]{data.getData()};
-                    } else if (data.getDataString() != null) {
-                        results = new Uri[]{Uri.parse(data.getDataString())};
                     }
                 }
                 mFilePathCallback.onReceiveValue(results);

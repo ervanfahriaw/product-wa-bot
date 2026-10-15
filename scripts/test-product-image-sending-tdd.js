@@ -16,6 +16,7 @@ const { BASE_DIR, DATA_DIR, UPLOADS_DIR } = require('../src/utils/paths');
 const { resolveProductImageResource } = require('../src/utils/image-downloader');
 const {
   findProductImageToSend,
+  findProductImagesToSend,
   createMessageMediaFromFile,
   clearSentProductImageCache
 } = require('../src/engine/handlers/business-handler');
@@ -46,6 +47,10 @@ async function runTests() {
   let passed = 0;
   let total = 0;
 
+  try {
+    db.db.exec("DELETE FROM products WHERE sku LIKE 'TDD-%' OR sku LIKE 'TEST-%' OR sku = 'AFR' OR name LIKE '%TDD%' OR name = 'AFR'");
+  } catch (_) {}
+
   function test(name, fn) {
     total++;
     try {
@@ -67,6 +72,14 @@ async function runTests() {
     } catch (err) {
       console.error(`  ❌ [FAIL] ${name}`);
       console.error(`     Error: ${err.message}`);
+    }
+  }
+
+  function safeDeleteProduct(p) {
+    if (!p) return;
+    const id = typeof p === 'object' && p !== null ? p.id : p;
+    if (id) {
+      try { db.deleteProduct(id); } catch (_) {}
     }
   }
 
@@ -161,7 +174,7 @@ async function runTests() {
       assert.strictEqual(match.product.sku, testSku, 'Harus mencocokkan produk Sate Maranggi Sapi');
       assert(match.fullPath, 'Harus memiliki fullPath valid');
     } finally {
-      if (testProd && testProd.id) db.deleteProduct(testProd.id);
+      safeDeleteProduct(testProd);
     }
   });
 
@@ -183,13 +196,126 @@ async function runTests() {
       assert(match !== null, 'Permintaan "spill foto kaos polos" harus menemukan produk');
       assert.strictEqual(match.product.sku, testSku, 'Harus mencocokkan produk Kaos Polos');
     } finally {
-      if (testProd && testProd.id) db.deleteProduct(testProd.id);
+      safeDeleteProduct(testProd);
     }
   });
 
   test('3.3. Penolakan negasi/komplain pengiriman foto (Anti-Spam Dual-Lock)', () => {
     const match = findProductImageToSend('Jangan kirim foto lagi kak, saya gak butuh gambar');
     assert.strictEqual(match, null, 'Kalimat komplain/negasi harus 100% menolak kirim foto');
+  });
+
+  test('3.4. Deteksi akronim pendek AFR (3 huruf) dari pesan "Liat foto afr nya" untuk produk "AFR (Albino Full Red)"', () => {
+    clearSentProductImageCache();
+    const testSku = `TDD-AFR-${Date.now()}`;
+    const testProd = db.createProduct({
+      sku: testSku,
+      name: 'AFR (Albino Full Red)',
+      category: 'Ikan Guppy',
+      price: 250000,
+      stock: 10,
+      description: 'Guppy merah top grade sepasang',
+      image_path: dummyJpgPath
+    });
+
+    try {
+      const match = findProductImageToSend('Liat foto afr nya');
+      assert(match !== null, 'Permintaan "Liat foto afr nya" harus menemukan produk AFR');
+      assert.strictEqual(match.product.sku, testSku, 'Harus mencocokkan produk AFR (Albino Full Red)');
+      assert(match.fullPath, 'Harus memiliki fullPath valid');
+    } finally {
+      safeDeleteProduct(testProd);
+    }
+  });
+
+  test('3.5. Deteksi akronim pendek 2 huruf BM dari pesan "mana foto bm kak" untuk produk "BM (Black Moscow)"', () => {
+    clearSentProductImageCache();
+    const testSku = `TDD-BM-${Date.now()}`;
+    const testProd = db.createProduct({
+      sku: testSku,
+      name: 'BM (Black Moscow)',
+      category: 'Ikan Guppy',
+      price: 180000,
+      stock: 15,
+      description: 'Guppy hitam pekat solid',
+      image_path: dummyPngPath
+    });
+
+    try {
+      const match = findProductImageToSend('mana foto bm kak');
+      assert(match !== null, 'Permintaan "mana foto bm kak" harus menemukan produk BM');
+      assert.strictEqual(match.product.sku, testSku, 'Harus mencocokkan produk BM');
+    } finally {
+      safeDeleteProduct(testProd);
+    }
+  });
+
+  test('3.6. Resolusi kontekstual chat logs saat pelanggan bilang "Liat fotonya" untuk produk AFR', () => {
+    clearSentProductImageCache();
+    const testContact = `62899998888${Date.now()}@c.us`;
+    const testSku = `TDD-CTX-${Date.now()}`;
+    const testProd = db.createProduct({
+      sku: testSku,
+      name: 'AFR Kontekstual Guppy TDD',
+      category: 'Ikan Guppy',
+      price: 250000,
+      stock: 10,
+      description: 'Guppy merah top grade',
+      image_path: dummyJpgPath
+    });
+
+    // Simulasikan bot baru saja mengirim daftar stok guppy AFR
+    db.createChatLog({
+      contact: testContact,
+      message_in: 'Halo min stok ikan apa aja?',
+      message_out: 'Halo Kak! Untuk stok ikan guppy ready saat ini:\n📁 Guppy\n• AFR Kontekstual Guppy TDD - Rp250.000\nGimana Kak mau tanya dulu?',
+      handled_by: 'ai'
+    });
+
+    try {
+      const match = findProductImageToSend('Liat fotonya', testContact);
+      assert(match !== null, 'Permintaan pendek "Liat fotonya" harus menemukan AFR dari riwayat chat');
+      assert.strictEqual(match.product.sku, testSku);
+    } finally {
+      safeDeleteProduct(testProd);
+    }
+  });
+
+  test('3.7. findProductImagesToSend mengembalikan beberapa produk yang relevan (multi-image)', () => {
+    clearSentProductImageCache();
+    const sku1 = `TDD-MULTI1-${Date.now()}`;
+    const sku2 = `TDD-MULTI2-${Date.now()}`;
+    const prod1 = db.createProduct({
+      sku: sku1,
+      name: 'AFR Albino Full Red Multi TDD',
+      category: 'Guppy',
+      price: 250000,
+      stock: 10,
+      image_path: dummyJpgPath
+    });
+    const prod2 = db.createProduct({
+      sku: sku2,
+      name: 'Albino Koi Red Ear Multi TDD',
+      category: 'Guppy',
+      price: 125000,
+      stock: 10,
+      image_path: dummyPngPath
+    });
+
+    try {
+      assert(typeof findProductImagesToSend === 'function', 'findProductImagesToSend harus berupa function');
+      const matches = findProductImagesToSend('Liat foto afr sama albino koi nya kak');
+      assert(Array.isArray(matches), 'Hasil harus berupa array');
+      assert(matches.length >= 2, `Harus menemukan minimal 2 produk, ditemukan: ${matches.length}`);
+      const skus = matches.map(m => m.product.sku);
+      const hasAfr = skus.includes(sku1) || matches.some(m => m.product.name.includes('AFR'));
+      const hasKoi = skus.includes(sku2) || matches.some(m => m.product.name.includes('Albino Koi'));
+      assert(hasAfr, 'Harus memuat AFR');
+      assert(hasKoi, 'Harus memuat Albino Koi Red Ear');
+    } finally {
+      safeDeleteProduct(prod1);
+      safeDeleteProduct(prod2);
+    }
   });
 
   // -------------------------------------------------------------
@@ -273,6 +399,50 @@ async function runTests() {
     assert.strictEqual(sentPayload.content.mimetype, 'image/png', 'Mimetype harus dikirim ke Baileys');
   });
 
+  await testAsync('4.4. Baileys adapter sendMedia menyematkan valid jpegThumbnail Buffer (bypass sharp/jimp requirement)', async () => {
+    const adapter = new BaileysEngineAdapter();
+    let sentPayload = null;
+
+    adapter.sock = {
+      sendMessage: async (jid, content, options) => {
+        sentPayload = { jid, content, options };
+        return { key: { id: 'BAILEYS_MSG_004' } };
+      }
+    };
+
+    await adapter.sendMedia('628123456789@c.us', dummyJpgPath, {
+      caption: 'Test Thumbnail Bypass'
+    });
+
+    assert(sentPayload !== null, 'sendMessage harus dipanggil');
+    assert(sentPayload.content.jpegThumbnail, 'jpegThumbnail harus disematkan pada pesan gambar');
+    assert(Buffer.isBuffer(sentPayload.content.jpegThumbnail) || typeof sentPayload.content.jpegThumbnail === 'string', 'jpegThumbnail harus berupa Buffer atau base64');
+  });
+
+  await testAsync('4.5. Baileys adapter sendMessage menyematkan valid jpegThumbnail Buffer pada objek media', async () => {
+    const adapter = new BaileysEngineAdapter();
+    let sentPayload = null;
+
+    adapter.sock = {
+      sendMessage: async (jid, content, options) => {
+        sentPayload = { jid, content, options };
+        return { key: { id: 'BAILEYS_MSG_005' } };
+      }
+    };
+
+    const mediaObj = {
+      buffer: dummyPngBuffer,
+      mimetype: 'image/png'
+    };
+
+    await adapter.sendMessage('628123456789@c.us', mediaObj, {
+      caption: 'Test Media Message Thumbnail'
+    });
+
+    assert(sentPayload !== null);
+    assert(sentPayload.content.jpegThumbnail, 'jpegThumbnail harus otomatis disematkan agar Baileys tidak crash');
+  });
+
   // -------------------------------------------------------------
   // GROUP 5: ANDROID TMPDIR WRITABLE ENVIRONMENT
   // -------------------------------------------------------------
@@ -341,7 +511,118 @@ async function runTests() {
       assert(sentOptions && sentOptions.caption && sentOptions.caption.includes('Kopi Susu Aren Spesial E2E'), 'Caption harus memuat nama produk');
       assert.strictEqual(sentOptions.mimeType, 'image/jpeg', 'MimeType harus image/jpeg');
     } finally {
-      if (e2eProd && e2eProd.id) db.deleteProduct(e2eProd.id);
+      safeDeleteProduct(e2eProd);
+    }
+  });
+
+  await testAsync('6.2. Simulasi persis masalah.jpeg (Liat foto afr nya): Bot mengirim foto AFR', async () => {
+    const { handleBusinessMessage } = require('../src/engine/handlers/business-handler');
+    clearSentProductImageCache();
+
+    const afrSku = `TDD-AFR-PIC-${Date.now()}`;
+    const afrProd = db.createProduct({
+      sku: afrSku,
+      name: 'AFR (Albino Full Red)',
+      category: 'Ikan Guppy',
+      price: 250000,
+      stock: 10,
+      description: 'Guppy merah merona kualitas top grade',
+      image_path: dummyJpgPath
+    });
+
+    let sentMedias = [];
+    const mockClient = {
+      sendMedia: async (target, media, options) => {
+        sentMedias.push({ target, media, options });
+        return { key: { id: 'AFR_MEDIA_SENT' } };
+      },
+      sendMessage: async (target, content, options) => {
+        return { key: { id: 'AFR_TXT_SENT' } };
+      }
+    };
+
+    const mockMessage = {
+      from: '628892114763@c.us',
+      body: 'Liat foto afr nya',
+      reply: async (text) => mockClient.sendMessage('628892114763@c.us', text),
+      getChat: async () => ({
+        sendSeen: async () => {},
+        sendStateTyping: async () => {},
+        clearState: async () => {}
+      })
+    };
+
+    try {
+      await handleBusinessMessage(mockMessage, mockClient);
+      assert(sentMedias.length > 0, 'Pesan "Liat foto afr nya" harus mengirimkan media foto produk');
+      const mediaEntry = sentMedias[0];
+      assert(mediaEntry.options.caption.includes('AFR'), 'Caption harus memuat AFR');
+    } finally {
+      safeDeleteProduct(afrProd);
+    }
+  });
+
+  await testAsync('6.3. Simulasi persis masalah.jpeg (Liat fotonya): Bot membaca konteks chat dan mengirim foto', async () => {
+    const { handleBusinessMessage } = require('../src/engine/handlers/business-handler');
+    clearSentProductImageCache();
+
+    const afrSku = `TDD-AFR-CTX-${Date.now()}`;
+    const koiSku = `TDD-KOI-CTX-${Date.now()}`;
+    const afrProd = db.createProduct({
+      sku: afrSku,
+      name: 'AFR (Albino Full Red)',
+      category: 'Ikan Guppy',
+      price: 250000,
+      stock: 10,
+      image_path: dummyJpgPath
+    });
+    const koiProd = db.createProduct({
+      sku: koiSku,
+      name: 'Albino Koi Red Ear',
+      category: 'Ikan Guppy',
+      price: 125000,
+      stock: 10,
+      image_path: dummyPngPath
+    });
+
+    const testContact = `628892114763_CTX_${Date.now()}@c.us`;
+
+    // Chat log sebelumnya berisi penawaran AFR dan Albino Koi Red Ear persis seperti di screenshot
+    db.createChatLog({
+      contact: testContact,
+      message_in: 'Halo min ikan apa aja yang ready?',
+      message_out: 'Halo Kak! Untuk stok ikan guppy yang ready di toko kami saat ini, berikut pilihannya ya Kak:\n\n📁 Guppy\n• AFR — Rp250.000\n• Albino Koi Red Ear — Rp125.000\n\nGimana Kak, ada yang menarik perhatian atau mau ditanyakan dulu seputar ikannya? 😊',
+      handled_by: 'ai'
+    });
+
+    let sentMedias = [];
+    const mockClient = {
+      sendMedia: async (target, media, options) => {
+        sentMedias.push({ target, media, options });
+        return { key: { id: 'CTX_MEDIA_SENT' } };
+      },
+      sendMessage: async (target, content, options) => {
+        return { key: { id: 'CTX_TXT_SENT' } };
+      }
+    };
+
+    const mockMessage = {
+      from: testContact,
+      body: 'Liat fotonya',
+      reply: async (text) => mockClient.sendMessage(testContact, text),
+      getChat: async () => ({
+        sendSeen: async () => {},
+        sendStateTyping: async () => {},
+        clearState: async () => {}
+      })
+    };
+
+    try {
+      await handleBusinessMessage(mockMessage, mockClient);
+      assert(sentMedias.length > 0, 'Pesan "Liat fotonya" harus memicu pengiriman foto produk dari riwayat rekomendasi chat');
+    } finally {
+      safeDeleteProduct(afrProd);
+      safeDeleteProduct(koiProd);
     }
   });
 
