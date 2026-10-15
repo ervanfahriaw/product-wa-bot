@@ -230,6 +230,16 @@ copyDirRecursive(
 console.log('  📄 Menyalin package.json...');
 fs.copyFileSync(path.join(ROOT_DIR, 'package.json'), path.join(ASSETS_PROJECT_DIR, 'package.json'));
 
+// Copy public/ (logo, static assets)
+if (fs.existsSync(path.join(ROOT_DIR, 'public'))) {
+  console.log('  🎨 Menyalin direktori public/...');
+  copyDirRecursive(
+    path.join(ROOT_DIR, 'public'),
+    path.join(ASSETS_PROJECT_DIR, 'public'),
+    ['.DS_Store', '.git']
+  );
+}
+
 // Copy cached node_modules.zip runtime
 const cachedModulesZip = path.join(ANDROID_DIR, 'node_modules.zip');
 if (fs.existsSync(cachedModulesZip)) {

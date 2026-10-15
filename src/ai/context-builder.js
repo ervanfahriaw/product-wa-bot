@@ -730,6 +730,18 @@ function buildContext(message, mode = 'bisnis', contact = null) {
     if (mode === 'bisnis') {
       const profileContext = buildBusinessProfileContext();
       if (profileContext) parts.push(profileContext);
+
+      // Injeksi status jeda terima pesanan jika diaktifkan owner
+      const config = getConfig();
+      const pauseOrders = db.getSetting ? (db.getSetting('pause_orders') === 'true' || db.getSetting('pause_orders') === true) : Boolean(config.pause_orders);
+      if (pauseOrders) {
+        const defaultReason = 'Mohon maaf, saat ini kami sedang menjeda penerimaan pesanan baru karena pesanan sedang membludak. Silakan hubungi kami beberapa saat lagi ya Kak! 🙏';
+        const pauseReason = (db.getSetting && db.getSetting('pause_orders_reason')) || config.pause_orders_reason || defaultReason;
+        parts.push(`[STATUS OPERASIONAL TOKO: PENERIMAAN PESANAN SEDANG DIJEDA]:
+- PERHATIAN PENTING: Pemilik toko saat ini MENJEDA penerimaan pesanan baru.
+- Alasan dari Pemilik Toko: "${pauseReason}".
+- INSTRUKSI AI: Jika pelanggan berniat memesan, ingin checkout, beli, transfer, atau menanyakan pemesanan, sampaikan dengan SANGAT RAMAH, HANGAT, dan SANTUN bahwa penerimaan pesanan saat ini sedang dijeda sementara karena alasan di atas. DILARANG membuat atau mencatat pesanan baru.`);
+      }
     }
 
     const dataContext = mode === 'bisnis' 

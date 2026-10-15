@@ -148,7 +148,7 @@
       <!-- 2. Mode Bot / Edition Info -->
       <%
         const isLocked = typeof editionInfo !== 'undefined' && editionInfo.isModeLocked;
-        const editionName = typeof editionInfo !== 'undefined' ? editionInfo.name : 'WA Bot Assistant';
+        const editionName = typeof editionInfo !== 'undefined' ? editionInfo.name : 'WA Bot Bisnis AI';
       %>
       <div class="py-5 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -298,7 +298,8 @@
             <label class="text-xs font-medium text-[#71717A]">Panjang Respon</label>
             <select name="response_length" x-model="responseLength"
                     class="w-full px-3 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
-              <option value="ringkas">Ringkas</option>
+              <option value="super_ringkas">Super Ringkas (Maks. 1-2 Baris)</option>
+              <option value="ringkas">Ringkas (1-2 Kalimat)</option>
               <option value="sedang">Sedang (Standar)</option>
               <option value="detail">Detail & Lengkap</option>
             </select>
@@ -309,7 +310,8 @@
             <label class="text-xs font-medium text-[#71717A]">Intensitas Emoji</label>
             <select name="emoji_level" x-model="emojiLevel"
                     class="w-full px-3 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
-              <option value="minimal">Minimal / Tanpa Emoji</option>
+              <option value="none">Tanpa Emoji (0% Bebas Emotikon)</option>
+              <option value="minimal">Minimalis (Maks. 1 Emoji)</option>
               <option value="wajar">Wajar (1-2 emoji)</option>
               <option value="ekspresif">Ceria & Ekspresif</option>
             </select>

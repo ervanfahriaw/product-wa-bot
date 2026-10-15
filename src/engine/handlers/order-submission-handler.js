@@ -56,6 +56,17 @@ async function handleCustomerOrderSubmission(message, client) {
     const orderItems = parsed.order_summary || 'Pesanan Produk';
     const notes = parsed.notes || '';
 
+    // Periksa apakah owner sedang mengaktifkan jeda penerimaan pesanan
+    const config = getConfig();
+    const pauseOrders = db.getSetting ? (db.getSetting('pause_orders') === 'true' || db.getSetting('pause_orders') === true) : Boolean(config.pause_orders);
+    if (pauseOrders) {
+      const defaultReason = 'Mohon maaf, saat ini kami sedang menjeda penerimaan pesanan baru karena pesanan sedang membludak. Silakan hubungi kami beberapa saat lagi ya Kak! 🙏';
+      const reason = (db.getSetting && db.getSetting('pause_orders_reason')) || config.pause_orders_reason || defaultReason;
+      const pauseReply = `Halo Kak ${customerName}!\n\n${reason}\n\nForm pesanan Kakak belum dapat kami proses saat ini. Mohon berkenan menunggu ya Kak, nanti saat antrean pesanan sudah terurai akan segera kami kabari. Terima kasih banyak atas pengertian dan kesabarannya 🙏`;
+      await message.reply(pauseReply);
+      return true;
+    }
+
     // 1. Simpan ke database orders
     const orderId = db.createOrder({
       contact: resolvedContact,

@@ -46,7 +46,9 @@ function buildPersonalityPrompt(config = {}, mode = 'bisnis') {
 
   // 2. Panjang Jawaban
   const length = config.response_length || 'sedang';
-  if (length === 'ringkas') {
+  if (length === 'super_ringkas') {
+    instructions.push('- PANJANG BALASAN: SUPER RINGKAS! Maksimal 1-2 baris kalimat per respon/bubble chat (sangat to-the-point, jangan bertele-tele atau menjelaskan hal yang tidak ditanya). Buat balasan seringkas mungkin.');
+  } else if (length === 'ringkas') {
     instructions.push('- PANJANG BALASAN: Ringkas, padat, dan to the point (maksimal 1-2 kalimat/paragraf singkat). Langsung ke inti tanpa basa-basi panjang.');
   } else if (length === 'detail') {
     instructions.push('- PANJANG BALASAN: Lengkap dan detail. Jelaskan informasi secara runtut dan jelas.');
@@ -56,7 +58,9 @@ function buildPersonalityPrompt(config = {}, mode = 'bisnis') {
 
   // 3. Intensitas Emoji
   const emoji = config.emoji_level || 'wajar';
-  if (emoji === 'minimal') {
+  if (emoji === 'none' || emoji === 'tanpa_emoji') {
+    instructions.push('- PENGGUNAAN EMOJI: MUTLAK TANPA EMOJI. Dilarang keras menggunakan emoji atau simbol emotikon apa pun dalam teks balasan!');
+  } else if (emoji === 'minimal') {
     instructions.push('- PENGGUNAAN EMOJI: Minimalis. Gunakan sedikit sekali atau tanpa emoji sama sekali (maksimal 1 emoji jika sangat diperlukan).');
   } else if (emoji === 'ekspresif') {
     instructions.push('- PENGGUNAAN EMOJI: Ekspresif dan ceria. Gunakan emoji yang menarik dan variatif (3-5 emoji) agar pesan terasa hidup dan seru.');
@@ -102,9 +106,10 @@ function loadSystemPrompt(mode, config = {}) {
  * Membersihkan format teks agar rapi dan sesuai format WhatsApp (*tebal*, bukan **tebal**).
  * Menghilangkan tag scratchpad/thinking atau kebocoran chain-of-thought AI jika ada.
  * @param {string} text 
+ * @param {object} [config]
  * @returns {string}
  */
-function cleanWhatsAppFormatting(text = '') {
+function cleanWhatsAppFormatting(text = '', config = {}) {
   if (!text) return '';
   let cleaned = text;
 
@@ -135,6 +140,14 @@ function cleanWhatsAppFormatting(text = '') {
   // 6. Rapikan baris kosong berlebih
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
+  // 7. Jika konfigurasi emoji_level adalah none / tanpa_emoji, hilangkan semua emoji secara menyeluruh
+  // Menggunakan rentang surrogate pair UTF-16 standar yang 100% didukung semua engine V8/Node.js mobile Android
+  if (config && (config.emoji_level === 'none' || config.emoji_level === 'tanpa_emoji')) {
+    const surrogateEmojiRegex = /(?:[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|\uD83E[\uDD00-\uDFFF]|[\u2011-\u26FF])/g;
+    cleaned = cleaned.replace(surrogateEmojiRegex, '');
+    cleaned = cleaned.replace(/[ \t]{2,}/g, ' ');
+  }
+
   return cleaned;
 }
 
@@ -149,7 +162,7 @@ function cleanWhatsAppFormatting(text = '') {
  * @param {string|null} [params.contact]
  * @returns {Promise<{reply: string, error: string|null, handledBy: string, handoverRequired: boolean}>}
  */
-async function generateReply({ message, mode = null, imageBase64 = null, mimeType = 'image/jpeg', apiKeyOverride = null, contact = null }) {
+async function generateReply({ message, mode = null, imageBase64 = null, mimeType = 'image/jpeg', apiKeyOverride = null, contact = null, systemPromptOverride = null, bypassContext = false }) {
   const config = getConfig();
   const activeMode = mode || config.mode || 'bisnis';
   const geminiKey = apiKeyOverride || config.gemini_api_key;
@@ -164,13 +177,13 @@ async function generateReply({ message, mode = null, imageBase64 = null, mimeTyp
             : 'Tolong analisis foto barang/produk yang dikirim pelanggan ini, kenali nama barang dan bantu informasikan ketersediaan stok atau keterangannya.')
         : '');
 
-  // 1. Bangun RAG Context dari database SQLite + Riwayat Chat
-  const dbContext = buildContext(effectiveMessage, activeMode, contact);
+  // 1. Bangun RAG Context dari database SQLite + Riwayat Chat (kecuali di-bypass)
+  const dbContext = bypassContext ? '' : buildContext(effectiveMessage, activeMode, contact);
   
-  // 2. Susun System Prompt dengan kustomisasi persona
-  const systemPrompt = loadSystemPrompt(activeMode, config);
+  // 2. Susun System Prompt dengan kustomisasi persona atau override khusus
+  const systemPrompt = systemPromptOverride || loadSystemPrompt(activeMode, config);
   const userLabel = activeMode === 'admin' ? 'Pesan dari Pemilik Toko / Admin:' : 'Pesan Pelanggan / User:';
-  const fullPrompt = `${dbContext}\n\n${userLabel}\n"${effectiveMessage}"`;
+  const fullPrompt = bypassContext ? effectiveMessage : `${dbContext}\n\n${userLabel}\n"${effectiveMessage}"`;
 
   let response;
 
@@ -190,13 +203,14 @@ async function generateReply({ message, mode = null, imageBase64 = null, mimeTyp
   const rawReply = response.reply || '';
   const handoverRequired = rawReply.includes('[HANDOVER_REQUIRED]');
   const withoutTag = rawReply.replace(/\[HANDOVER_REQUIRED\]/g, '').trim();
-  const cleanReply = cleanWhatsAppFormatting(withoutTag);
+  const cleanReply = cleanWhatsAppFormatting(withoutTag, config);
 
   return {
     reply: cleanReply,
     error: response.error,
     handledBy: 'ai',
-    handoverRequired
+    handoverRequired,
+    tokens: response.tokens || { prompt: 0, candidates: 0, total: 0 }
   };
 }
 

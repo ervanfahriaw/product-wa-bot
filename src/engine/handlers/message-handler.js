@@ -11,6 +11,11 @@ const { enqueueIncomingMessage } = require('../message-buffer');
  */
 async function processAggregatedMessage(message, client) {
   try {
+    // Pengaman anti-loop: Jangan pernah proses pesan keluar ke kontak lain
+    if (message && message.fromMe && !message.isSelfChat) {
+      return;
+    }
+
     // 0. Cek apakah pesan berasal dari owner/admin
     if (isOwnerMessage(message)) {
       // 0a. Coba jalankan perintah command manajemen bot
@@ -58,6 +63,13 @@ async function processAggregatedMessage(message, client) {
  */
 async function handleIncomingMessage(message, client) {
   try {
+    if (!message) return;
+
+    // Pengaman utama anti-loop: Abaikan pesan keluar (fromMe = true) ke nomor lain
+    if (message.fromMe && !message.isSelfChat) {
+      return;
+    }
+
     const sender = message.from || 'unknown';
     const body = message.body || '';
     const type = message.type || 'text';

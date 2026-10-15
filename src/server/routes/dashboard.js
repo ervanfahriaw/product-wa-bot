@@ -35,6 +35,7 @@ router.use((req, res, next) => {
   res.locals.fingerprint = getDeviceFingerprint();
   res.locals.pendingHandoverCount = db.getPendingHandoverCount ? db.getPendingHandoverCount() : 0;
   res.locals.todayAiCount = db.getTodayAiMessageCount ? db.getTodayAiMessageCount() : 0;
+  res.locals.todayAiTokens = db.getTodayAiTokenCount ? db.getTodayAiTokenCount() : 0;
   next();
 });
 
@@ -54,12 +55,17 @@ router.get('/', (req, res) => {
     stats.totalChatLogs = db.getAllChatLogs(1000, 0).length;
   } catch (_) {}
 
+  const pauseOrders = db.getSetting ? (db.getSetting('pause_orders') === 'true') : Boolean(config.pause_orders);
+  const pauseOrdersReason = (db.getSetting && db.getSetting('pause_orders_reason')) || config.pause_orders_reason || 'Mohon maaf, saat ini kami sedang menjeda penerimaan pesanan baru karena pesanan sedang membludak. Silakan hubungi kami beberapa saat lagi ya Kak! 🙏';
+
   res.render('dashboard/index', {
     title: 'Panel Kontrol Bot',
     activeMenu: 'dashboard',
     config,
     status,
-    stats
+    stats,
+    pauseOrders,
+    pauseOrdersReason
   });
 });
 
@@ -1205,6 +1211,16 @@ router.post('/orders/:id/status', async (req, res) => {
 router.post('/orders/:id/delete', (req, res) => {
   db.deleteOrder(Number(req.params.id));
   return res.redirect('/dashboard/orders');
+});
+
+// 22. Buku Panduan & Dokumentasi (Manual Book)
+router.get('/manual-book', (req, res) => {
+  const config = getConfig();
+  res.render('dashboard/manual-book', {
+    title: 'Buku Panduan & Dokumentasi',
+    activeMenu: 'manual-book',
+    config
+  });
 });
 
 module.exports = router;

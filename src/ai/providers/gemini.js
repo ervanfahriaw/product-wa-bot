@@ -164,9 +164,19 @@ async function callGemini(prompt, systemInstruction = '', options = {}) {
       // Simpan model yang terbukti berhasil
       cachedWorkingModel = model;
 
+      const usageMetadata = data.usageMetadata || {};
+      const promptTokens = Number(usageMetadata.promptTokenCount) || 0;
+      const candidatesTokens = Number(usageMetadata.candidatesTokenCount) || 0;
+      const totalTokens = Number(usageMetadata.totalTokenCount) || (promptTokens + candidatesTokens);
+
       return {
         reply: textPart.trim(),
-        error: null
+        error: null,
+        tokens: {
+          prompt: promptTokens,
+          candidates: candidatesTokens,
+          total: totalTokens
+        }
       };
     } catch (err) {
       const isTimeout = err.name === 'AbortError';

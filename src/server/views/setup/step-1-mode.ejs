@@ -14,6 +14,7 @@
        x-data="{ selectedMode: '<%= isBisnisEd ? 'bisnis' : (isPersonalEd ? 'personal' : (config.mode || 'bisnis')) %>' }">
     
     <div class="text-center space-y-1.5">
+      <img src="/logo.svg" alt="WA Bot Bisnis AI" class="w-12 h-12 mx-auto mb-2 rounded-2xl shadow-sm">
       <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border <%= edition.theme ? edition.theme.badgeClass : 'bg-zinc-100 text-zinc-800 border-zinc-200' %>">
         <%= edition.theme ? edition.theme.badgeText : 'Setup Wizard' %>
       </div>

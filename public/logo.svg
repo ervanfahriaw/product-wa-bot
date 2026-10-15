@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="100%" height="100%">
+  <defs>
+    <linearGradient id="waBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#25D366" />
+      <stop offset="60%" stop-color="#128C7E" />
+      <stop offset="100%" stop-color="#075E54" />
+    </linearGradient>
+    <filter id="subtleShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2.5" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.22" />
+    </filter>
+  </defs>
+
+  <!-- Background Base (Squircle / Rounded Box) -->
+  <rect x="4" y="4" width="100" height="100" rx="28" fill="url(#waBgGrad)" />
+
+  <!-- Iconic Solid White WhatsApp Speech Bubble with Tail -->
+  <path d="M54,18 C34.12,18 18,34.12 18,54 C18,60.85 19.92,67.24 23.27,72.7 L19,89 L35.84,84.6 C41.04,87.42 47.33,89.04 54,89.04 C73.88,89.04 90,72.92 90,53.04 C90,33.16 73.88,18 54,18 Z" 
+        fill="#FFFFFF" 
+        filter="url(#subtleShadow)" />
+
+  <!-- Bold Typography "AI" in WhatsApp Emerald Green inside the speech bubble -->
+  <!-- Letter 'A' -->
+  <path d="M43,36 L47.5,36 L56.5,67 L50.2,67 L48.1,59.5 L38.3,59.5 L36.2,67 L30,67 Z M43.2,43.2 L40,54.2 L46.4,54.2 Z" 
+        fill="#075E54" />
+
+  <!-- Letter 'I' -->
+  <rect x="61" y="36" width="7" height="31" rx="2.5" fill="#075E54" />
+
+  <!-- Gold/Yellow Sparkle Accent on top of 'I' -->
+  <path d="M73,30 L74.8,34.2 L79,36 L74.8,37.8 L73,42 L71.2,37.8 L67,36 L71.2,34.2 Z" 
+        fill="#FACC15" />
+</svg>

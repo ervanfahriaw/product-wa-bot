@@ -530,6 +530,7 @@ async function runTestAsync(suiteName, testName, fn) {
     'dashboard/analytics.ejs',
     'dashboard/export.ejs',
     'dashboard/settings.ejs',
+    'dashboard/manual-book.ejs',
     // Setup views
     'setup/step-1-mode.ejs',
     'setup/step-2-qr.ejs',

@@ -228,12 +228,154 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
       level: 'info',
       timestamp: () => `,"time":"${new Date().toISOString()}"`
     });
-    this.isDestroyed = false;
+    this.reconnectAttempts = 0;
     this.reconnectTimer = null;
+    this.watchdogTimer = null;
+    this.lastWatchdogTime = Date.now();
     this.saveCreds = null;
     this.myJid = null;
+    this.sentMessageIds = new Set();
+    this.sentMessageTimes = new Map();
     this.toBaileysJid = toBaileysJid;
     this.toInternalJid = toInternalJid;
+  }
+
+  /**
+   * Menjadwalkan reconnect otomatis dengan exponential backoff retry loop.
+   * Terus mencoba menyambung ulang tanpa batas saat HP tidur atau berganti jaringan.
+   * @param {string} [reason]
+   * @param {number} [baseDelayMs]
+   */
+  scheduleAutoReconnect(reason = 'Koneksi terputus', baseDelayMs = 2500) {
+    if (this.isDestroyed) return;
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    this.reconnectAttempts++;
+    // Exponential backoff: 2.5s, 5s, 10s, 15s... max 30s
+    const delay = Math.min(30000, Math.max(baseDelayMs, Math.pow(1.5, Math.min(this.reconnectAttempts, 8)) * 1500));
+    console.log(`[Baileys] 🔄 Menjadwalkan reconnect otomatis ke-${this.reconnectAttempts} dalam ${Math.round(delay / 1000)} detik (alasan: ${reason})...`);
+
+    setStatus(ENGINE_STATUS.CONNECTING, {
+      errorMessage: `Menyambungkan ulang (percobaan #${this.reconnectAttempts})...`
+    });
+
+    this.reconnectTimer = setTimeout(async () => {
+      if (this.isDestroyed) return;
+      try {
+        console.log(`[Baileys] 🚀 Menjalankan reconnect otomatis ke-${this.reconnectAttempts}...`);
+        await this.reconnect();
+      } catch (err) {
+        console.error(`[Baileys] ⚠️ Gagal auto-reconnect ke-${this.reconnectAttempts}: ${err.message}. Menjadwalkan retry berikutnya...`);
+        setStatus(ENGINE_STATUS.CONNECTING, {
+          errorMessage: `Koneksi terputus (${err.message}). Mencoba ulang...`
+        });
+        this.scheduleAutoReconnect('Retry loop pasca error', delay);
+      }
+    }, delay);
+
+    if (this.reconnectTimer && this.reconnectTimer.unref) {
+      this.reconnectTimer.unref();
+    }
+  }
+
+  /**
+   * Memulai watchdog heartbeat berkala untuk Baileys engine.
+   * Mendeteksi sleep gap (saat HP baru bangun dari tidur) dan socket yang mati secara diam-diam.
+   * @param {number} [intervalMs]
+   */
+  startWatchdog(intervalMs = 25000) {
+    this.stopWatchdog();
+    this.lastWatchdogTime = Date.now();
+
+    this.watchdogTimer = setInterval(async () => {
+      if (this.isDestroyed) return;
+      const now = Date.now();
+      const elapsed = now - this.lastWatchdogTime;
+      this.lastWatchdogTime = now;
+
+      // 1. Deteksi sleep gap (HP baru saja menyala / bangun dari deep sleep)
+      if (elapsed > intervalMs * 2) {
+        console.log(`[Baileys:Watchdog] ⏰ Terdeteksi sistem baru aktif dari sleep/suspend (jeda ${Math.round(elapsed / 1000)}s). Memverifikasi koneksi WhatsApp...`);
+      }
+
+      // 2. Jika status saat ini READY, verifikasi bahwa socket masih ada dan websocket masih open
+      const status = getStatus();
+      if (status.state === ENGINE_STATUS.READY) {
+        const isSocketHealthy = this.sock && this.sock.ws && (this.sock.ws.readyState === 1 || this.sock.ws.isOpen);
+        if (!isSocketHealthy) {
+          console.warn('[Baileys:Watchdog] ⚠️ WebSocket terdeteksi tidak open atau socket terputus saat sleep. Memulai auto-reconnect...');
+          this.scheduleAutoReconnect('Watchdog mendeteksi socket mati', 1000);
+        }
+      } else if (status.state === ENGINE_STATUS.CONNECTING || status.state === ENGINE_STATUS.DISCONNECTED) {
+        if (!this.reconnectTimer) {
+          console.warn('[Baileys:Watchdog] ⚠️ Engine dalam status terputus tanpa timer aktif. Memicu reconnect...');
+          this.scheduleAutoReconnect('Watchdog heartbeat recovery', 1000);
+        }
+      }
+    }, intervalMs);
+
+    if (this.watchdogTimer && this.watchdogTimer.unref) {
+      this.watchdogTimer.unref();
+    }
+  }
+
+  /**
+   * Menghentikan watchdog heartbeat.
+   */
+  stopWatchdog() {
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
+  }
+
+  /**
+   * Mencatat ID pesan yang dikirim oleh bot untuk mencegah refleksi loop.
+   * @param {string} id 
+   */
+  recordBotSentMessage(id) {
+    if (!id) return;
+    this.sentMessageIds.add(id);
+    this.sentMessageTimes.set(id, Date.now());
+    if (this.sentMessageIds.size > 1500) {
+      const oldestKey = this.sentMessageIds.values().next().value;
+      this.sentMessageIds.delete(oldestKey);
+      this.sentMessageTimes.delete(oldestKey);
+    }
+  }
+
+  /**
+   * Memeriksa apakah pesan berasal dari pesan keluar yang dikirim oleh bot.
+   * @param {string} id 
+   * @returns {boolean}
+   */
+  isBotSentMessage(id) {
+    if (!id) return false;
+    return this.sentMessageIds.has(id);
+  }
+
+  /**
+   * Memeriksa apakah sebuah JID mengarah ke nomor akun bot ini sendiri (self-chat).
+   * @param {string} jid 
+   * @returns {boolean}
+   */
+  isSelfJid(jid) {
+    if (!jid) return false;
+    const clean = jid.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+    if (!clean) return false;
+    if (this.sock?.user?.id) {
+      const userClean = this.sock.user.id.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+      if (clean === userClean) return true;
+    }
+    if (this.myJid) {
+      const myClean = this.myJid.split('@')[0].split(':')[0].replace(/[^0-9]/g, '');
+      if (clean === myClean) return true;
+    }
+    return false;
   }
 
   get rawClient() {
@@ -331,31 +473,21 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
           console.warn(`[Baileys] Koneksi WhatsApp terputus (status code: ${statusCode}, alasan: ${errorMsg}). Reconnect: ${!isLoggedOut}`);
 
           if (isLoggedOut) {
+            this.stopWatchdog();
             resetStatus('Sesi telah keluar. Silakan scan ulang.');
             this.emitDisconnected('Sesi telah keluar');
           } else {
-            setStatus(ENGINE_STATUS.CONNECTING, {
-              errorMessage: `Menyambungkan ulang (${errorMsg})...`
-            });
             this.emitDisconnected(errorMsg);
-
-            if (!this.isDestroyed) {
-              console.log('[Baileys] 🔄 Menjadwalkan reconnect otomatis...');
-              if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-              this.reconnectTimer = setTimeout(() => {
-                if (this.sock === currentSock && !this.isDestroyed) {
-                  this.reconnect().catch(err => {
-                    console.error('[Baileys] Gagal auto-reconnect:', err.message);
-                    setStatus(ENGINE_STATUS.DISCONNECTED, {
-                      errorMessage: `Gagal menyambung: ${err.message}`
-                    });
-                  });
-                }
-              }, 2500);
-            }
+            this.scheduleAutoReconnect(errorMsg, 2500);
           }
         } else if (connection === 'open') {
           this.isInitializing = false;
+          this.reconnectAttempts = 0;
+          if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+          }
+
           const user = currentSock.user || {};
           const pushname = user.name || user.notify || 'User';
           const phone = (user.id || '').split(':')[0].replace(/[^0-9]/g, '');
@@ -376,6 +508,9 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
           this.emitReady(info);
           console.log(`[Baileys] WhatsApp Bot SIAP (Ready) - Tersambung sebagai: ${pushname} (${phone})`);
 
+          // Aktifkan watchdog pemantau kesehatan koneksi
+          this.startWatchdog(25000);
+
           // Jalankan scheduler reminder otomatis
           try {
             const { startReminderScheduler } = require('../reminder-scheduler');
@@ -394,6 +529,20 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
           const remoteJid = rawMsg.key?.remoteJid || '';
           // Abaikan status update / broadcast status
           if (remoteJid === 'status@broadcast') continue;
+
+          // 1. Abaikan jika ID pesan tercatat sebagai pesan yang dikirim oleh bot ini sendiri
+          const msgId = rawMsg.key?.id;
+          if (msgId && this.isBotSentMessage(msgId)) {
+            continue;
+          }
+
+          // 2. Abaikan pesan keluar (fromMe = true) ke nomor lain (pelanggan / nomor kontak lain)
+          // Kecuali jika ini adalah "self-chat" (percakapan/catatan ke nomor bot sendiri)
+          const isFromMe = Boolean(rawMsg.key?.fromMe);
+          const isSelfChat = isFromMe && this.isSelfJid(remoteJid);
+          if (isFromMe && !isSelfChat) {
+            continue;
+          }
 
           const normalized = this.normalizeMessage(rawMsg);
           if (normalized) {
@@ -420,6 +569,7 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
    */
   async destroy() {
     this.isDestroyed = true;
+    this.stopWatchdog();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -488,20 +638,26 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
     if (content && typeof content === 'object' && content.data) {
       const buffer = Buffer.from(content.data, 'base64');
       const caption = options.caption || content.caption || '';
-      return await this.sock.sendMessage(targetJid, {
+      const sent = await this.sock.sendMessage(targetJid, {
         image: buffer,
         caption
       });
+      if (sent?.key?.id) this.recordBotSentMessage(sent.key.id);
+      return sent;
     }
 
     // Jika content adalah objek Baileys murni (misal { text: '...' } atau { image: ... })
     if (content && typeof content === 'object' && (content.text || content.image || content.video)) {
-      return await this.sock.sendMessage(targetJid, content);
+      const sent = await this.sock.sendMessage(targetJid, content);
+      if (sent?.key?.id) this.recordBotSentMessage(sent.key.id);
+      return sent;
     }
 
     // Pengiriman teks standar
     const text = typeof content === 'string' ? content : String(content);
-    return await this.sock.sendMessage(targetJid, { text });
+    const sent = await this.sock.sendMessage(targetJid, { text });
+    if (sent?.key?.id) this.recordBotSentMessage(sent.key.id);
+    return sent;
   }
 
   /**
@@ -532,25 +688,29 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
 
     const caption = options.caption || '';
     const mime = options.mimeType || 'image/jpeg';
+    let sent = null;
 
     if (mime.startsWith('image/')) {
-      return await this.sock.sendMessage(targetJid, {
+      sent = await this.sock.sendMessage(targetJid, {
         image: buffer,
         caption
       });
     } else if (mime.startsWith('video/')) {
-      return await this.sock.sendMessage(targetJid, {
+      sent = await this.sock.sendMessage(targetJid, {
         video: buffer,
         caption
       });
     } else {
-      return await this.sock.sendMessage(targetJid, {
+      sent = await this.sock.sendMessage(targetJid, {
         document: buffer,
         mimetype: mime,
         fileName: options.filename || 'dokumen',
         caption
       });
     }
+
+    if (sent?.key?.id) this.recordBotSentMessage(sent.key.id);
+    return sent;
   }
 
   /**
@@ -607,9 +767,18 @@ class BaileysEngineAdapter extends BaseEngineAdapter {
       ? rawMsg.messageTimestamp
       : Math.floor(Date.now() / 1000);
 
+    const isFromMe = Boolean(rawMsg.key.fromMe);
+    const myCleanJid = this.myJid ? toInternalJid(this.myJid) : (this.sock?.user?.id ? toInternalJid(this.sock.user.id) : '');
+    const isSelfChat = isFromMe && this.isSelfJid(rawJid);
+    const isOutgoing = isFromMe && !isSelfChat;
+
     const normalized = {
-      from: internalFrom,
-      to: rawMsg.key.fromMe ? internalFrom : (this.myJid || ''),
+      from: isOutgoing ? (myCleanJid || internalFrom) : internalFrom,
+      to: isFromMe ? internalFrom : (myCleanJid || ''),
+      fromMe: isFromMe,
+      isSelfChat: Boolean(isSelfChat),
+      isOutgoing: Boolean(isOutgoing),
+      id: rawMsg.key.id || '',
       body,
       type,
       timestamp,

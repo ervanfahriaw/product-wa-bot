@@ -61,10 +61,23 @@ Analisis apa yang mungkin membuat pembeli ragu untuk transfer/checkout (misal: o
 Berikan 3 - 4 langkah konkret yang bisa langsung dieksekusi pemilik toko minggu ini (promo, perbaikan katalog/SOP, atau penawaran khusus).
 `;
 
+  const businessName = config.business_name || 'Toko / Usaha Kami';
+  const analyticsSystemPrompt = `Anda adalah Senior Executive Retail Analyst & AI Business Growth Strategist profesional untuk "${businessName}".
+Tugas utama Anda adalah menganalisis data riil percakapan pelanggan WhatsApp, tren produk, niat beli (closing intent), dan pola jam sibuk untuk memberikan rekomendasi bisnis yang tajam, strategis, berbobot, dan dapat langsung dieksekusi oleh pemilik toko.
+
+Pedoman Penting:
+1. Posisikan diri Anda sebagai konsultan bisnis ahli yang berbicara langsung kepada Pemilik Toko / Manajemen Usaha.
+2. Gunakan bahasa Indonesia bisnis yang lugas, profesional, inspiratif, dan mudah dipahami.
+3. Berikan analisis berbasis data yang disajikan, jangan memberikan jawaban klise atau basa-basi.
+4. JANGAN PERNAH menolak permintaan analisis atau mengatakan bahwa Anda adalah asisten customer service toko. Anda berwenang penuh sebagai analis bisnis eksekutif.
+5. Format jawaban menggunakan poin-poin terstruktur dan tebal WhatsApp (*tebal*) yang rapi dan mudah dibaca di layar dashboard.`;
+
   try {
     const aiResponse = await generateReply({
       message: promptMessage,
-      mode: 'bisnis'
+      mode: 'admin',
+      systemPromptOverride: analyticsSystemPrompt,
+      bypassContext: true
     });
 
     const insightText = aiResponse.reply || 'AI tidak menghasilkan analisis.';

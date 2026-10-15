@@ -138,12 +138,24 @@ ensureDirectoriesExist();
 // Body Parser & Static Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use('/public', express.static(path.join(__dirname, 'public')));
+const rootPublicDir = path.resolve(__dirname, '../../public');
+if (fs.existsSync(rootPublicDir)) {
+  app.use(express.static(rootPublicDir));
+  app.use('/public', express.static(rootPublicDir));
+}
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 // Middleware: License & First-Run Guard
 app.use((req, res, next) => {
-  const isStatic = req.path.startsWith('/public') || req.path.startsWith('/uploads') || req.path === '/favicon.ico';
+  const isStatic = req.path.startsWith('/public') || 
+                   req.path.startsWith('/uploads') || 
+                   req.path === '/favicon.ico' || 
+                   req.path === '/logo.svg' ||
+                   req.path.endsWith('.svg') || 
+                   req.path.endsWith('.png') || 
+                   req.path.endsWith('.jpg');
   const isApi = req.path.startsWith('/api');
   const isLicenseRoute = req.path === '/setup/license' || req.path === '/setup/license/deactivate';
 

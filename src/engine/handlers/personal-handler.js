@@ -848,7 +848,8 @@ async function handlePersonalMessage(message, client) {
 
     // Pecah pesan panjang menjadi gelembung chat alami & kirim bertahap
     const maxBubbles = Number(config.max_bubbles) || 3;
-    const bubbles = splitIntoBubbles(finalReply, maxBubbles);
+    const isSuperRingkas = config.response_length === 'super_ringkas';
+    const bubbles = splitIntoBubbles(finalReply, maxBubbles, { superRingkas: isSuperRingkas });
     await sendMultiBubbleMessages(message, client, contact, bubbles, {
       interBubbleDelay: config.inter_bubble_delay
     });
@@ -862,7 +863,8 @@ async function handlePersonalMessage(message, client) {
       contact,
       message_in: recordedInMessage,
       message_out: finalReply,
-      handled_by: 'ai'
+      handled_by: 'ai',
+      tokens_used: aiResult?.tokens?.total || 0
     });
 
   } catch (err) {

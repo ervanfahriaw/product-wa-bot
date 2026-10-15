@@ -45,6 +45,8 @@ function registerOwnerLid(lid, ownerPhone = null) {
  */
 function isOwnerMessage(message) {
   if (!message) return false;
+  if (message.isOutgoing === true) return false;
+  if (message.isSelfChat === true) return true;
   if (message.fromMe === true) return true;
 
   const sender = message.from || '';

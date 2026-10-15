@@ -5,7 +5,7 @@
  * @param {number} [maxBubbles=3] 
  * @returns {string[]}
  */
-function splitIntoBubbles(text = '', maxBubbles = 3) {
+function splitIntoBubbles(text = '', maxBubbles = 3, options = {}) {
   if (!text || typeof text !== 'string') return [];
   const clean = text.trim();
   
@@ -27,6 +27,27 @@ function splitIntoBubbles(text = '', maxBubbles = 3) {
     if (parts.length > 1) {
       return parts;
     }
+  }
+
+  // Jika superRingkas diaktifkan, pisahkan per 1-2 baris kalimat
+  if (options && options.superRingkas) {
+    const lines = clean.split(/\r?\n+/).map(l => l.trim()).filter(Boolean);
+    if (lines.length > 1) {
+      const ringkasBubbles = [];
+      let currentChunk = [];
+      for (const line of lines) {
+        currentChunk.push(line);
+        if (currentChunk.length >= 2) {
+          ringkasBubbles.push(currentChunk.join('\n'));
+          currentChunk = [];
+        }
+      }
+      if (currentChunk.length > 0) {
+        ringkasBubbles.push(currentChunk.join('\n'));
+      }
+      return ringkasBubbles.slice(0, Math.max(maxBubbles, 4));
+    }
+    return [clean];
   }
 
   // Jika pesan pendek (< 250 karakter), jadikan 1 bubble saja

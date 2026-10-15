@@ -290,7 +290,7 @@ router.post('/step-4', (req, res) => {
       }
     } catch (_) {}
 
-    return res.redirect('/dashboard');
+    return res.redirect('/dashboard?tour=start');
   } catch (error) {
     return res.render('setup/step-4-initial-data', getSetupContext({
       title: 'Langkah 4: Masukkan Data Awal',
@@ -318,7 +318,7 @@ router.post('/step-4/skip', (req, res) => {
     }
   } catch (_) {}
 
-  return res.redirect('/dashboard');
+  return res.redirect('/dashboard?tour=start');
 });
 
 module.exports = router;

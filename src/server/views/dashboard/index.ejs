@@ -5,7 +5,76 @@
   <%- include('../partials/sidebar', { activeMenu: 'dashboard', config, pendingHandoverCount }) %>
 
   <!-- Main Content Panel -->
-  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-8">
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-8"
+        x-data="{
+          showTour: false,
+          currentStep: 1,
+          totalSteps: 5,
+          steps: [
+            {
+              badge: 'Langkah 1/5 • Selamat Datang',
+              title: 'Selamat Datang di WA Bot Bisnis AI! 🎉',
+              desc: 'Asisten otomatis cerdas yang siap melayani pelanggan Anda di WhatsApp 24 jam nonstop. Bot dapat menjawab pertanyaan, merekomendasikan produk, dan mencatat transaksi penjualan secara mandiri.',
+              tip: 'Semua percakapan berjalan otomatis menggunakan model AI tercanggih dengan bahasa yang ramah dan alami.'
+            },
+            {
+              badge: 'Langkah 2/5 • Status WhatsApp',
+              title: 'Pantau Status Koneksi WhatsApp 📱',
+              desc: 'Lihat kartu Status WhatsApp di bagian atas. Status Ready berwarna hijau menandakan bot aktif dan siap membalas pesan. Jika WhatsApp sempat terputus saat HP tidur, cukup klik tombol Restart Bot di sidebar kiri bawah.',
+              tip: 'Anda tidak perlu scan QR berulang kali karena sesi login tersimpan permanen di HP Anda.'
+            },
+            {
+              badge: 'Langkah 3/5 • Jeda Pesanan',
+              title: 'Fitur Jeda Penerimaan Pesanan ⏸️',
+              desc: 'Saat pesanan membludak atau toko tutup sementara, aktifkan tombol Jeda Pesanan di dashboard. Anda bisa menuliskan alasan khusus, dan bot akan membalas pelanggan dengan ramah tanpa mencatat pesanan baru.',
+              tip: 'Pelanggan tetap terlayani dengan sopan tanpa merasa diabaikan.'
+            },
+            {
+              badge: 'Langkah 4/5 • Katalog & Dokumen',
+              title: 'Katalog Produk & Dokumen Usaha 📦',
+              desc: 'Tambahkan daftar barang di menu Produk agar bot bisa mengirim gambar produk dan harga. Unggah juga dokumen SOP atau info toko di menu Profil Usaha agar AI semakin pintar dan menguasai bisnis Anda.',
+              tip: 'Mendukung format file dokumen .pdf, .txt, .json, dan .csv hingga 5 MB.'
+            },
+            {
+              badge: 'Langkah 5/5 • Buku Panduan',
+              title: 'Buku Panduan & Tips Anti-Blokir 📖',
+              desc: 'Kapan pun Anda memerlukan panduan pengaturan baterai di HP Android, tips anti-blokir nomor WhatsApp, atau cara mengubah gaya bahasa AI, buka menu Buku Panduan di sidebar.',
+              tip: 'Anda bisa membuka kembali panduan cepat ini kapan saja lewat tombol di kanan atas.'
+            }
+          ],
+          init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const isTourParam = urlParams.get('tour') === 'start' || urlParams.get('welcome') === 'true';
+            const tourDone = localStorage.getItem('wa_bot_tour_completed');
+            if (isTourParam || !tourDone) {
+              this.showTour = true;
+            }
+          },
+          nextStep() {
+            if (this.currentStep < this.totalSteps) {
+              this.currentStep++;
+            } else {
+              this.finishTour();
+            }
+          },
+          prevStep() {
+            if (this.currentStep > 1) {
+              this.currentStep--;
+            }
+          },
+          skipTour() {
+            localStorage.setItem('wa_bot_tour_completed', 'true');
+            this.showTour = false;
+          },
+          finishTour() {
+            localStorage.setItem('wa_bot_tour_completed', 'true');
+            this.showTour = false;
+          },
+          startTour() {
+            this.currentStep = 1;
+            this.showTour = true;
+          }
+        }">
     <!-- Header -->
     <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
@@ -17,23 +86,44 @@
         </p>
       </div>
 
-      <a href="/setup/step-1" 
-         class="px-4 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors flex items-center space-x-1.5 self-start sm:self-auto">
-        <svg class="w-3.5 h-3.5 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-          <path d="M3 3v5h5"></path>
-          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
-          <path d="M16 16h5v5"></path>
-        </svg>
-        <span>Setup Ulang</span>
-      </a>
+      <div class="flex items-center gap-2 self-start sm:self-auto">
+        <button type="button" 
+                @click="startTour()"
+                class="px-3.5 py-1.5 rounded-full border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-xs font-medium text-emerald-800 transition-colors flex items-center space-x-1.5 shadow-xs">
+          <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <span>Panduan Cepat</span>
+        </button>
+
+        <a href="/setup/step-1" 
+           class="px-4 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors flex items-center space-x-1.5">
+          <svg class="w-3.5 h-3.5 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"></path>
+            <path d="M16 16h5v5"></path>
+          </svg>
+          <span>Setup Ulang</span>
+        </a>
+      </div>
     </div>
 
     <!-- Stat Metrics (Clean Minimalist Cards) -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <!-- Status Card -->
       <div class="p-5 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-3">
-        <div class="text-xs font-medium text-[#71717A]">Status WhatsApp</div>
+        <div class="text-xs font-medium text-[#71717A] flex items-center justify-between">
+          <span>Status WhatsApp</span>
+          <button type="button"
+                  onclick="if(window.AndroidBridge && window.AndroidBridge.openBatterySettings){window.AndroidBridge.openBatterySettings();}else{window.location.href='app://open-battery-settings';}"
+                  class="text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold inline-flex items-center gap-1 cursor-pointer bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200"
+                  title="Buka pengaturan baterai HP agar bot aktif 24 jam di latar belakang">
+            <span>🔋 Atur Baterai HP</span>
+          </button>
+        </div>
         <div class="flex items-center space-x-2">
           <% 
             const isOnline = status && (status.state === 'ready' || status.state === 'READY' || status.state === 'authenticated' || status.state === 'AUTHENTICATED');
@@ -81,6 +171,90 @@
         </a>
       </div>
     </div>
+
+    <!-- Kontrol Jeda Penerimaan Pesanan (Khusus Mode Bisnis) -->
+    <% if (config.mode === 'bisnis') { %>
+      <% 
+        const isOrdersPaused = (typeof pauseOrders !== 'undefined') ? Boolean(pauseOrders) : false;
+        const currentPauseReason = (typeof pauseOrdersReason !== 'undefined' && pauseOrdersReason) 
+          ? pauseOrdersReason 
+          : 'Mohon maaf, saat ini kami sedang menjeda penerimaan pesanan baru karena pesanan sedang membludak. Silakan hubungi kami beberapa saat lagi ya Kak! 🙏';
+      %>
+      <div x-data="{
+        paused: <%= isOrdersPaused ? 'true' : 'false' %>,
+        reason: `<%= (currentPauseReason || '').replace(/`/g, '\\`').replace(/\\/g, '\\\\') %>`,
+        saving: false,
+        savedSuccess: false,
+        async togglePauseOrders() {
+          this.saving = true;
+          this.savedSuccess = false;
+          try {
+            const res = await fetch('/api/settings/pause-orders', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ paused: this.paused, reason: this.reason })
+            });
+            const data = await res.json();
+            if (data.success) {
+              this.savedSuccess = true;
+              setTimeout(() => { this.savedSuccess = false; }, 3000);
+            }
+          } catch (err) {
+            console.error(err);
+          } finally {
+            this.saving = false;
+          }
+        }
+      }" class="p-5 rounded-2xl border transition-all duration-300 shadow-2xs"
+         :class="paused ? 'bg-amber-50/80 border-amber-300' : 'bg-white border-[#E4E4E7]'">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full" :class="paused ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'"></span>
+              <h3 class="text-sm font-bold text-[#18181B]" x-text="paused ? 'Penerimaan Pesanan: SEDANG DIJEDA' : 'Penerimaan Pesanan: AKTIF'"></h3>
+            </div>
+            <p class="text-xs text-[#71717A]">
+              Aktifkan jeda jika pesanan toko sedang membludak atau toko tutup sementara. Bot akan menyampaikan alasan dengan santun kepada pelanggan yang ingin order.
+            </p>
+          </div>
+          <button type="button" 
+                  @click="paused = !paused; togglePauseOrders()"
+                  :disabled="saving"
+                  class="px-4 py-2 rounded-xl text-xs font-semibold transition-all inline-flex items-center space-x-2 self-start sm:self-auto shadow-xs"
+                  :class="paused ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800'">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+              <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+            </svg>
+            <span x-text="paused ? 'Aktifkan Kembali Pesanan' : 'Jeda Penerimaan Pesanan'"></span>
+          </button>
+        </div>
+
+        <!-- Input Alasan Jeda untuk Pelanggan -->
+        <div class="mt-4 pt-3.5 border-t border-[#E4E4E7]/60 space-y-2">
+          <label class="block text-xs font-semibold text-[#18181B]">
+            Pesan Alasan untuk Pelanggan (Disampaikan otomatis oleh AI):
+          </label>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input type="text" 
+                   x-model="reason" 
+                   placeholder="Contoh: Pesanan sedang membludak, mohon maaf atas ketidaknyamanannya..."
+                   class="flex-1 px-3.5 py-2 text-xs rounded-xl border border-[#E4E4E7] focus:outline-none focus:border-[#18181B] bg-white text-[#18181B]">
+            <button type="button" 
+                    @click="togglePauseOrders()" 
+                    :disabled="saving"
+                    class="px-4 py-2 bg-[#18181B] hover:bg-zinc-800 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-50">
+              <span x-text="saving ? 'Menyimpan...' : 'Simpan Alasan'"></span>
+            </button>
+          </div>
+          <template x-if="savedSuccess">
+            <p class="text-[11px] font-medium text-emerald-600 flex items-center gap-1 animate-fade-in">
+              ✓ Pengaturan status jeda pesanan berhasil disimpan!
+            </p>
+          </template>
+        </div>
+      </div>
+    <% } %>
 
     <!-- Engine Status Banner (Error / Connecting / Reconnecting / Retry) -->
     <% if (status && status.state !== 'ready' && status.state !== 'READY') { %>
@@ -220,6 +394,66 @@
             <p class="text-[11px] text-[#71717A] mt-0.5">Konfigurasi API key, slider jeda waktu, dan scan QR.</p>
           </div>
         </a>
+      </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- INTERACTIVE ONBOARDING TOUR MODAL              -->
+    <!-- ============================================== -->
+    <div x-show="showTour" 
+         x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs transition-opacity duration-300">
+      <div @click.away="skipTour()"
+           class="bg-white rounded-3xl border border-zinc-200 shadow-2xl max-w-lg w-full p-6 md:p-8 space-y-6 relative animate-scaleUp">
+        
+        <!-- Top bar: Badge & Skip Button -->
+        <div class="flex items-center justify-between">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200"
+                x-text="steps[currentStep - 1].badge"></span>
+          <button type="button" 
+                  @click="skipTour()" 
+                  class="text-xs text-zinc-400 hover:text-zinc-700 font-medium transition-colors">
+            Lewati Tutorial
+          </button>
+        </div>
+
+        <!-- Step Content Area -->
+        <div class="space-y-3 min-h-[140px]">
+          <h3 class="text-xl font-bold text-zinc-900 tracking-tight"
+              x-text="steps[currentStep - 1].title"></h3>
+          <p class="text-xs md:text-sm text-zinc-600 leading-relaxed"
+             x-text="steps[currentStep - 1].desc"></p>
+          <div class="p-3 rounded-2xl bg-zinc-50 border border-zinc-200/80 text-[11px] text-zinc-600 flex items-start space-x-2">
+            <span class="text-emerald-600 font-bold">💡</span>
+            <span x-text="steps[currentStep - 1].tip"></span>
+          </div>
+        </div>
+
+        <!-- Progress Dots Indicator -->
+        <div class="flex items-center justify-center space-x-1.5 pt-2">
+          <template x-for="idx in totalSteps" :key="idx">
+            <div class="h-1.5 rounded-full transition-all duration-300"
+                 :class="currentStep === idx ? 'w-6 bg-zinc-900' : 'w-2 bg-zinc-200'"></div>
+          </template>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="flex items-center justify-between pt-2 border-t border-zinc-100">
+          <button type="button" 
+                  @click="prevStep()" 
+                  x-show="currentStep > 1"
+                  class="px-4 py-2 rounded-full border border-zinc-200 hover:bg-zinc-50 text-xs font-medium text-zinc-700 transition-colors">
+            Kembali
+          </button>
+          <div x-show="currentStep === 1"></div>
+
+          <button type="button" 
+                  @click="nextStep()"
+                  class="px-6 py-2.5 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold transition-all shadow-sm flex items-center space-x-1.5">
+            <span x-text="currentStep === totalSteps ? 'Selesai & Buka Bot 🚀' : 'Lanjut →'"></span>
+          </button>
+        </div>
+
       </div>
     </div>
   </main>

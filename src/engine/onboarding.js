@@ -22,12 +22,12 @@ function buildOnboardingMessage(mode, config = {}) {
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `🛒 *1. CARA MENCATAT PESANAN (ORDER FORM)*\n` +
       `Anda dapat langsung mencatat pesanan closing pembeli dengan mengirim format form seperti contoh berikut:\n\n` +
-      `pesanan 1\n` +
-      `nama penerima : Budi\n` +
-      `no penerima : 081234567890\n` +
-      `alamat : Jl. Merdeka No. 10 Bandung\n` +
-      `pesanan : 2 pasang albino koi\n` +
-      `total : 150rb\n\n` +
+      `_pesanan 1_\n` +
+      `_nama penerima : (Nama Pembeli)_\n` +
+      `_no penerima : (Nomor WhatsApp Pembeli)_\n` +
+      `_alamat : (Alamat Lengkap Pengiriman)_\n` +
+      `_pesanan : (Nama Produk & Jumlah)_\n` +
+      `_total : (Total Pembayaran)_\n\n` +
       `👉 *Bot otomatis memasukkannya ke Dashboard Orders!*\n\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `🤝 *2. CARA MENANGANI HANDOVER (PENGALIHAN)*\n` +

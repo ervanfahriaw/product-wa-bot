@@ -134,4 +134,39 @@ router.get('/logs', (req, res) => {
   }
 });
 
+/**
+ * POST /api/settings/pause-orders
+ * Mengatur jeda penerimaan pesanan dan alasan kustom bagi pelanggan.
+ */
+router.post('/settings/pause-orders', (req, res) => {
+  try {
+    const db = require('../../db');
+    const { getConfig } = require('../../config');
+    const { paused, reason } = req.body;
+    const isPaused = Boolean(paused);
+    const pauseReason = typeof reason === 'string' ? reason.trim() : '';
+
+    if (db.setSetting) {
+      db.setSetting('pause_orders', isPaused ? 'true' : 'false');
+      if (pauseReason) {
+        db.setSetting('pause_orders_reason', pauseReason);
+      }
+    }
+
+    const config = getConfig();
+    config.pause_orders = isPaused;
+    if (pauseReason) {
+      config.pause_orders_reason = pauseReason;
+    }
+
+    return res.json({
+      success: true,
+      paused: isPaused,
+      reason: pauseReason || config.pause_orders_reason || 'Mohon maaf, saat ini kami sedang menjeda penerimaan pesanan baru karena pesanan sedang membludak. Silakan hubungi kami beberapa saat lagi ya Kak! 🙏'
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

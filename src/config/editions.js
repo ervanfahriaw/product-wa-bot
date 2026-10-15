@@ -98,9 +98,9 @@ const EDITIONS = {
   },
   all: {
     id: 'all',
-    name: 'WA Bot Assistant (Dual Edition)',
-    shortName: 'WA Bot Assistant',
-    tagline: 'Solusi Lengkap Bisnis & Asisten Pribadi',
+    name: 'WA Bot Bisnis AI',
+    shortName: 'WA Bot Bisnis AI',
+    tagline: 'Asisten Penjualan & Customer Service 24/7',
     defaultMode: null,
     isModeLocked: false,
     features: [

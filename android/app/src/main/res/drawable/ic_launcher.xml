@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- WhatsApp Green Background Squircle -->
+    <path
+        android:fillColor="#075E54"
+        android:pathData="M14,4 L94,4 C99.5,4 104,8.5 104,14 L104,94 C104,99.5 99.5,104 94,104 L14,104 C8.5,104 4,99.5 4,94 L4,14 C4,8.5 8.5,4 14,4 Z" />
+    <path
+        android:fillColor="#128C7E"
+        android:pathData="M14,4 L94,4 C99.5,4 104,8.5 104,14 L104,65 L4,95 L4,14 C4,8.5 8.5,4 14,4 Z" />
+    <path
+        android:fillColor="#25D366"
+        android:pathData="M14,4 L94,4 C99.5,4 104,8.5 104,14 L104,40 L4,70 L4,14 C4,8.5 8.5,4 14,4 Z" />
+
+    <!-- Iconic Solid White WhatsApp Speech Bubble with Tail -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,18 C34.12,18 18,34.12 18,54 C18,60.85 19.92,67.24 23.27,72.7 L19,89 L35.84,84.6 C41.04,87.42 47.33,89.04 54,89.04 C73.88,89.04 90,72.92 90,53.04 C90,33.16 73.88,18 54,18 Z" />
+
+    <!-- Letter 'A' (Emerald Green) -->
+    <path
+        android:fillColor="#075E54"
+        android:pathData="M43,36 L47.5,36 L56.5,67 L50.2,67 L48.1,59.5 L38.3,59.5 L36.2,67 L30,67 Z M43.2,43.2 L40,54.2 L46.4,54.2 Z" />
+
+    <!-- Letter 'I' (Emerald Green) -->
+    <path
+        android:fillColor="#075E54"
+        android:pathData="M61,38.5 C61,37.1 62.1,36 63.5,36 L65.5,36 C66.9,36 68,37.1 68,38.5 L68,64.5 C68,65.9 66.9,67 65.5,67 L63.5,67 C62.1,67 61,65.9 61,64.5 Z" />
+
+    <!-- Gold Innovation Sparkle Accent -->
+    <path
+        android:fillColor="#FACC15"
+        android:pathData="M73,30 L74.8,34.2 L79,36 L74.8,37.8 L73,42 L71.2,37.8 L67,36 L71.2,34.2 Z" />
+</vector>

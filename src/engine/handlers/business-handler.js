@@ -808,7 +808,8 @@ async function handleBusinessMessage(message, client) {
 
     // 6. Pecah pesan panjang menjadi gelembung chat alami & kirim bertahap
     const maxBubbles = Number(config.max_bubbles) || 3;
-    const bubbles = splitIntoBubbles(replyText, maxBubbles);
+    const isSuperRingkas = config.response_length === 'super_ringkas';
+    const bubbles = splitIntoBubbles(replyText, maxBubbles, { superRingkas: isSuperRingkas });
     await sendMultiBubbleMessages(message, client, contact, bubbles, {
       interBubbleDelay: config.inter_bubble_delay
     });
@@ -907,7 +908,8 @@ async function handleBusinessMessage(message, client) {
       contact,
       message_in: recordedInMessage,
       message_out: replyText,
-      handled_by: needsAiHandover ? 'human' : 'ai'
+      handled_by: needsAiHandover ? 'human' : 'ai',
+      tokens_used: aiResult?.tokens?.total || 0
     });
 
   } catch (err) {

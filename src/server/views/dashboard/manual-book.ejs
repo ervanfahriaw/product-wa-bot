@@ -1,0 +1,369 @@
+<%- include('../partials/header') %>
+
+<div class="flex-1 flex flex-col md:flex-row min-h-screen bg-[#F7F7F8]">
+  <!-- Sidebar -->
+  <%- include('../partials/sidebar', { activeMenu: 'manual-book', config, pendingHandoverCount }) %>
+
+  <!-- Main Content Panel -->
+  <main class="flex-1 p-6 md:p-10 max-w-5xl bg-white md:border-r border-[#E4E4E7] min-h-screen overflow-y-auto space-y-8"
+        x-data="{ activeSection: 'background' }">
+    
+    <!-- Header -->
+    <div class="pb-6 border-b border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800 mb-2">
+          <span>📖 Panduan Resmi Pengguna</span>
+        </div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-[#18181B]">Buku Panduan & Dokumentasi</h1>
+        <p class="text-xs md:text-sm text-[#71717A] mt-1">
+          Panduan komprehensif operasional WA Bot Bisnis AI di HP Android, tips anti-blokir, manajemen katalog, dan optimasi AI.
+        </p>
+      </div>
+
+      <a href="/dashboard" 
+         class="px-4 py-2 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors flex items-center space-x-1.5 self-start sm:self-auto">
+        <svg class="w-3.5 h-3.5 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        <span>Kembali ke Dashboard</span>
+      </a>
+    </div>
+
+    <!-- Quick Navigation Tabs (Horizontal Scroll on Mobile) -->
+    <div class="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none border-b border-[#F4F4F5]">
+      <button type="button" @click="activeSection = 'background'"
+              :class="activeSection === 'background' ? 'bg-[#18181B] text-white shadow-xs' : 'bg-[#F4F4F5] text-[#71717A] hover:text-[#18181B]'"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all">
+        🔋 Mode Latar Belakang (HP)
+      </button>
+      <button type="button" @click="activeSection = 'orders'"
+              :class="activeSection === 'orders' ? 'bg-[#18181B] text-white shadow-xs' : 'bg-[#F4F4F5] text-[#71717A] hover:text-[#18181B]'"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all">
+        ⏸️ Jeda Pesanan & Katalog
+      </button>
+      <button type="button" @click="activeSection = 'ai'"
+              :class="activeSection === 'ai' ? 'bg-[#18181B] text-white shadow-xs' : 'bg-[#F4F4F5] text-[#71717A] hover:text-[#18181B]'"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all">
+        🧠 Gaya Respon & Kuota AI
+      </button>
+      <button type="button" @click="activeSection = 'knowledge'"
+              :class="activeSection === 'knowledge' ? 'bg-[#18181B] text-white shadow-xs' : 'bg-[#F4F4F5] text-[#71717A] hover:text-[#18181B]'"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all">
+        📂 Dokumen Informasi Bisnis
+      </button>
+      <button type="button" @click="activeSection = 'antiblokir'"
+              :class="activeSection === 'antiblokir' ? 'bg-[#18181B] text-white shadow-xs' : 'bg-[#F4F4F5] text-[#71717A] hover:text-[#18181B]'"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all">
+        🛡️ Proteksi Anti-Blokir
+      </button>
+      <button type="button" @click="activeSection = 'faq'"
+              :class="activeSection === 'faq' ? 'bg-[#18181B] text-white shadow-xs' : 'bg-[#F4F4F5] text-[#71717A] hover:text-[#18181B]'"
+              class="px-3.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-all">
+        ❓ Troubleshooting
+      </button>
+    </div>
+
+    <!-- SEKSI 1: HP & Background Service -->
+    <div x-show="activeSection === 'background'" class="space-y-6 animate-fadeIn">
+      <div class="p-6 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-lg">
+            🔋
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-[#18181B]">Panduan Bot Tetap Menyala di HP Android (24/7 Nonstop)</h2>
+            <p class="text-xs text-[#71717A]">Agar bot tidak dimatikan paksa saat layar HP mati/terkunci (sleep) atau saat Anda membuka aplikasi lain.</p>
+          </div>
+        </div>
+
+        <div class="space-y-3 pt-2 text-xs md:text-sm text-[#3F3F46] leading-relaxed">
+          <p>
+            Sistem operasi Android modern memiliki fitur agresif penghemat baterai yang secara otomatis membekukan proses di latar belakang jika tidak diberi izin khusus. Ikuti langkah penting berikut agar bot Anda dapat terus menerima chat:
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+            <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-2">
+              <div class="font-semibold text-[#18181B] flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded-full bg-zinc-900 text-white text-[10px] flex items-center justify-center">1</span>
+                Nonaktifkan Mode Hemat Baterai
+              </div>
+              <p class="text-xs text-[#71717A]">
+                Buka <strong>Pengaturan HP &gt; Aplikasi &gt; WA Bot Bisnis AI &gt; Baterai</strong>, lalu pilih <strong>"Tidak Dibatasi" (Unrestricted / No Restrictions)</strong>.
+              </p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-2">
+              <div class="font-semibold text-[#18181B] flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded-full bg-zinc-900 text-white text-[10px] flex items-center justify-center">2</span>
+                Aktifkan Auto-Start / Mulai Otomatis
+              </div>
+              <p class="text-xs text-[#71717A]">
+                Khusus merk <strong>Xiaomi (MIUI/HyperOS), Vivo, Oppo, Realme</strong>: cari menu <em>Autostart / Mulai Otomatis</em> di pengaturan keamanan, dan beri centang hijau pada aplikasi ini.
+              </p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-2">
+              <div class="font-semibold text-[#18181B] flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded-full bg-zinc-900 text-white text-[10px] flex items-center justify-center">3</span>
+                Kunci Aplikasi di Layar Recent Apps
+              </div>
+              <p class="text-xs text-[#71717A]">
+                Buka menu tombol recent apps (daftar aplikasi terbuka), tekan lama jendela aplikasi WA Bot, lalu klik ikon <strong>Gembok (Lock)</strong> agar tidak ikut terhapus saat Anda membersihkan RAM.
+              </p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-2">
+              <div class="font-semibold text-[#18181B] flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded-full bg-zinc-900 text-white text-[10px] flex items-center justify-center">4</span>
+                Biarkan HP Terhubung WiFi / Kuota
+              </div>
+              <p class="text-xs text-[#71717A]">
+                Bot memerlukan akses internet stabil untuk menghubungi server WhatsApp dan Gemini AI. Pastikan opsi <em>WiFi tetap aktif saat tidur</em> dalam keadaan menyala.
+              </p>
+            </div>
+          </div>
+
+          <!-- Tombol Aksi Langsung 1-Klik Buka Pengaturan HP -->
+          <div class="pt-4 border-t border-[#E4E4E7] flex flex-wrap gap-2.5 items-center">
+            <button type="button" 
+                    onclick="if(window.AndroidBridge && window.AndroidBridge.openBatterySettings){window.AndroidBridge.openBatterySettings();}else{window.location.href='app://open-battery-settings';}"
+                    class="px-4 py-2.5 rounded-xl bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-semibold transition-colors flex items-center space-x-2 shadow-xs cursor-pointer">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <span>⚙️ Buka Pengaturan Aplikasi di HP (1-Klik)</span>
+            </button>
+
+            <button type="button"
+                    onclick="if(window.AndroidBridge && window.AndroidBridge.openSystemBatteryDialog){window.AndroidBridge.openSystemBatteryDialog();}else{window.location.href='app://open-system-battery-dialog';}"
+                    class="px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-semibold transition-colors flex items-center space-x-2 cursor-pointer">
+              <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+              </svg>
+              <span>⚡ Izinkan Whitelist Baterai Sistem</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEKSI 2: Jeda Pesanan & Katalog -->
+    <div x-show="activeSection === 'orders'" class="space-y-6 animate-fadeIn">
+      <div class="p-6 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-lg">
+            ⏸️
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-[#18181B]">Fitur Jeda Penerimaan Pesanan & Katalog</h2>
+            <p class="text-xs text-[#71717A]">Solusi saat pesanan overload, dapur/gudang penuh, atau toko tutup sementara.</p>
+          </div>
+        </div>
+
+        <div class="space-y-4 pt-2 text-xs md:text-sm text-[#3F3F46] leading-relaxed">
+          <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-2">
+            <h3 class="font-semibold text-[#18181B]">Bagaimana Cara Kerja "Jeda Pesanan"?</h3>
+            <p class="text-xs text-[#71717A] leading-relaxed">
+              Di halaman dashboard utama terdapat kartu <strong>"Jeda Penerimaan Pesanan"</strong>. Saat Anda mengaktifkan sakelar tersebut:
+            </p>
+            <ul class="list-disc list-inside text-xs text-[#71717A] space-y-1.5 pt-1">
+              <li>Bot <strong>tetap aktif membalas pertanyaan</strong> seputar informasi produk, harga, dan konsultasi secara ramah.</li>
+              <li>Jika pelanggan mengirimkan formulir pemesanan, bot <strong>tidak akan menyimpannya ke daftar antrean order</strong>, melainkan membalas dengan sopan sesuai alasan yang Anda tulis (contoh: <em>"Mohon maaf pesanan sedang kami jeda sejenak karena membludak..."</em>).</li>
+              <li>Ketika toko sudah siap menerima pesanan kembali, matikan sakelar jeda dan bot langsung menerima pesanan seperti biasa.</li>
+            </ul>
+          </div>
+
+          <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-2">
+            <h3 class="font-semibold text-[#18181B]">Katalog Produk & Pengiriman Gambar Otomatis</h3>
+            <p class="text-xs text-[#71717A] leading-relaxed">
+              Anda bisa memasukkan foto produk, harga, dan stok di menu <strong>Produk</strong>. Ketika pelanggan menanyakan produk terkait (misalnya: <em>"Boleh minta foto kopi gayo?"</em>), bot akan secara otomatis mengirimkan gambar produk beserta rincian harganya.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEKSI 3: Gaya Bahasa AI & Kuota -->
+    <div x-show="activeSection === 'ai'" class="space-y-6 animate-fadeIn">
+      <div class="p-6 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-lg">
+            🧠
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-[#18181B]">Gaya Respon AI, Super Ringkas, & Kuota Real</h2>
+            <p class="text-xs text-[#71717A]">Atur bagaimana AI membalas pelanggan dan pantau kuota harian Anda.</p>
+          </div>
+        </div>
+
+        <div class="space-y-4 pt-2 text-xs md:text-sm text-[#3F3F46] leading-relaxed">
+          <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-2">
+            <h3 class="font-semibold text-[#18181B]">Opsi Panjang Balasan: "Super Ringkas"</h3>
+            <p class="text-xs text-[#71717A] leading-relaxed">
+              Di menu <strong>Pengaturan &gt; Gaya Bahasa &amp; Nada Bicara</strong>, Anda dapat memilih <strong>"Super Ringkas (Maksimal 1-2 baris)"</strong>.
+              Opsi ini sangat cocok untuk penjualan cepat di WhatsApp di mana pelanggan lebih menyukai balasan singkat, to-the-point, dan tidak membaca paragraf panjang.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-2">
+            <h3 class="font-semibold text-[#18181B]">Intensitas Emoji: "Tanpa Emoji"</h3>
+            <p class="text-xs text-[#71717A] leading-relaxed">
+              Jika bisnis Anda memerlukan kesan formal, hukum, perbankan, atau B2B murni, Anda bisa memilih <strong>"Tanpa Emoji (0% Emoji)"</strong>. Sistem kami dilengkapi filter ketat yang menjamin tidak ada simbol emotikon yang dikirim ke pelanggan.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-2">
+            <h3 class="font-semibold text-[#18181B]">Pemantauan Kuota Real Token &amp; RPD</h3>
+            <p class="text-xs text-[#71717A] leading-relaxed">
+              Di bagian bawah sidebar, sistem menampilkan kuota real:
+            </p>
+            <ul class="list-disc list-inside text-xs text-[#71717A] space-y-1 pt-1">
+              <li><strong>1.500 RPD:</strong> Batas request harian gratis dari Google Gemini API (direset setiap pukul 00:00).</li>
+              <li><strong>Token Real:</strong> Menghitung jumlah token sebenarnya yang terpakai pada setiap balasan AI berdasarkan metadata resmi dari Google.</li>
+              <li>Pesan yang dijawab via FAQ atau pesan otomatis tidak memakan kuota AI.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEKSI 4: Dokumen Informasi Bisnis -->
+    <div x-show="activeSection === 'knowledge'" class="space-y-6 animate-fadeIn">
+      <div class="p-6 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold text-lg">
+            📂
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-[#18181B]">Unggah Dokumen Informasi Bisnis Detail (Knowledge Base)</h2>
+            <p class="text-xs text-[#71717A]">Jadikan bot Anda sepintar staf senior toko dengan mengunggah materi usaha.</p>
+          </div>
+        </div>
+
+        <div class="space-y-4 pt-2 text-xs md:text-sm text-[#3F3F46] leading-relaxed">
+          <p>
+            Fitur <strong>"Unggah Dokumen Informasi Bisnis Detail"</strong> di menu <em>Profil Usaha</em> memungkinkan Anda menyematkan dokumen penting tanpa perlu menulis ulang satu per satu. Format yang didukung meliputi <strong>.pdf, .txt, .md, .csv, dan .json</strong>.
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-1.5">
+              <span class="text-xs font-semibold text-[#18181B]">📄 SOP Toko &amp; Kebijakan Garansi</span>
+              <p class="text-[11px] text-[#71717A]">Cara retur barang rusak, syarat klaim garansi, ketentuan refund, dan jam kerja pengiriman ekspedisi.</p>
+            </div>
+            <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-1.5">
+              <span class="text-xs font-semibold text-[#18181B]">📋 Daftar Menu &amp; Spesifikasi Teknis</span>
+              <p class="text-[11px] text-[#71717A]">Bahan baku makanan, ukuran baju/sepatu, tabel takaran obat, atau manual teknis produk.</p>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 space-y-1">
+            <div class="font-semibold flex items-center gap-1.5">
+              <span>💡 Tips Maksimal:</span>
+            </div>
+            <p>
+              AI menggunakan teknologi RAG (Retrieval-Augmented Generation). Saat pelanggan bertanya hal spesifik, AI akan membaca potongan dokumen yang paling relevan lalu menjawabnya dengan akurat tanpa halusinasi.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEKSI 5: Anti-Blokir -->
+    <div x-show="activeSection === 'antiblokir'" class="space-y-6 animate-fadeIn">
+      <div class="p-6 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-lg">
+            🛡️
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-[#18181B]">Sistem Proteksi Anti-Blokir WhatsApp</h2>
+            <p class="text-xs text-[#71717A]">Bot dilengkapi fitur keamanan berlapis agar perilaku chat mirip 100% dengan manusia.</p>
+          </div>
+        </div>
+
+        <div class="space-y-4 pt-2 text-xs md:text-sm text-[#3F3F46] leading-relaxed">
+          <p>
+            WhatsApp mendeteksi dan memblokir bot yang mengirim pesan secara instan (0 detik) atau mengirim pesan identik ke ratusan nomor sekaligus. Aplikasi ini telah dipersenjatai proteksi otomatis:
+          </p>
+
+          <div class="space-y-2.5">
+            <div class="p-3.5 rounded-xl bg-white border border-[#E4E4E7] flex items-start space-x-3">
+              <div class="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">✓</div>
+              <div>
+                <h4 class="text-xs font-semibold text-[#18181B]">Simulasi Mengetik Manusiawi (Human-Like Typing Delay)</h4>
+                <p class="text-xs text-[#71717A] mt-0.5">Bot memunculkan status <em>"sedang mengetik..."</em> dengan durasi proporsional berdasarkan panjang kalimat sebelum pesan terkirim.</p>
+              </div>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-white border border-[#E4E4E7] flex items-start space-x-3">
+              <div class="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">✓</div>
+              <div>
+                <h4 class="text-xs font-semibold text-[#18181B]">Multi-Bubble Typing Simulation dengan Random Jitter</h4>
+                <p class="text-xs text-[#71717A] mt-0.5">Pesan panjang dipecah menjadi beberapa gelembung chat alami dengan jeda acak di antara tiap gelembung agar tidak terdeteksi mesin.</p>
+              </div>
+            </div>
+
+            <div class="p-3.5 rounded-xl bg-white border border-[#E4E4E7] flex items-start space-x-3">
+              <div class="w-5 h-5 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 mt-0.5 font-bold">✓</div>
+              <div>
+                <h4 class="text-xs font-semibold text-[#18181B]">Message Buffer Debounce</h4>
+                <p class="text-xs text-[#71717A] mt-0.5">Jika pelanggan mengirim 3-4 chat berturut-turut dalam beberapa detik, bot menampungnya dan membalas satu kali secara komprehensif.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1">
+            <div class="font-semibold flex items-center gap-1.5">
+              <span>⚠️ Aturan Emas untuk Nomor Baru:</span>
+            </div>
+            <p>
+              Jika Anda memakai nomor WhatsApp baru (belum pernah dipakai chat selama minimal 2-4 minggu), gunakan nomor tersebut untuk saling kirim pesan dengan teman/keluarga terlebih dahulu (proses <em>warming-up</em>) sebelum dipakai melayani ratusan pesan baru secara masal.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEKSI 6: FAQ & Solusi Cepat -->
+    <div x-show="activeSection === 'faq'" class="space-y-6 animate-fadeIn">
+      <div class="p-6 rounded-2xl bg-[#F7F7F8] border border-[#E4E4E7] space-y-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-zinc-200 text-zinc-800 flex items-center justify-center font-bold text-lg">
+            ❓
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-[#18181B]">Tanya Jawab &amp; Pemecahan Masalah (Troubleshooting)</h2>
+            <p class="text-xs text-[#71717A]">Solusi cepat untuk kendala yang sering ditemui.</p>
+          </div>
+        </div>
+
+        <div class="space-y-3 pt-2 text-xs md:text-sm text-[#3F3F46]">
+          <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-1.5">
+            <h4 class="font-semibold text-[#18181B]">T: Mengapa bot sempat tidak membalas saat HP mati semalaman?</h4>
+            <p class="text-xs text-[#71717A] leading-relaxed">
+              J: Hal ini biasanya karena sistem Android mematikan koneksi WiFi/data saat deep sleep. Cukup buka aplikasi lalu klik tombol <strong>"Restart Bot"</strong> di sidebar kiri bawah. Bot akan terhubung kembali dalam beberapa detik tanpa perlu scan QR ulang.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-1.5">
+            <h4 class="font-semibold text-[#18181B]">T: Apakah saya perlu scan QR ulang setiap kali membuka aplikasi?</h4>
+            <p class="text-xs text-[#71717A] leading-relaxed">
+              J: Tidak perlu. Sesi login WhatsApp tersimpan aman di penyimpanan lokal HP Anda. Anda hanya perlu scan QR sekali saat pertama kali instalasi atau jika Anda sengaja melakukan "Keluar" dari WhatsApp HP Anda.
+            </p>
+          </div>
+
+          <div class="p-4 rounded-xl bg-white border border-[#E4E4E7] space-y-1.5">
+            <h4 class="font-semibold text-[#18181B]">T: Bagaimana jika AI menjawab di luar konteks toko saya?</h4>
+            <p class="text-xs text-[#71717A] leading-relaxed">
+              J: Pastikan informasi profil usaha dan katalog produk Anda sudah terisi lengkap. Anda juga bisa mengunggah dokumen panduan di menu <em>Profil Usaha &gt; Unggah Dokumen Informasi Bisnis Detail</em> atau mengatur contoh percakapan di menu <em>Training Gaya Bicara</em>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<%- include('../partials/footer') %>

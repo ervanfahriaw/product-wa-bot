@@ -1,5 +1,6 @@
 package com.wabot.assistant;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -8,6 +9,7 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
+import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -17,8 +19,9 @@ import androidx.core.app.NotificationCompat;
 
 /**
  * BotForegroundService
- * Menjaga runtime Node.js dan koneksi Baileys WebSocket tetap berjalan di latar belakang (background)
- * dengan persistent notification dan CPU Partial WakeLock agar bot tidak di-kill oleh sistem Android.
+ * Menjaga runtime Node.js dan koneksi Baileys WebSocket tetap berjalan 24/7 di latar belakang (background)
+ * dengan persistent notification, CPU Partial WakeLock, dan Wi-Fi High-Performance Lock
+ * agar bot tidak di-kill oleh sistem Android saat layar HP terkunci (sleep) atau saat membersihkan RAM.
  */
 public class BotForegroundService extends Service {
     private static final String TAG = "WABotService";
@@ -26,6 +29,7 @@ public class BotForegroundService extends Service {
     public static final int NOTIFICATION_ID = 1001;
 
     private PowerManager.WakeLock wakeLock;
+    private WifiManager.WifiLock wifiLock;
     private NodeServerRunner nodeServerRunner;
 
     @Override
@@ -35,6 +39,7 @@ public class BotForegroundService extends Service {
 
         createNotificationChannel();
         acquireWakeLock();
+        acquireWifiLock();
 
         // Inisialisasi runner server lokal
         nodeServerRunner = new NodeServerRunner(getApplicationContext());
@@ -73,6 +78,65 @@ public class BotForegroundService extends Service {
         return START_STICKY;
     }
 
+    /**
+     * Dipanggil ketika user melakukan swipe away aplikasi dari recent apps.
+     * Mengamankan agar bot tetap hidup dan otomatis menjadwalkan restart jika Android mencoba membunuh proses.
+     */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        Log.w(TAG, "Aplikasi di-swipe dari recent apps (onTaskRemoved). Memastikan BotForegroundService tetap aktif...");
+
+        try {
+            Intent restartServiceIntent = new Intent(getApplicationContext(), BotForegroundService.class);
+            restartServiceIntent.setPackage(getPackageName());
+
+            int flags = PendingIntent.FLAG_ONE_SHOT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                flags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+
+            PendingIntent restartServicePendingIntent;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                restartServicePendingIntent = PendingIntent.getForegroundService(
+                        getApplicationContext(),
+                        1002,
+                        restartServiceIntent,
+                        flags
+                );
+            } else {
+                restartServicePendingIntent = PendingIntent.getService(
+                        getApplicationContext(),
+                        1002,
+                        restartServiceIntent,
+                        flags
+                );
+            }
+
+            AlarmManager alarmManager = (AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
+            if (alarmManager != null) {
+                // Jadwalkan restart darurat 1 detik kemudian yang menembus mode Doze/Sleep (RTC_WAKEUP)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            System.currentTimeMillis() + 1000,
+                            restartServicePendingIntent
+                    );
+                } else {
+                    alarmManager.setExact(
+                            AlarmManager.RTC_WAKEUP,
+                            System.currentTimeMillis() + 1000,
+                            restartServicePendingIntent
+                    );
+                }
+                Log.i(TAG, "Alarm pemulihan darurat Foreground Service berhasil didaftarkan (RTC_WAKEUP).");
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "Gagal menjadwalkan alarm pemulihan service: " + e.getMessage());
+        }
+
+        super.onTaskRemoved(rootIntent);
+    }
+
     @Override
     public void onDestroy() {
         Log.i(TAG, "Menghentikan BotForegroundService...");
@@ -82,6 +146,7 @@ public class BotForegroundService extends Service {
         }
 
         releaseWakeLock();
+        releaseWifiLock();
         stopForeground(true);
 
         super.onDestroy();
@@ -138,7 +203,7 @@ public class BotForegroundService extends Service {
     }
 
     /**
-     * Mengambil CPU WakeLock agar bot tetap responsif menerima chat saat layar HP terkunci.
+     * Mengambil CPU WakeLock agar bot tetap responsif memproses chat saat layar HP terkunci (sleep).
      */
     private void acquireWakeLock() {
         if (wakeLock == null) {
@@ -160,6 +225,42 @@ public class BotForegroundService extends Service {
             wakeLock.release();
             wakeLock = null;
             Log.i(TAG, "CPU WakeLock dilepaskan.");
+        }
+    }
+
+    /**
+     * Mengambil Wi-Fi Lock agar radio Wi-Fi HP tidak masuk mode hemat daya agresif saat layar mati,
+     * sehingga koneksi WebSocket WhatsApp ke server Baileys tetap stabil tanpa terputus.
+     */
+    private void acquireWifiLock() {
+        if (wifiLock == null) {
+            try {
+                WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                if (wifiManager != null) {
+                    int mode = WifiManager.WIFI_MODE_FULL_HIGH_PERF;
+                    wifiLock = wifiManager.createWifiLock(mode, "WABot::WifiLock");
+                    wifiLock.setReferenceCounted(false);
+                    wifiLock.acquire();
+                    Log.i(TAG, "Wi-Fi High-Performance Lock berhasil diaktifkan.");
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Tidak dapat mengaktifkan Wi-Fi Lock: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Melepas Wi-Fi Lock.
+     */
+    private void releaseWifiLock() {
+        if (wifiLock != null && wifiLock.isHeld()) {
+            try {
+                wifiLock.release();
+                wifiLock = null;
+                Log.i(TAG, "Wi-Fi Lock dilepaskan.");
+            } catch (Exception e) {
+                Log.w(TAG, "Gagal melepaskan Wi-Fi Lock: " + e.getMessage());
+            }
         }
     }
 }

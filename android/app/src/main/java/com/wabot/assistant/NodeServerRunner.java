@@ -84,7 +84,11 @@ public class NodeServerRunner {
      * Memulai proses server lokal embedded Node.js di background thread.
      */
     public synchronized void startServer() {
-        if (isRunning) return;
+        if (isRunning || isServerReady()) {
+            Log.i(TAG, "Server lokal port 3000 sudah berjalan, melewati startServer ganda.");
+            isRunning = true;
+            return;
+        }
 
         isRunning = true;
         currentStatus = "Menyiapkan berkas & direktori kerja...";

@@ -80,9 +80,12 @@
                 <tr class="hover:bg-[#F7F7F8] transition-colors">
                   <td class="px-5 py-3.5 whitespace-nowrap">
                     <% if (product.image_path) { 
-                         const cleanImg = product.image_path.startsWith('/') || product.image_path.startsWith('http') 
+                         const isHttp = product.image_path.startsWith('http://') || product.image_path.startsWith('https://');
+                         const cleanImg = isHttp 
                            ? product.image_path 
-                           : '/uploads/' + product.image_path.split('\\').pop().split('/').pop();
+                           : (product.image_path.startsWith('/uploads/') 
+                               ? product.image_path 
+                               : '/uploads/' + product.image_path.split('\\').pop().split('/').pop());
                     %>
                       <div class="w-10 h-10 rounded-lg border border-[#E4E4E7] overflow-hidden bg-[#F4F4F5]">
                         <img src="<%= cleanImg %>" alt="<%= product.name %>" class="w-full h-full object-cover">
@@ -195,14 +198,15 @@
         <div>
           <label class="block text-xs font-medium text-[#71717A] mb-1">Foto / Gambar Produk</label>
           <div class="flex items-center space-x-3">
-            <template x-if="formData.image_path">
+            <template x-if="imagePreview || formData.image_path">
               <div class="relative w-12 h-12 rounded-xl border border-[#E4E4E7] overflow-hidden bg-[#F4F4F5] flex-shrink-0">
-                <img :src="formData.image_path.startsWith('/') || formData.image_path.startsWith('http') ? formData.image_path : '/uploads/' + formData.image_path.split('\\').pop().split('/').pop()" 
+                <img :src="imagePreview ? imagePreview : (formData.image_path.startsWith('http') ? formData.image_path : (formData.image_path.startsWith('/uploads/') ? formData.image_path : '/uploads/' + formData.image_path.split('\\').pop().split('/').pop()))" 
                      class="w-full h-full object-cover" alt="Preview">
               </div>
             </template>
             <div class="flex-1">
               <input type="file" name="image" accept="image/*"
+                     @change="handleImageChange($event)"
                      class="w-full text-xs text-[#71717A] file:mr-2.5 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-medium file:bg-[#F4F4F5] file:text-[#18181B] hover:file:bg-[#E4E4E7] cursor-pointer">
             </div>
           </div>
@@ -365,14 +369,23 @@
         related_products: ''
       },
 
+      imagePreview: null,
+      handleImageChange(e) {
+        if (e.target.files && e.target.files[0]) {
+          this.imagePreview = URL.createObjectURL(e.target.files[0]);
+        }
+      },
+
       openCreateModal() {
         this.isEdit = false;
+        this.imagePreview = null;
         this.formData = { id: null, sku: '', name: '', category: '', price: '', stock: '', description: '', product_knowledge: '', image_path: '', related_products: '' };
         this.showFormModal = true;
       },
 
       openEditModal(prod) {
         this.isEdit = true;
+        this.imagePreview = null;
         this.formData = { ...prod };
         this.showFormModal = true;
       },

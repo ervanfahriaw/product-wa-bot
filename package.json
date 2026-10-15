@@ -32,6 +32,7 @@
     "test:android:a5": "node scripts/test-android-a5-service-manifest.js",
     "test:android:a6": "node scripts/test-android-master-qc.js",
     "test:android:master": "node scripts/test-android-master-qc.js",
+    "test:resilience": "node scripts/test-background-resilience-tdd.js",
     "test": "node scripts/test-full-qa-a-to-z.js"
   },
   "pkg": {

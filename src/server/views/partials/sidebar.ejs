@@ -1,5 +1,5 @@
 <%
-  const edition = typeof editionInfo !== 'undefined' ? editionInfo : { name: 'WA Bot Assistant', shortName: 'WA Bot', theme: { badgeText: 'Edition', badgeClass: 'bg-zinc-100 text-zinc-800 border-zinc-200' } };
+  const edition = typeof editionInfo !== 'undefined' ? editionInfo : { name: 'WA Bot Bisnis AI', shortName: 'WA Bot Bisnis AI', theme: { badgeText: 'Bisnis Edition', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' } };
   const isBisnis = (typeof isBusiness !== 'undefined') ? isBusiness : (config && config.mode === 'bisnis');
   const isPerson = (typeof isPersonal !== 'undefined') ? isPersonal : (config && config.mode === 'personal');
   const businessName = (config && config.business_name) ? config.business_name : (isBisnis ? 'Toko Saya' : (edition.shortName || 'Asisten Saya'));
@@ -8,476 +8,948 @@
   const ownerInitial = ownerName.substring(0, 1).toUpperCase() || 'U';
   const currentMenu = typeof activeMenu !== 'undefined' ? activeMenu : 'dashboard';
   const pendingCount = typeof pendingHandoverCount !== 'undefined' ? pendingHandoverCount : 0;
+  const todayCount = (typeof todayAiCount !== 'undefined') ? todayAiCount : 0;
+  const todayTokens = (typeof todayAiTokens !== 'undefined') ? todayAiTokens : 0;
+  const maxQuota = 1500;
+  const percentUsed = Math.min(100, Math.round((todayCount / maxQuota) * 100));
+  const remainingQuota = Math.max(0, maxQuota - todayCount);
 %>
 
-<!-- Left Sidebar Navigation (Matching Minimalist Design System) -->
-<aside class="w-full md:w-60 bg-white border-r border-[#E4E4E7] flex flex-col justify-between p-4 flex-shrink-0 min-h-[640px]">
-  <div class="space-y-4">
-    <!-- Workspace Header -->
-    <div class="space-y-2 px-1">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-2.5">
-          <div class="w-8 h-8 rounded-xl bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-xs font-bold text-[#18181B] shadow-sm">
-            <%= initials %>
-          </div>
-          <div class="flex flex-col min-w-0">
-            <span class="text-sm font-semibold text-[#18181B] truncate max-w-[130px] leading-tight"><%= businessName %></span>
-            <span class="text-[10px] text-[#71717A] truncate"><%= edition.shortName || (isBisnis ? 'WA Bot Bisnis' : 'WA Asisten Pribadi') %></span>
-          </div>
+<div x-data="{
+  mobileMenuOpen: false,
+  showShutdownModal: false,
+  isShuttingDown: false,
+  isShutDownDone: false,
+  isRestarting: false,
+  restartSuccess: false,
+  restartError: null,
+  async restartBot() {
+    if (this.isRestarting) return;
+    this.isRestarting = true;
+    this.restartSuccess = false;
+    this.restartError = null;
+    try {
+      const res = await fetch('/api/restart', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        let checks = 0;
+        const timer = setInterval(async () => {
+          checks++;
+          try {
+            const stRes = await fetch('/api/status');
+            const stData = await stRes.json();
+            const st = (stData && stData.data && stData.data.state) ? stData.data.state.toLowerCase() : '';
+            if (st === 'ready' || st === 'authenticated' || checks >= 12) {
+              clearInterval(timer);
+              this.isRestarting = false;
+              this.restartSuccess = true;
+              setTimeout(() => { this.restartSuccess = false; }, 3500);
+            }
+          } catch (_) {
+            if (checks >= 12) {
+              clearInterval(timer);
+              this.isRestarting = false;
+            }
+          }
+        }, 1500);
+      } else {
+        this.isRestarting = false;
+        this.restartError = data.message || 'Gagal memulai ulang.';
+        setTimeout(() => { this.restartError = null; }, 4000);
+      }
+    } catch (err) {
+      this.isRestarting = false;
+      this.restartError = err.message || 'Terjadi kesalahan jaringan.';
+      setTimeout(() => { this.restartError = null; }, 4000);
+    }
+  }
+}" 
+@keydown.escape.window="mobileMenuOpen = false; if (!isShuttingDown) showShutdownModal = false"
+x-effect="document.body.style.overflow = (mobileMenuOpen || showShutdownModal) ? 'hidden' : ''"
+class="contents">
+
+  <!-- ========================================== -->
+  <!-- 1. MOBILE STICKY TOPBAR (md:hidden)        -->
+  <!-- Stays fixed at top when scrolling on mobile-->
+  <!-- ========================================== -->
+  <header class="md:hidden sticky top-0 z-30 w-full bg-white/95 backdrop-blur-md border-b border-[#E4E4E7] px-4 py-2.5 flex items-center justify-between shadow-xs">
+    <div class="flex items-center space-x-3 min-w-0">
+      <!-- Hamburger Menu Button (Garis Tiga) -->
+      <button type="button" 
+              @click="mobileMenuOpen = true" 
+              class="p-2 -ml-2 rounded-xl text-zinc-700 hover:text-zinc-950 hover:bg-zinc-100 active:scale-95 focus:outline-none transition-all flex items-center justify-center" 
+              aria-label="Buka Menu Navigasi">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+
+      <!-- App Logo & Branding -->
+      <a href="/dashboard" class="flex items-center space-x-2.5 min-w-0">
+        <img src="/logo.svg" alt="WA Bot Bisnis AI" class="w-7 h-7 rounded-lg shadow-xs flex-shrink-0" />
+        <div class="flex flex-col min-w-0">
+          <span class="text-sm font-bold text-[#18181B] truncate leading-tight tracking-tight">WA Bot Bisnis AI</span>
+          <span class="text-[10px] text-[#71717A] truncate"><%= businessName %></span>
         </div>
-      </div>
-      <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium border <%= edition.theme ? edition.theme.badgeClass : 'bg-zinc-100 text-zinc-800 border-zinc-200' %>">
-        <span class="w-1.5 h-1.5 rounded-full <%= isBisnis ? 'bg-emerald-500' : 'bg-indigo-500' %>"></span>
-        <span><%= edition.theme ? edition.theme.badgeText : (isBisnis ? 'Bisnis Edition' : 'Personal Edition') %></span>
-      </div>
+      </a>
     </div>
 
-    <!-- Quick Status / View Link -->
-    <a href="/dashboard/settings" 
-       class="flex items-center justify-between px-3 py-1.5 rounded-full border border-[#E4E4E7] bg-white text-xs font-medium text-[#18181B] hover:bg-[#F4F4F5] transition-colors">
-      <div class="flex items-center space-x-2">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-        <span class="text-[12px] font-medium">WhatsApp Engine</span>
-      </div>
-      <svg class="w-3.5 h-3.5 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-        <line x1="7" y1="17" x2="17" y2="7"></line>
-        <polyline points="7 7 17 7 17 17"></polyline>
-      </svg>
-    </a>
-
-    <!-- Navigation Group 1 -->
-    <nav class="space-y-1 pt-2">
-      <!-- Dashboard -->
-      <a href="/dashboard" 
-         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'dashboard' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-        <svg class="w-4 h-4 <%= currentMenu === 'dashboard' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-          <rect width="7" height="9" x="3" y="3" rx="1"></rect>
-          <rect width="7" height="5" x="14" y="3" rx="1"></rect>
-          <rect width="7" height="9" x="14" y="12" rx="1"></rect>
-          <rect width="7" height="5" x="3" y="16" rx="1"></rect>
-        </svg>
-        <span>Dashboard</span>
-      </a>
-
-      <% if (isBisnis) { %>
-        <!-- Analisis Bisnis & AI Insights (Khusus Mode Bisnis) -->
-        <a href="/dashboard/analytics" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'analytics' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'analytics' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <line x1="18" y1="20" x2="18" y2="10"></line>
-            <line x1="12" y1="20" x2="12" y2="4"></line>
-            <line x1="6" y1="20" x2="6" y2="14"></line>
-          </svg>
-          <span>Analisis Bisnis</span>
-        </a>
-
-        <!-- Katalog Produk -->
-        <a href="/dashboard/products" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'products' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'products' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="m7.5 4.27 9 5.15"></path>
-            <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
-            <path d="m3.3 7 8.7 5 8.7-5"></path>
-            <path d="M12 22V12"></path>
-          </svg>
-          <span>Katalog Produk</span>
-        </a>
-
-        <!-- Profil & Knowledge Usaha -->
-        <a href="/dashboard/business-profile" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'business-profile' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'business-profile' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-          </svg>
-          <span>Profil Usaha</span>
-        </a>
-
-        <!-- Inbox Handover -->
-        <a href="/dashboard/handover-inbox" 
-           class="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'handover-inbox' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <div class="flex items-center space-x-2.5">
-            <svg class="w-4 h-4 <%= currentMenu === 'handover-inbox' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
-              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
-            </svg>
-            <span>Inbox Handover</span>
-          </div>
-          <% if (pendingCount > 0) { %>
-            <span class="px-2 py-0.5 text-[11px] font-bold bg-[#DC2626] text-white rounded-full">
-              <%= pendingCount %>
-            </span>
-          <% } %>
-        </a>
-
-        <!-- Pelanggan (CRM) -->
-        <a href="/dashboard/customers" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'customers' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'customers' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-          </svg>
-          <span>Pelanggan</span>
-        </a>
-
-        <!-- FAQ Otomatis -->
-        <a href="/dashboard/faqs" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'faqs' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'faqs' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"></circle>
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-          </svg>
-          <span>FAQ Otomatis</span>
-        </a>
-
-        <!-- Daftar Pesanan -->
-        <a href="/dashboard/orders" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'orders' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'orders' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <circle cx="9" cy="21" r="1"></circle>
-            <circle cx="20" cy="21" r="1"></circle>
-            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
-          </svg>
-          <span>Daftar Pesanan</span>
-        </a>
-      <% } else { %>
-        <!-- Catatan Keuangan (Mode Personal) -->
-        <a href="/dashboard/expenses" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'expenses' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'expenses' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <rect width="20" height="14" x="2" y="5" rx="2"></rect>
-            <line x1="2" x2="22" y1="10" y2="10"></line>
-          </svg>
-          <span>Catatan Keuangan</span>
-        </a>
-
-        <!-- Pengingat (Mode Personal) -->
-        <a href="/dashboard/reminders" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'reminders' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'reminders' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-          <span>Pengingat</span>
-        </a>
-
-        <!-- Catatan (Mode Personal) -->
-        <a href="/dashboard/notes" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'notes' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'notes' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-            <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="16" y1="13" x2="8" y2="13"></line>
-            <line x1="16" y1="17" x2="8" y2="17"></line>
-          </svg>
-          <span>Catatan</span>
-        </a>
-
-        <!-- Daftar Tugas (Mode Personal) -->
-        <a href="/dashboard/todos" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'todos' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'todos' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M9 11l3 3L22 4"></path>
-            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-          </svg>
-          <span>Daftar Tugas</span>
-        </a>
-
-        <!-- Budget Planner (Mode Personal) -->
-        <a href="/dashboard/budgets" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'budgets' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'budgets' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <line x1="12" y1="1" x2="12" y2="23"></line>
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-          </svg>
-          <span>Budget Planner</span>
-        </a>
-
-        <!-- Habit Tracker (Mode Personal) -->
-        <a href="/dashboard/habits" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'habits' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'habits' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M12 20V10"></path>
-            <path d="M18 20V4"></path>
-            <path d="M6 20v-4"></path>
-          </svg>
-          <span>Habit Tracker</span>
-        </a>
-
-        <!-- Jadwal Acara (Mode Personal) -->
-        <a href="/dashboard/events" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'events' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'events' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-            <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line>
-            <line x1="3" y1="10" x2="21" y2="10"></line>
-          </svg>
-          <span>Jadwal Acara</span>
-        </a>
-
-        <!-- Daily Journal (Mode Personal) -->
-        <a href="/dashboard/journals" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'journals' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'journals' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-          </svg>
-          <span>Daily Journal</span>
-        </a>
-
-        <!-- Goal Setting (Mode Personal) -->
-        <a href="/dashboard/goals" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'goals' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'goals' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"></circle>
-            <circle cx="12" cy="12" r="6"></circle>
-            <circle cx="12" cy="12" r="2"></circle>
-          </svg>
-          <span>Goal Setting</span>
-        </a>
-
-        <!-- Export Data (Mode Personal) -->
-        <a href="/dashboard/export" 
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'export' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-          <svg class="w-4 h-4 <%= currentMenu === 'export' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          <span>Export Data</span>
-        </a>
-      <% } %>
-
-      <!-- Chat Logs -->
-      <a href="/dashboard/chat-logs" 
-         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'chat-logs' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-        <svg class="w-4 h-4 <%= currentMenu === 'chat-logs' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-        </svg>
-        <span>Chat Logs</span>
-      </a>
-
-      <!-- Training AI -->
-      <a href="/dashboard/training" 
-         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'training' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-        <svg class="w-4 h-4 <%= currentMenu === 'training' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
-          <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
-          <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
-        </svg>
-        <span>Training Gaya Bicara</span>
-      </a>
-    </nav>
-
-    <!-- Divider Line -->
-    <div class="border-t border-[#E4E4E7] pt-2"></div>
-
-    <!-- Navigation Group 2: Settings -->
-    <nav class="space-y-1">
+    <!-- Quick Status / Shortcut Pengaturan -->
+    <div class="flex items-center space-x-2 flex-shrink-0">
       <a href="/dashboard/settings" 
-         class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'settings' ? 'bg-[#F4F4F5] text-[#18181B]' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
-        <svg class="w-4 h-4 <%= currentMenu === 'settings' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+         class="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-full border border-[#E4E4E7] bg-white text-xs font-medium text-[#18181B] hover:bg-[#F4F4F5] transition-colors shadow-2xs">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span class="text-[11px] font-medium hidden sm:inline">Pengaturan</span>
+        <svg class="w-3.5 h-3.5 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
           <circle cx="12" cy="12" r="3"></circle>
         </svg>
-        <span>Pengaturan</span>
       </a>
-    </nav>
-  </div>
-
-  <!-- Bottom Section: Quota / Sisa Token AI Hari Ini -->
-  <%
-    const todayCount = (typeof todayAiCount !== 'undefined') ? todayAiCount : 0;
-    const maxQuota = 1500; // Kuota harian default Google Gemini API (1.500 RPD)
-    const percentUsed = Math.min(100, Math.round((todayCount / maxQuota) * 100));
-    const remainingQuota = Math.max(0, maxQuota - todayCount);
-  %>
-  <div class="pt-4 border-t border-[#E4E4E7] space-y-3">
-    <div class="px-2 space-y-1.5">
-      <div class="flex items-center justify-between text-xs">
-        <span class="text-[#71717A] font-medium">Quota AI Hari Ini</span>
-        <span class="font-semibold text-[#18181B]"><%= todayCount %> / <%= maxQuota.toLocaleString('id-ID') %></span>
-      </div>
-      <div class="w-full bg-[#E4E4E7] h-1.5 rounded-full overflow-hidden">
-        <div class="bg-[#18181B] h-1.5 rounded-full transition-all duration-300" style="width: <%= Math.max(3, percentUsed) %>%;"></div>
-      </div>
-      <div class="flex items-center justify-between text-[10px] text-[#A1A1AA]">
-        <span>Sisa: <%= remainingQuota.toLocaleString('id-ID') %> pesan</span>
-        <span>Reset 00:00</span>
-      </div>
     </div>
+  </header>
 
-    <!-- Restart Bot & Engine Recovery Action (Kiri Bawah) -->
-    <div x-data="{
-      isRestarting: false,
-      restartSuccess: false,
-      restartError: null,
-      async restartBot() {
-        if (this.isRestarting) return;
-        this.isRestarting = true;
-        this.restartSuccess = false;
-        this.restartError = null;
-        try {
-          const res = await fetch('/api/restart', { method: 'POST' });
-          const data = await res.json();
-          if (data.success) {
-            let checks = 0;
-            const timer = setInterval(async () => {
-              checks++;
-              try {
-                const stRes = await fetch('/api/status');
-                const stData = await stRes.json();
-                const st = (stData && stData.data && stData.data.state) ? stData.data.state.toLowerCase() : '';
-                if (st === 'ready' || st === 'authenticated' || checks >= 12) {
-                  clearInterval(timer);
-                  this.isRestarting = false;
-                  this.restartSuccess = true;
-                  setTimeout(() => { this.restartSuccess = false; }, 3500);
-                }
-              } catch (_) {
-                if (checks >= 12) {
-                  clearInterval(timer);
-                  this.isRestarting = false;
-                }
-              }
-            }, 1500);
-          } else {
-            this.isRestarting = false;
-            this.restartError = data.message || 'Gagal memulai ulang.';
-            setTimeout(() => { this.restartError = null; }, 4000);
-          }
-        } catch (err) {
-          this.isRestarting = false;
-          this.restartError = err.message || 'Terjadi kesalahan jaringan.';
-          setTimeout(() => { this.restartError = null; }, 4000);
-        }
-      }
-    }" class="space-y-1.5 pt-1">
-      
-      <!-- Button Restart Bot -->
-      <button type="button" 
-              @click="restartBot()" 
-              :disabled="isRestarting"
-              title="Mulai ulang WhatsApp engine dan pulihkan koneksi jika PC baru bangun dari sleep / mati"
-              class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-800 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed group">
-        <div class="flex items-center space-x-2">
-          <svg class="w-3.5 h-3.5 text-amber-500 transition-transform duration-300" :class="isRestarting ? 'animate-spin' : 'group-hover:rotate-180'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
-          </svg>
-          <span x-text="isRestarting ? 'Memulai Ulang...' : 'Mulai Ulang Bot'"></span>
-        </div>
-        <span class="text-[10px] font-normal px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 group-hover:bg-zinc-200 transition-colors" x-text="isRestarting ? 'Proses' : 'Restart'"></span>
-      </button>
+  <!-- ========================================== -->
+  <!-- 2. MOBILE OFF-CANVAS DRAWER (md:hidden)    -->
+  <!-- ========================================== -->
+  <div x-show="mobileMenuOpen" 
+       x-cloak 
+       class="fixed inset-0 z-50 md:hidden" 
+       aria-modal="true">
+    <!-- Backdrop Overlay -->
+    <div x-show="mobileMenuOpen"
+         @click="mobileMenuOpen = false"
+         x-transition:enter="transition-opacity ease-linear duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition-opacity ease-linear duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-black/50 backdrop-blur-xs"></div>
 
-      <!-- Feedback Success Toast -->
-      <template x-if="restartSuccess">
-        <div class="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center gap-1.5 animate-fade-in">
-          <svg class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-          <span>Bot berhasil di-restart & aktif!</span>
-        </div>
-      </template>
-
-      <!-- Feedback Error Toast -->
-      <template x-if="restartError">
-        <div class="p-2 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px] font-medium flex items-center gap-1.5 animate-fade-in">
-          <svg class="w-3.5 h-3.5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-          <span x-text="restartError"></span>
-        </div>
-      </template>
-    </div>
-
-    <!-- User Profile Item & Shutdown Button -->
-    <div x-data="{ showShutdownModal: false, isShuttingDown: false, isShutDownDone: false }">
-      <div class="flex items-center justify-between px-2 py-1.5 border-t border-[#E4E4E7]/60 pt-2.5">
-        <div class="flex items-center space-x-2.5 min-w-0">
-          <div class="w-7 h-7 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-xs font-semibold text-[#18181B] flex-shrink-0">
-            <%= ownerInitial %>
-          </div>
-          <div class="text-xs truncate font-medium text-[#18181B]">
-            <%= ownerName %>
-          </div>
-        </div>
-        <button type="button" 
-                @click="showShutdownModal = true" 
-                title="Matikan WhatsApp Bot & Server"
-                class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors"
-                aria-label="Matikan Bot">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-            <line x1="12" y1="2" x2="12" y2="12"></line>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Shutdown Confirmation Modal -->
-      <div x-show="showShutdownModal" 
-           x-cloak
-           class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-        <div @click.away="if (!isShuttingDown) showShutdownModal = false" 
-             class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-zinc-200 text-center space-y-4">
-          
-          <template x-if="!isShutDownDone">
-            <div class="space-y-4">
-              <div class="w-12 h-12 rounded-full bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-                  <line x1="12" y1="2" x2="12" y2="12"></line>
-                </svg>
-              </div>
-              <div class="space-y-1">
-                <h3 class="text-base font-bold text-zinc-900">Matikan WhatsApp Bot?</h3>
-                <p class="text-xs text-zinc-500 leading-relaxed">
-                  Server lokal dan koneksi WhatsApp akan dimatikan secara aman. Anda dapat menjalankannya kembali kapan saja lewat file peluncur (VBS / Shortcut).
-                </p>
-              </div>
-              <div class="flex items-center justify-center gap-3 pt-2">
-                <button type="button" 
-                        @click="showShutdownModal = false" 
-                        :disabled="isShuttingDown"
-                        class="px-4 py-2 text-xs font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-xl transition-colors">
-                  Batal
-                </button>
-                <button type="button" 
-                        @click="
-                          isShuttingDown = true;
-                          fetch('/api/shutdown', { method: 'POST' }).catch(() => {});
-                          setTimeout(() => { isShuttingDown = false; isShutDownDone = true; }, 1200);
-                        "
-                        :disabled="isShuttingDown"
-                        class="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors inline-flex items-center gap-1.5">
-                  <span x-show="!isShuttingDown">Ya, Matikan Bot</span>
-                  <span x-show="isShuttingDown">Mematikan...</span>
-                </button>
+    <!-- Sliding Drawer Panel -->
+    <div class="fixed inset-0 flex">
+      <div x-show="mobileMenuOpen"
+           x-transition:enter="transition ease-in-out duration-300 transform"
+           x-transition:enter-start="-translate-x-full"
+           x-transition:enter-end="translate-x-0"
+           x-transition:leave="transition ease-in-out duration-200 transform"
+           x-transition:leave-start="translate-x-0"
+           x-transition:leave-end="-translate-x-full"
+           class="relative flex-1 flex flex-col max-w-xs w-full bg-white shadow-2xl overflow-y-auto justify-between p-4">
+        
+        <div class="space-y-4">
+          <!-- Drawer Top: Brand & Close Button (X) -->
+          <div class="flex items-center justify-between pb-3 border-b border-[#E4E4E7]">
+            <div class="flex items-center space-x-2.5 min-w-0">
+              <img src="/logo.svg" alt="Logo" class="w-8 h-8 rounded-xl shadow-xs flex-shrink-0" />
+              <div class="flex flex-col min-w-0">
+                <span class="text-sm font-bold text-[#18181B] truncate leading-tight">WA Bot Bisnis AI</span>
+                <span class="text-[10px] text-[#71717A] truncate"><%= businessName %></span>
               </div>
             </div>
-          </template>
+            <button type="button" 
+                    @click="mobileMenuOpen = false" 
+                    class="p-2 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+                    aria-label="Tutup Menu">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
 
-          <template x-if="isShutDownDone">
-            <div class="space-y-3 py-2">
-              <div class="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-medium border <%= edition.theme ? edition.theme.badgeClass : 'bg-zinc-100 text-zinc-800 border-zinc-200' %>">
+            <span class="w-1.5 h-1.5 rounded-full <%= isBisnis ? 'bg-emerald-500' : 'bg-indigo-500' %>"></span>
+            <span><%= edition.theme ? edition.theme.badgeText : (isBisnis ? 'Bisnis Edition' : 'Personal Edition') %></span>
+          </div>
+
+          <!-- Quick Status Link -->
+          <a href="/dashboard/settings" 
+             @click="mobileMenuOpen = false"
+             class="flex items-center justify-between px-3 py-2 rounded-xl border border-[#E4E4E7] bg-white text-xs font-medium text-[#18181B] hover:bg-[#F4F4F5] transition-colors">
+            <div class="flex items-center space-x-2">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span class="text-[12px] font-medium">WhatsApp Engine</span>
+            </div>
+            <svg class="w-3.5 h-3.5 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <line x1="7" y1="17" x2="17" y2="7"></line>
+              <polyline points="7 7 17 7 17 17"></polyline>
+            </svg>
+          </a>
+
+          <!-- Mobile Nav Items -->
+          <nav class="space-y-1 pt-1">
+            <!-- Dashboard -->
+            <a href="/dashboard" 
+               @click="mobileMenuOpen = false"
+               class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'dashboard' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+              <svg class="w-4 h-4 <%= currentMenu === 'dashboard' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <rect width="7" height="9" x="3" y="3" rx="1"></rect>
+                <rect width="7" height="5" x="14" y="3" rx="1"></rect>
+                <rect width="7" height="9" x="14" y="12" rx="1"></rect>
+                <rect width="7" height="5" x="3" y="16" rx="1"></rect>
+              </svg>
+              <span>Dashboard</span>
+            </a>
+
+            <% if (isBisnis) { %>
+              <!-- Analisis Bisnis -->
+              <a href="/dashboard/analytics" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'analytics' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'analytics' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <line x1="18" y1="20" x2="18" y2="10"></line>
+                  <line x1="12" y1="20" x2="12" y2="4"></line>
+                  <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+                <span>Analisis Bisnis</span>
+              </a>
+
+              <!-- Katalog Produk -->
+              <a href="/dashboard/products" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'products' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'products' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <path d="m7.5 4.27 9 5.15"></path>
+                  <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
+                  <path d="m3.3 7 8.7 5 8.7-5"></path>
+                  <path d="M12 22V12"></path>
+                </svg>
+                <span>Katalog Produk</span>
+              </a>
+
+              <!-- Profil & Knowledge Usaha -->
+              <a href="/dashboard/business-profile" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'business-profile' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'business-profile' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+                <span>Profil Usaha</span>
+              </a>
+
+              <!-- Inbox Handover -->
+              <a href="/dashboard/handover-inbox" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'handover-inbox' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <div class="flex items-center space-x-2.5">
+                  <svg class="w-4 h-4 <%= currentMenu === 'handover-inbox' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+                  </svg>
+                  <span>Inbox Handover</span>
+                </div>
+                <% if (pendingCount > 0) { %>
+                  <span class="px-2 py-0.5 text-[11px] font-bold bg-[#DC2626] text-white rounded-full">
+                    <%= pendingCount %>
+                  </span>
+                <% } %>
+              </a>
+
+              <!-- Pelanggan (CRM) -->
+              <a href="/dashboard/customers" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'customers' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'customers' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                <span>Pelanggan</span>
+              </a>
+
+              <!-- FAQ Otomatis -->
+              <a href="/dashboard/faqs" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'faqs' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'faqs' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                <span>FAQ Otomatis</span>
+              </a>
+
+              <!-- Daftar Pesanan -->
+              <a href="/dashboard/orders" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'orders' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'orders' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <circle cx="9" cy="21" r="1"></circle>
+                  <circle cx="20" cy="21" r="1"></circle>
+                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                </svg>
+                <span>Daftar Pesanan</span>
+              </a>
+            <% } else { %>
+              <!-- Mode Personal Menu Items -->
+              <a href="/dashboard/expenses" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'expenses' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'expenses' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <rect width="20" height="14" x="2" y="5" rx="2"></rect>
+                  <line x1="2" x2="22" y1="10" y2="10"></line>
+                </svg>
+                <span>Catatan Keuangan</span>
+              </a>
+
+              <a href="/dashboard/reminders" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'reminders' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'reminders' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                <span>Pengingat</span>
+              </a>
+
+              <a href="/dashboard/notes" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'notes' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'notes' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+                <span>Catatan</span>
+              </a>
+
+              <a href="/dashboard/todos" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'todos' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'todos' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <path d="M9 11l3 3L22 4"></path>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                </svg>
+                <span>Daftar Tugas</span>
+              </a>
+
+              <a href="/dashboard/budgets" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'budgets' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'budgets' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <line x1="12" y1="1" x2="12" y2="23"></line>
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+                <span>Budget Planner</span>
+              </a>
+
+              <a href="/dashboard/habits" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'habits' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'habits' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <path d="M12 20V10"></path>
+                  <path d="M18 20V4"></path>
+                  <path d="M6 20v-4"></path>
+                </svg>
+                <span>Habit Tracker</span>
+              </a>
+
+              <a href="/dashboard/events" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'events' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'events' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                <span>Jadwal Acara</span>
+              </a>
+
+              <a href="/dashboard/journals" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'journals' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'journals' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+                <span>Daily Journal</span>
+              </a>
+
+              <a href="/dashboard/goals" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'goals' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'goals' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="12" r="6"></circle>
+                  <circle cx="12" cy="12" r="2"></circle>
+                </svg>
+                <span>Goal Setting</span>
+              </a>
+
+              <a href="/dashboard/export" 
+                 @click="mobileMenuOpen = false"
+                 class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'export' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+                <svg class="w-4 h-4 <%= currentMenu === 'export' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Export Data</span>
+              </a>
+            <% } %>
+
+            <!-- Chat Logs -->
+            <a href="/dashboard/chat-logs" 
+               @click="mobileMenuOpen = false"
+               class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'chat-logs' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+              <svg class="w-4 h-4 <%= currentMenu === 'chat-logs' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <span>Chat Logs</span>
+            </a>
+
+            <!-- Training AI -->
+            <a href="/dashboard/training" 
+               @click="mobileMenuOpen = false"
+               class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'training' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+              <svg class="w-4 h-4 <%= currentMenu === 'training' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+              </svg>
+              <span>Training Gaya Bicara</span>
+            </a>
+          </nav>
+
+          <!-- Divider -->
+          <div class="border-t border-[#E4E4E7] pt-2"></div>
+
+          <!-- Settings & Manual Book -->
+          <nav class="space-y-1">
+            <a href="/dashboard/manual-book" 
+               @click="mobileMenuOpen = false"
+               class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'manual-book' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+              <svg class="w-4 h-4 <%= currentMenu === 'manual-book' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+              </svg>
+              <span>Buku Panduan</span>
+            </a>
+
+            <a href="/dashboard/settings" 
+               @click="mobileMenuOpen = false"
+               class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'settings' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+              <svg class="w-4 h-4 <%= currentMenu === 'settings' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <span>Pengaturan</span>
+            </a>
+          </nav>
+        </div>
+
+        <!-- Mobile Drawer Bottom Section -->
+        <div class="pt-4 border-t border-[#E4E4E7] space-y-3 mt-6">
+          <!-- Quota AI -->
+          <div class="px-2 space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-[#71717A] font-medium">Quota AI Hari Ini</span>
+              <span class="font-semibold text-[#18181B]"><%= todayCount %> / <%= maxQuota.toLocaleString('id-ID') %> req</span>
+            </div>
+            <div class="w-full bg-[#E4E4E7] h-1.5 rounded-full overflow-hidden">
+              <div class="bg-[#18181B] h-1.5 rounded-full transition-all duration-300" style="width: <%= Math.max(3, percentUsed) %>%;"></div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] text-[#71717A]">
+              <span>Sisa: <strong class="text-zinc-800"><%= remainingQuota.toLocaleString('id-ID') %></strong> req</span>
+              <% if (todayTokens > 0) { %>
+                <span class="text-emerald-600 font-medium"><%= todayTokens.toLocaleString('id-ID') %> token</span>
+              <% } else { %>
+                <span>Reset 00:00</span>
+              <% } %>
+            </div>
+          </div>
+
+          <!-- Restart Bot Button -->
+          <div class="space-y-1.5 pt-1">
+            <button type="button" 
+                    @click="restartBot()" 
+                    :disabled="isRestarting"
+                    class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-800 shadow-xs disabled:opacity-60 disabled:cursor-not-allowed group">
+              <div class="flex items-center space-x-2">
+                <svg class="w-3.5 h-3.5 text-amber-500 transition-transform duration-300" :class="isRestarting ? 'animate-spin' : 'group-hover:rotate-180'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+                </svg>
+                <span x-text="isRestarting ? 'Memulai Ulang...' : 'Mulai Ulang Bot'"></span>
+              </div>
+              <span class="text-[10px] font-normal px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600" x-text="isRestarting ? 'Proses' : 'Restart'"></span>
+            </button>
+
+            <template x-if="restartSuccess">
+              <div class="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <polyline points="20 6 9 17 4 12"></polyline>
                 </svg>
+                <span>Bot berhasil di-restart & aktif!</span>
               </div>
-              <div class="space-y-1">
-                <h3 class="text-base font-bold text-zinc-900">Bot Berhasil Dimatikan</h3>
-                <p class="text-xs text-zinc-500">
-                  Layanan telah dinonaktifkan. Anda sekarang dapat menutup jendela atau tab browser ini dengan aman.
-                </p>
+            </template>
+
+            <template x-if="restartError">
+              <div class="p-2 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px] font-medium flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span x-text="restartError"></span>
+              </div>
+            </template>
+          </div>
+
+          <!-- User Profile & Shutdown Trigger -->
+          <div class="flex items-center justify-between px-2 py-1.5 border-t border-[#E4E4E7]/60 pt-2.5">
+            <div class="flex items-center space-x-2.5 min-w-0">
+              <div class="w-7 h-7 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-xs font-semibold text-[#18181B] flex-shrink-0">
+                <%= ownerInitial %>
+              </div>
+              <div class="text-xs truncate font-medium text-[#18181B]">
+                <%= ownerName %>
               </div>
             </div>
-          </template>
-
+            <button type="button" 
+                    @click="mobileMenuOpen = false; showShutdownModal = true" 
+                    title="Matikan WhatsApp Bot & Server"
+                    class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                    aria-label="Matikan Bot">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                <line x1="12" y1="2" x2="12" y2="12"></line>
+              </svg>
+            </button>
+          </div>
         </div>
+
       </div>
     </div>
   </div>
-</aside>
+
+  <!-- ========================================== -->
+  <!-- 3. DESKTOP SIDEBAR (hidden md:flex)        -->
+  <!-- Stays fixed/sticky on desktop view         -->
+  <!-- ========================================== -->
+  <aside class="hidden md:flex md:w-60 bg-white border-r border-[#E4E4E7] flex-col justify-between p-4 flex-shrink-0 min-h-screen sticky top-0 h-screen overflow-y-auto">
+    <div class="space-y-4">
+      <!-- Workspace Header -->
+      <div class="space-y-2 px-1">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2.5">
+            <img src="/logo.svg" alt="WA Bot Bisnis AI" class="w-8 h-8 rounded-xl shadow-xs flex-shrink-0" />
+            <div class="flex flex-col min-w-0">
+              <span class="text-sm font-bold text-[#18181B] truncate max-w-[130px] leading-tight">WA Bot Bisnis AI</span>
+              <span class="text-[10px] text-[#71717A] truncate"><%= businessName %></span>
+            </div>
+          </div>
+        </div>
+        <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium border <%= edition.theme ? edition.theme.badgeClass : 'bg-zinc-100 text-zinc-800 border-zinc-200' %>">
+          <span class="w-1.5 h-1.5 rounded-full <%= isBisnis ? 'bg-emerald-500' : 'bg-indigo-500' %>"></span>
+          <span><%= edition.theme ? edition.theme.badgeText : (isBisnis ? 'Bisnis Edition' : 'Personal Edition') %></span>
+        </div>
+      </div>
+
+      <!-- Quick Status / View Link -->
+      <a href="/dashboard/settings" 
+         class="flex items-center justify-between px-3 py-1.5 rounded-full border border-[#E4E4E7] bg-white text-xs font-medium text-[#18181B] hover:bg-[#F4F4F5] transition-colors">
+        <div class="flex items-center space-x-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span class="text-[12px] font-medium">WhatsApp Engine</span>
+        </div>
+        <svg class="w-3.5 h-3.5 text-[#71717A]" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+          <line x1="7" y1="17" x2="17" y2="7"></line>
+          <polyline points="7 7 17 7 17 17"></polyline>
+        </svg>
+      </a>
+
+      <!-- Desktop Navigation Group 1 -->
+      <nav class="space-y-1 pt-2">
+        <!-- Dashboard -->
+        <a href="/dashboard" 
+           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'dashboard' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+          <svg class="w-4 h-4 <%= currentMenu === 'dashboard' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <rect width="7" height="9" x="3" y="3" rx="1"></rect>
+            <rect width="7" height="5" x="14" y="3" rx="1"></rect>
+            <rect width="7" height="9" x="14" y="12" rx="1"></rect>
+            <rect width="7" height="5" x="3" y="16" rx="1"></rect>
+          </svg>
+          <span>Dashboard</span>
+        </a>
+
+        <% if (isBisnis) { %>
+          <!-- Analisis Bisnis -->
+          <a href="/dashboard/analytics" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'analytics' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'analytics' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            <span>Analisis Bisnis</span>
+          </a>
+
+          <!-- Katalog Produk -->
+          <a href="/dashboard/products" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'products' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'products' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="m7.5 4.27 9 5.15"></path>
+              <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
+              <path d="m3.3 7 8.7 5 8.7-5"></path>
+              <path d="M12 22V12"></path>
+            </svg>
+            <span>Katalog Produk</span>
+          </a>
+
+          <!-- Profil & Knowledge Usaha -->
+          <a href="/dashboard/business-profile" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'business-profile' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'business-profile' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+            <span>Profil Usaha</span>
+          </a>
+
+          <!-- Inbox Handover -->
+          <a href="/dashboard/handover-inbox" 
+             class="flex items-center justify-between px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'handover-inbox' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <div class="flex items-center space-x-2.5">
+              <svg class="w-4 h-4 <%= currentMenu === 'handover-inbox' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path>
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path>
+              </svg>
+              <span>Inbox Handover</span>
+            </div>
+            <% if (pendingCount > 0) { %>
+              <span class="px-2 py-0.5 text-[11px] font-bold bg-[#DC2626] text-white rounded-full">
+                <%= pendingCount %>
+              </span>
+            <% } %>
+          </a>
+
+          <!-- Pelanggan (CRM) -->
+          <a href="/dashboard/customers" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'customers' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'customers' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+            <span>Pelanggan</span>
+          </a>
+
+          <!-- FAQ Otomatis -->
+          <a href="/dashboard/faqs" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'faqs' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'faqs' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span>FAQ Otomatis</span>
+          </a>
+
+          <!-- Daftar Pesanan -->
+          <a href="/dashboard/orders" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'orders' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'orders' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <circle cx="9" cy="21" r="1"></circle>
+              <circle cx="20" cy="21" r="1"></circle>
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+            </svg>
+            <span>Daftar Pesanan</span>
+          </a>
+        <% } else { %>
+          <!-- Mode Personal Menu Items -->
+          <a href="/dashboard/expenses" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'expenses' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'expenses' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <rect width="20" height="14" x="2" y="5" rx="2"></rect>
+              <line x1="2" x2="22" y1="10" y2="10"></line>
+            </svg>
+            <span>Catatan Keuangan</span>
+          </a>
+
+          <a href="/dashboard/reminders" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'reminders' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'reminders' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span>Pengingat</span>
+          </a>
+
+          <a href="/dashboard/notes" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'notes' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'notes' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+            </svg>
+            <span>Catatan</span>
+          </a>
+
+          <a href="/dashboard/todos" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'todos' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'todos' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="M9 11l3 3L22 4"></path>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+            </svg>
+            <span>Daftar Tugas</span>
+          </a>
+
+          <a href="/dashboard/budgets" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'budgets' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'budgets' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <line x1="12" y1="1" x2="12" y2="23"></line>
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+            <span>Budget Planner</span>
+          </a>
+
+          <a href="/dashboard/habits" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'habits' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'habits' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="M12 20V10"></path>
+              <path d="M18 20V4"></path>
+              <path d="M6 20v-4"></path>
+            </svg>
+            <span>Habit Tracker</span>
+          </a>
+
+          <a href="/dashboard/events" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'events' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'events' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            <span>Jadwal Acara</span>
+          </a>
+
+          <a href="/dashboard/journals" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'journals' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'journals' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+            <span>Daily Journal</span>
+          </a>
+
+          <a href="/dashboard/goals" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'goals' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'goals' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"></circle>
+              <circle cx="12" cy="12" r="6"></circle>
+              <circle cx="12" cy="12" r="2"></circle>
+            </svg>
+            <span>Goal Setting</span>
+          </a>
+
+          <a href="/dashboard/export" 
+             class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'export' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+            <svg class="w-4 h-4 <%= currentMenu === 'export' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Export Data</span>
+          </a>
+        <% } %>
+
+        <!-- Chat Logs -->
+        <a href="/dashboard/chat-logs" 
+           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'chat-logs' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+          <svg class="w-4 h-4 <%= currentMenu === 'chat-logs' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>Chat Logs</span>
+        </a>
+
+        <!-- Training AI -->
+        <a href="/dashboard/training" 
+           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'training' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+          <svg class="w-4 h-4 <%= currentMenu === 'training' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+            <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+          </svg>
+          <span>Training Gaya Bicara</span>
+        </a>
+      </nav>
+
+      <!-- Divider Line -->
+      <div class="border-t border-[#E4E4E7] pt-2"></div>
+
+      <!-- Navigation Group 2: Settings & Manual Book -->
+      <nav class="space-y-1">
+        <a href="/dashboard/manual-book" 
+           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'manual-book' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+          <svg class="w-4 h-4 <%= currentMenu === 'manual-book' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+          </svg>
+          <span>Buku Panduan</span>
+        </a>
+
+        <a href="/dashboard/settings" 
+           class="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors <%= currentMenu === 'settings' ? 'bg-[#F4F4F5] text-[#18181B] font-semibold' : 'text-[#71717A] hover:bg-[#F4F4F5] hover:text-[#18181B]' %>">
+          <svg class="w-4 h-4 <%= currentMenu === 'settings' ? 'text-[#18181B]' : 'text-[#71717A]' %>" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          <span>Pengaturan</span>
+        </a>
+      </nav>
+    </div>
+
+    <!-- Desktop Bottom Section: Quota / Sisa Token AI Hari Ini -->
+    <div class="pt-4 border-t border-[#E4E4E7] space-y-3">
+      <div class="px-2 space-y-1.5">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-[#71717A] font-medium">Quota AI Hari Ini</span>
+          <span class="font-semibold text-[#18181B]"><%= todayCount %> / <%= maxQuota.toLocaleString('id-ID') %> req</span>
+        </div>
+        <div class="w-full bg-[#E4E4E7] h-1.5 rounded-full overflow-hidden">
+          <div class="bg-[#18181B] h-1.5 rounded-full transition-all duration-300" style="width: <%= Math.max(3, percentUsed) %>%;"></div>
+        </div>
+        <div class="flex items-center justify-between text-[10px] text-[#71717A]">
+          <span>Sisa: <strong class="text-zinc-800"><%= remainingQuota.toLocaleString('id-ID') %></strong> req</span>
+          <% if (todayTokens > 0) { %>
+            <span class="text-emerald-600 font-medium"><%= todayTokens.toLocaleString('id-ID') %> token</span>
+          <% } else { %>
+            <span>Reset 00:00</span>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Restart Bot & Engine Recovery Action -->
+      <div class="space-y-1.5 pt-1">
+        <button type="button" 
+                @click="restartBot()" 
+                :disabled="isRestarting"
+                title="Mulai ulang WhatsApp engine dan pulihkan koneksi jika HP/PC baru aktif"
+                class="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-800 shadow-xs disabled:opacity-60 disabled:cursor-not-allowed group">
+          <div class="flex items-center space-x-2">
+            <svg class="w-3.5 h-3.5 text-amber-500 transition-transform duration-300" :class="isRestarting ? 'animate-spin' : 'group-hover:rotate-180'" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+            </svg>
+            <span x-text="isRestarting ? 'Memulai Ulang...' : 'Mulai Ulang Bot'"></span>
+          </div>
+          <span class="text-[10px] font-normal px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 group-hover:bg-zinc-200 transition-colors" x-text="isRestarting ? 'Proses' : 'Restart'"></span>
+        </button>
+
+        <template x-if="restartSuccess">
+          <div class="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center gap-1.5 animate-fade-in">
+            <svg class="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <span>Bot berhasil di-restart & aktif!</span>
+          </div>
+        </template>
+
+        <template x-if="restartError">
+          <div class="p-2 rounded-xl bg-red-50 border border-red-200 text-red-800 text-[11px] font-medium flex items-center gap-1.5 animate-fade-in">
+            <svg class="w-3.5 h-3.5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span x-text="restartError"></span>
+          </div>
+        </template>
+      </div>
+
+      <!-- User Profile Item & Shutdown Button -->
+      <div>
+        <div class="flex items-center justify-between px-2 py-1.5 border-t border-[#E4E4E7]/60 pt-2.5">
+          <div class="flex items-center space-x-2.5 min-w-0">
+            <div class="w-7 h-7 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] flex items-center justify-center text-xs font-semibold text-[#18181B] flex-shrink-0">
+              <%= ownerInitial %>
+            </div>
+            <div class="text-xs truncate font-medium text-[#18181B]">
+              <%= ownerName %>
+            </div>
+          </div>
+          <button type="button" 
+                  @click="showShutdownModal = true" 
+                  title="Matikan WhatsApp Bot & Server"
+                  class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                  aria-label="Matikan Bot">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+              <line x1="12" y1="2" x2="12" y2="12"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ========================================== -->
+  <!-- 4. SHUTDOWN CONFIRMATION MODAL (Shared)    -->
+  <!-- ========================================== -->
+  <div x-show="showShutdownModal" 
+       x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+    <div @click.away="if (!isShuttingDown) showShutdownModal = false" 
+         class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-zinc-200 text-center space-y-4">
+      
+      <template x-if="!isShutDownDone">
+        <div class="space-y-4">
+          <div class="w-12 h-12 rounded-full bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+              <line x1="12" y1="2" x2="12" y2="12"></line>
+            </svg>
+          </div>
+          <div class="space-y-1">
+            <h3 class="text-base font-bold text-zinc-900">Matikan WhatsApp Bot?</h3>
+            <p class="text-xs text-zinc-500 leading-relaxed">
+              Server lokal dan koneksi WhatsApp akan dimatikan secara aman. Anda dapat menjalankannya kembali kapan saja lewat aplikasi.
+            </p>
+          </div>
+          <div class="flex items-center justify-center gap-3 pt-2">
+            <button type="button" 
+                    @click="showShutdownModal = false" 
+                    :disabled="isShuttingDown"
+                    class="px-4 py-2 text-xs font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-xl transition-colors">
+              Batal
+            </button>
+            <button type="button" 
+                    @click="
+                      isShuttingDown = true;
+                      fetch('/api/shutdown', { method: 'POST' }).catch(() => {});
+                      setTimeout(() => { isShuttingDown = false; isShutDownDone = true; }, 1200);
+                    "
+                    :disabled="isShuttingDown"
+                    class="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors inline-flex items-center gap-1.5">
+              <span x-show="!isShuttingDown">Ya, Matikan Bot</span>
+              <span x-show="isShuttingDown">Mematikan...</span>
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <template x-if="isShutDownDone">
+        <div class="space-y-3 py-2">
+          <div class="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <div class="space-y-1">
+            <h3 class="text-base font-bold text-zinc-900">Bot Berhasil Dimatikan</h3>
+            <p class="text-xs text-zinc-500">
+              Layanan telah dinonaktifkan. Anda sekarang dapat menutup jendela atau aplikasi ini dengan aman.
+            </p>
+          </div>
+        </div>
+      </template>
+
+    </div>
+  </div>
+
+</div>
