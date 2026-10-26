@@ -14,6 +14,9 @@ try {
   if (!existingCols.has('product_knowledge')) {
     db.exec("ALTER TABLE products ADD COLUMN product_knowledge TEXT");
   }
+  if (!existingCols.has('media_url')) {
+    db.exec("ALTER TABLE products ADD COLUMN media_url TEXT");
+  }
 } catch (_) {}
 
 /**
@@ -72,12 +75,14 @@ function searchProducts(keyword) {
  * @param {number} [product.price] 
  * @param {number} [product.stock] 
  * @param {string} [product.image_path] 
+ * @param {string} [product.media_url]
+ * @param {string} [product.related_products]
  * @returns {number} ID produk yang baru dibuat
  */
-function createProduct({ sku = null, name, category = 'Umum', description = '', product_knowledge = '', price = 0, stock = 0, image_path = null }) {
+function createProduct({ sku = null, name, category = 'Umum', description = '', product_knowledge = '', price = 0, stock = 0, image_path = null, media_url = null, related_products = null }) {
   const stmt = db.prepare(`
-    INSERT INTO products (sku, name, category, description, product_knowledge, price, stock, image_path, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    INSERT INTO products (sku, name, category, description, product_knowledge, price, stock, image_path, media_url, related_products, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
   `);
   const result = stmt.run(
     sku ? sku.trim() : null,
@@ -87,7 +92,9 @@ function createProduct({ sku = null, name, category = 'Umum', description = '', 
     product_knowledge ? product_knowledge.trim() : '',
     Number(price) || 0,
     Number(stock) || 0,
-    image_path
+    image_path,
+    media_url ? media_url.trim() : null,
+    related_products ? (typeof related_products === 'string' ? related_products.trim() : String(related_products)) : null
   );
   return result.lastInsertRowid;
 }
@@ -106,7 +113,7 @@ function updateProduct(id, updates) {
 
   const stmt = db.prepare(`
     UPDATE products
-    SET sku = ?, name = ?, category = ?, description = ?, product_knowledge = ?, price = ?, stock = ?, image_path = ?, related_products = ?, updated_at = CURRENT_TIMESTAMP
+    SET sku = ?, name = ?, category = ?, description = ?, product_knowledge = ?, price = ?, stock = ?, image_path = ?, media_url = ?, related_products = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
   `);
   const result = stmt.run(
@@ -118,6 +125,7 @@ function updateProduct(id, updates) {
     Number(merged.price) || 0,
     Number(merged.stock) || 0,
     merged.image_path,
+    merged.media_url ? merged.media_url.trim() : null,
     merged.related_products || null,
     id
   );
@@ -145,7 +153,7 @@ function updateProductStock(id, stock) {
  * @param {object} product
  * @returns {{action: 'added'|'updated', id: number}}
  */
-function upsertProductFromSheet({ sku, name, category, description, product_knowledge, price, stock, image_path }) {
+function upsertProductFromSheet({ sku, name, category, description, product_knowledge, price, stock, image_path, media_url }) {
   let existing = null;
   if (sku && sku.trim()) {
     existing = getProductBySku(sku.trim());
@@ -163,7 +171,8 @@ function upsertProductFromSheet({ sku, name, category, description, product_know
       product_knowledge: product_knowledge || existing.product_knowledge,
       price: typeof price !== 'undefined' ? Number(price) : existing.price,
       stock: typeof stock !== 'undefined' ? Number(stock) : existing.stock,
-      image_path: image_path || existing.image_path
+      image_path: image_path || existing.image_path,
+      media_url: media_url || existing.media_url
     });
     return { action: 'updated', id: existing.id };
   } else {
@@ -175,7 +184,8 @@ function upsertProductFromSheet({ sku, name, category, description, product_know
       product_knowledge,
       price,
       stock,
-      image_path
+      image_path,
+      media_url
     });
     return { action: 'added', id: newId };
   }

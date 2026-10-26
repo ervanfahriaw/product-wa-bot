@@ -12,16 +12,12 @@ const {
 } = require('../../config');
 const { getStatus } = require('../../engine');
 const { syncProductsFromSheets } = require('../../engine/sheets-sync');
-const { handleFileUpload } = require('../../utils/multipart-parser');
 const { extractTextFromFile } = require('../../utils/document-parser');
 const db = require('../../db');
 const { validateKey } = require('../../ai');
 const { computeBusinessAnalytics, generateAiBusinessInsights, getLatestStoredInsight } = require('../../analytics');
 
 const { checkLocalLicense, getDeviceFingerprint } = require('../../utils/license-client');
-
-// Middleware parsing upload
-router.use(handleFileUpload);
 
 // Middleware injeksi global variables untuk view sidebar & dashboard
 router.use((req, res, next) => {
@@ -83,11 +79,18 @@ router.get('/products', (req, res) => {
 });
 
 router.post('/products', (req, res) => {
-  const { sku, name, category, price, stock, description, product_knowledge, related_products } = req.body;
+  const { sku, name, category, price, stock, description, product_knowledge, related_products, media_url } = req.body;
   const image_path = req.file ? req.file.path : (req.body.image_path ? req.body.image_path.trim() : (req.body.image ? req.body.image.trim() : null));
 
-  if (name && name.trim()) {
-    db.createProduct({
+  if (!name || !name.trim()) {
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(400).json({ success: false, message: 'Nama produk wajib diisi' });
+    }
+    return res.redirect('/dashboard/products?error=name_required');
+  }
+
+  try {
+    const createdId = db.createProduct({
       sku: sku ? sku.trim() : null,
       name: name.trim(),
       category: category ? category.trim() : 'Umum',
@@ -96,19 +99,37 @@ router.post('/products', (req, res) => {
       description: description ? description.trim() : '',
       product_knowledge: product_knowledge ? product_knowledge.trim() : '',
       image_path: image_path || null,
+      media_url: media_url ? media_url.trim() : null,
       related_products: related_products || null
     });
+
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({ success: true, id: createdId, redirect: '/dashboard/products' });
+    }
+    return res.redirect('/dashboard/products');
+  } catch (err) {
+    console.error('[Dashboard Products] Error createProduct:', err.message);
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+    return res.redirect('/dashboard/products?error=' + encodeURIComponent(err.message));
   }
-  return res.redirect('/dashboard/products');
 });
 
 router.post('/products/:id/edit', (req, res) => {
   const { id } = req.params;
-  const { sku, name, category, price, stock, description, product_knowledge, related_products } = req.body;
+  const { sku, name, category, price, stock, description, product_knowledge, related_products, media_url } = req.body;
   const existing = db.getProductById ? db.getProductById(Number(id)) : null;
   let image_path = req.file ? req.file.path : (req.body.image_path !== undefined && req.body.image_path !== '' ? req.body.image_path.trim() : (req.body.image !== undefined && req.body.image !== '' ? req.body.image.trim() : (existing ? existing.image_path : null)));
 
-  if (name && name.trim()) {
+  if (!name || !name.trim()) {
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(400).json({ success: false, message: 'Nama produk wajib diisi' });
+    }
+    return res.redirect('/dashboard/products?error=name_required');
+  }
+
+  try {
     db.updateProduct(Number(id), {
       sku: sku ? sku.trim() : null,
       name: name.trim(),
@@ -118,16 +139,38 @@ router.post('/products/:id/edit', (req, res) => {
       description: description ? description.trim() : '',
       product_knowledge: product_knowledge ? product_knowledge.trim() : '',
       image_path: image_path || null,
+      media_url: media_url !== undefined ? (media_url ? media_url.trim() : null) : (existing ? existing.media_url : null),
       related_products: related_products || (existing ? existing.related_products : null)
     });
+
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({ success: true, id: Number(id), redirect: '/dashboard/products' });
+    }
+    return res.redirect('/dashboard/products');
+  } catch (err) {
+    console.error('[Dashboard Products] Error updateProduct:', err.message);
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+    return res.redirect('/dashboard/products?error=' + encodeURIComponent(err.message));
   }
-  return res.redirect('/dashboard/products');
 });
 
 router.post('/products/:id/delete', (req, res) => {
   const { id } = req.params;
-  db.deleteProduct(Number(id));
-  return res.redirect('/dashboard/products');
+  try {
+    db.deleteProduct(Number(id));
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.json({ success: true, id: Number(id), redirect: '/dashboard/products' });
+    }
+    return res.redirect('/dashboard/products');
+  } catch (err) {
+    console.error('[Dashboard Products] Error deleteProduct:', err.message);
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(500).json({ success: false, message: err.message });
+    }
+    return res.redirect('/dashboard/products?error=' + encodeURIComponent(err.message));
+  }
 });
 
 router.post('/products/sync-sheets', async (req, res) => {

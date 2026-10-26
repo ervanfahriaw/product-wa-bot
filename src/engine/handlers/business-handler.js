@@ -384,18 +384,32 @@ function extractProductSearchTokens(product) {
   const allWords = [...words, ...parenWords];
   const nonGenericWords = allWords.filter(w => !GENERIC_WORDS.has(w) && w.length >= 2);
 
+  const unspacedClean = cleanName.replace(/\s+/g, '');
+  const unspacedParen = parenthetical.replace(/\s+/g, '');
+
+  const adjacentPairs = [];
+  for (let i = 0; i < words.length - 1; i++) {
+    adjacentPairs.push(words[i] + words[i + 1]);
+  }
+  for (let i = 0; i < parenWords.length - 1; i++) {
+    adjacentPairs.push(parenWords[i] + parenWords[i + 1]);
+  }
+
   return {
     rawName,
     cleanName,
+    unspacedClean,
     parenthetical,
+    unspacedParen,
     initials,
     rawSku,
+    adjacentPairs: Array.from(new Set(adjacentPairs)),
     nonGenericWords: Array.from(new Set(nonGenericWords))
   };
 }
 
 /**
- * Mencari semua produk relevan dengan gambar yang perlu dikirim (mendukung multi-image).
+ * Mencari semua produk relevan dengan gambar yang perlu dikirim (mendukung multi-image & media_url).
  * Menggunakan Arsitektur Dual-Lock (2 Kunci Pengaman):
  * 1. Kunci 1: Memverifikasi niat pelanggan meminta foto (Zero False Positives).
  * 2. Kunci 2: Resolusi target produk cerdas (Eksplisit -> Akronim -> Riwayat Chat -> Fallback).
@@ -403,7 +417,7 @@ function extractProductSearchTokens(product) {
  * @param {string} messageText 
  * @param {string} [contact]
  * @param {number} [maxCount=2]
- * @returns {Array<{product: object, fullPath: string|null, url: string|null, isUrl: boolean}>}
+ * @returns {Array<{product: object, fullPath: string|null, url: string|null, isUrl: boolean, hasMediaUrl: boolean}>}
  */
 function findProductImagesToSend(messageText = '', contact = null, maxCount = 2) {
   if (!messageText || typeof messageText !== 'string') return [];
@@ -417,7 +431,7 @@ function findProductImagesToSend(messageText = '', contact = null, maxCount = 2)
 
   // KUNCI 1: Periksa apakah kalimat aktif meminta foto / melihat produk
   const isAskingImage = /(?:foto|fotonya|gambar|gambarnya|liat|lihat|liatkan|tunjukin|spill|pic|pict|picture|penampakan|penampakannya|contoh|model|modelnya|bentuk|bentuknya|tengok|mana\s+(?:fotonya|gambarnya)|cek\s+foto|minta\s+foto|minta\s+gambar|kirim\s+foto|kirim\s+gambar|ada\s+fotonya|ada\s+gambarnya|liat\s+fotonya|liat\s+gambarnya|penasaran)/i.test(lower);
-  const isAskingReSend = /(?:kirim\s+lagi|minta\s+lagi|kirim\s+ulang|liat\s+lagi|lihat\s+lagi|belum\s+(?:muncul|masuk|ada|keliatan|terkirim)|mana\s+(?:fotonya|gambarnya)|fotonya\s+mana|gambarnya\s+mana|kok\s+(?:fotonya|gambarnya)\s+belum)/i.test(lower);
+  const isAskingReSend = /(?:kirim\s+lagi|minta\s+lagi|kirim\s+ulang|liat\s+lagi|lihat\s+lagi|belum\s+(?:muncul|masuk|ada|keliatan|terkirim)|mana\s+(?:fotonya|gambarnya)|fotonya\s+mana|gambarnya\s+mana|kok\s+(?:fotonya|gambarnya)\s+belum|(?:kamu\s+)?(?:ga|gak|tidak|belum)\s+kirim|ga\s+ada\s+fotonya|fotonya\s+ga\s+ada)/i.test(lower);
 
   if (!isAskingImage && !isAskingReSend) {
     return [];
@@ -426,20 +440,23 @@ function findProductImagesToSend(messageText = '', contact = null, maxCount = 2)
   const products = db.getAllProducts ? db.getAllProducts() : [];
   if (products.length === 0) return [];
 
-  // Filter produk yang memiliki file gambar lokal atau link gambar valid
+  // Filter produk yang memiliki file gambar lokal, link gambar URL, ATAU link galeri media_url
   const productsWithImage = [];
   for (const prod of products) {
+    let res = null;
     if (prod.image_path) {
-      const res = resolveProductImageResource(prod.image_path);
-      if (res) {
-        productsWithImage.push({ 
-          product: prod, 
-          fullPath: res.fullPath || null, 
-          url: res.url || null, 
-          isUrl: res.isUrl,
-          tokens: extractProductSearchTokens(prod)
-        });
-      }
+      res = resolveProductImageResource(prod.image_path);
+    }
+    const hasMediaUrl = Boolean(prod.media_url && String(prod.media_url).trim());
+    if (res || hasMediaUrl) {
+      productsWithImage.push({ 
+        product: prod, 
+        fullPath: res ? res.fullPath || null : null, 
+        url: res ? res.url || null : null, 
+        isUrl: res ? Boolean(res.isUrl) : false,
+        hasMediaUrl,
+        tokens: extractProductSearchTokens(prod)
+      });
     }
   }
 
@@ -447,8 +464,10 @@ function findProductImagesToSend(messageText = '', contact = null, maxCount = 2)
 
   // 1. Scoring Eksplisit pada pesan pelanggan saat ini
   const scoredMatches = [];
+  const lowerUnspaced = lower.replace(/[^a-z0-9]/g, '');
+
   for (const item of productsWithImage) {
-    const { rawName, cleanName, parenthetical, initials, rawSku, nonGenericWords } = item.tokens;
+    const { rawName, cleanName, unspacedClean, parenthetical, unspacedParen, initials, rawSku, nonGenericWords } = item.tokens;
     let score = 0;
 
     const matchedQueryTokens = new Set();
@@ -457,6 +476,25 @@ function findProductImagesToSend(messageText = '', contact = null, maxCount = 2)
     if (rawSku && lower.includes(rawSku)) {
       score += 60;
       matchedQueryTokens.add(rawSku);
+    }
+
+    // Kecocokan nama tanpa spasi (contoh: "fullgold" -> "Full Gold")
+    if (unspacedClean && unspacedClean.length >= 4 && lowerUnspaced.includes(unspacedClean)) {
+      score += 50;
+      matchedQueryTokens.add(unspacedClean);
+    }
+
+    if (unspacedParen && unspacedParen.length >= 4 && lowerUnspaced.includes(unspacedParen)) {
+      score += 45;
+      matchedQueryTokens.add(unspacedParen);
+    }
+
+    // Kecocokan gabungan kata tanpa spasi (contoh: "fullgold" -> "full" + "gold")
+    for (const pair of item.tokens.adjacentPairs || []) {
+      if (pair.length >= 4 && (lowerUnspaced.includes(pair) || lower.includes(pair))) {
+        score += 45;
+        matchedQueryTokens.add(pair);
+      }
     }
 
     // Kecocokan nama lengkap atau nama bersih (dengan regex word-boundary untuk kata pendek seperti "afr", "bm")
@@ -496,17 +534,22 @@ function findProductImagesToSend(messageText = '', contact = null, maxCount = 2)
       matchedQueryTokens.add(initials);
     }
 
-    // Kecocokan kata per kata dengan toleransi typo
+    // Kecocokan kata per kata dengan toleransi typo dan penanganan imbuhan "nya"
     const queryTokens = lower.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length >= 2 && !GENERIC_WORDS.has(w));
-    for (const qw of queryTokens) {
+    for (const rawQw of queryTokens) {
+      const qw = (rawQw.endsWith('nya') && rawQw.length > 4) ? rawQw.slice(0, -3) : rawQw;
       for (const pw of nonGenericWords) {
-        if (qw === pw) {
+        if (qw === pw || rawQw === pw) {
           score += 15;
-          matchedQueryTokens.add(qw);
+          matchedQueryTokens.add(rawQw);
         } else if (isWordSimilar(qw, pw)) {
           score += 10;
-          matchedQueryTokens.add(qw);
+          matchedQueryTokens.add(rawQw);
         }
+      }
+      if (initials && (qw === initials || rawQw === initials)) {
+        score += 35;
+        matchedQueryTokens.add(rawQw);
       }
     }
 
@@ -558,19 +601,21 @@ function findProductImagesToSend(messageText = '', contact = null, maxCount = 2)
     return results;
   }
 
-  // 2. Pencarian Kontekstual dari Riwayat Chat (Pesan pendek "liat fotonya", "mana fotonya ka")
+  // 2. Pencarian Kontekstual dari Riwayat Chat (Pesan pendek "liat fotonya", "mana fotonya ka", "kamu ga kirim fotonyaaa")
   if (contact && db.getChatLogsByContact) {
     try {
       const recentLogs = db.getChatLogsByContact(contact, 10);
       if (recentLogs && recentLogs.length > 0) {
         for (const l of recentLogs) {
           const combinedLog = `${l.message_out || ''} ${l.message_in || ''}`.toLowerCase();
+          const combinedLogUnspaced = combinedLog.replace(/[^a-z0-9]/g, '');
           for (const item of productsWithImage) {
             if (addedIds.has(item.product.id)) continue;
-            const { rawName, cleanName, parenthetical, initials, nonGenericWords } = item.tokens;
+            const { rawName, cleanName, unspacedClean, parenthetical, initials, nonGenericWords } = item.tokens;
 
             let matched = false;
             if (rawName && combinedLog.includes(rawName)) matched = true;
+            else if (unspacedClean && unspacedClean.length >= 4 && combinedLogUnspaced.includes(unspacedClean)) matched = true;
             else if (cleanName) {
               if (cleanName.length >= 4 && combinedLog.includes(cleanName)) matched = true;
               else if (cleanName.length >= 2 && new RegExp(`\\b${cleanName}\\b`, 'i').test(combinedLog)) matched = true;
@@ -915,8 +960,12 @@ async function handleBusinessMessage(message, client) {
       for (const imgInfo of imagesToSend) {
         try {
           const media = await createMessageMediaFromFile(imgInfo.fullPath || imgInfo.url);
+          let caption = `📸 *${imgInfo.product.name}*\n💰 Rp${Number(imgInfo.product.price).toLocaleString('id-ID')}`;
+          if (imgInfo.product.media_url && String(imgInfo.product.media_url).trim()) {
+            caption += `\n\n🔗 *Lihat Foto & Video Lengkap:*\n${String(imgInfo.product.media_url).trim()}`;
+          }
+
           if (media) {
-            const caption = `📸 *${imgInfo.product.name}*\n💰 Rp${Number(imgInfo.product.price).toLocaleString('id-ID')}`;
             let sent = false;
 
             // 1. Coba kirim via client.sendMedia (metode standar multi-engine untuk file/buffer)
@@ -982,6 +1031,20 @@ async function handleBusinessMessage(message, client) {
             } else {
               console.error(`[BusinessHandler] ❌ Gagal mengirim foto produk "${imgInfo.product.name}" ke ${contact} setelah semua percobaan.`);
             }
+          } else if (imgInfo.product.media_url && String(imgInfo.product.media_url).trim()) {
+            // Fallback: Jika file fisik gambar tidak ada di disk / gagal diunduh, kirim pesan berisi link galeri media
+            const fallbackText = `📸 *${imgInfo.product.name}*\n💰 Rp${Number(imgInfo.product.price).toLocaleString('id-ID')}\n\n🔗 *Lihat Foto & Video Lengkap:*\n${String(imgInfo.product.media_url).trim()}`;
+            try {
+              if (typeof client.sendMessage === 'function') {
+                await client.sendMessage(contact, fallbackText);
+              } else if (message && typeof message.reply === 'function') {
+                await message.reply(fallbackText);
+              }
+              recordSentProductImage(contact, imgInfo.product.id, imgInfo.product.name);
+              console.log(`[BusinessHandler] ✅ Berhasil mengirim tautan galeri/video "${imgInfo.product.name}" ke ${contact}`);
+            } catch (fbErr) {
+              console.warn('[BusinessHandler] Gagal mengirim fallback tautan galeri:', fbErr.message);
+            }
           } else {
             console.warn(`[BusinessHandler] createMessageMediaFromFile mengembalikan null untuk produk "${imgInfo.product.name}" (sumber: ${imgInfo.fullPath || imgInfo.url}).`);
           }
@@ -1041,6 +1104,7 @@ module.exports = {
   isHandoverEnabled,
   findProductImageToSend,
   findProductImagesToSend,
+  extractProductSearchTokens,
   resolveProductImagePath,
   createMessageMediaFromFile,
   clearSentProductImageCache,

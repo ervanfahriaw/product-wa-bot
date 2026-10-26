@@ -179,7 +179,8 @@ try {
     { name: '006-customer-profiles', mod: require('./migrations/006-customer-profiles') },
     { name: '007-faqs', mod: require('./migrations/007-faqs') },
     { name: '008-orders', mod: require('./migrations/008-orders') },
-    { name: '009-follow-ups', mod: require('./migrations/009-follow-ups') }
+    { name: '009-follow-ups', mod: require('./migrations/009-follow-ups') },
+    { name: '010-product-media-url', mod: require('./migrations/010-product-media-url') }
   ];
 
   for (const { name, mod } of migrations) {

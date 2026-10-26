@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS products (
   price INTEGER NOT NULL DEFAULT 0,
   stock INTEGER NOT NULL DEFAULT 0,
   image_path TEXT,
+  media_url TEXT,
   related_products TEXT,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

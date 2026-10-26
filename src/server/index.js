@@ -136,8 +136,10 @@ const { checkLocalLicense } = require('../utils/license-client');
 ensureDirectoriesExist();
 
 // Body Parser & Static Middleware
+const { handleFileUpload } = require('../utils/multipart-parser');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(handleFileUpload);
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/public', express.static(path.join(__dirname, 'public')));
 const rootPublicDir = path.resolve(__dirname, '../../public');

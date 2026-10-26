@@ -251,7 +251,7 @@ router.get('/step-4', (req, res) => {
 
 router.post('/step-4', (req, res) => {
   const config = getConfig();
-  const { product_name, product_price, product_stock, product_description, expense_category, expense_amount, expense_note } = req.body || {};
+  const { product_name, product_price, product_stock, product_description, product_media_url, expense_category, expense_amount, expense_note } = req.body || {};
 
   try {
     if (config.mode === 'bisnis' && product_name && typeof product_name === 'string' && product_name.trim()) {
@@ -260,7 +260,8 @@ router.post('/step-4', (req, res) => {
           name: product_name.trim(),
           price: Number(product_price) || 0,
           stock: Number(product_stock) || 0,
-          description: product_description && typeof product_description === 'string' ? product_description.trim() : ''
+          description: product_description && typeof product_description === 'string' ? product_description.trim() : '',
+          media_url: product_media_url && typeof product_media_url === 'string' && product_media_url.trim() ? product_media_url.trim() : null
         });
       }
     } else if (config.mode === 'personal' && expense_category && expense_amount) {

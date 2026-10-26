@@ -97,6 +97,11 @@ function parseMultipartBuffer(buffer, boundary) {
  * @param {import('express').NextFunction} next 
  */
 function handleFileUpload(req, res, next) {
+  // Cegah parsing ganda jika middleware terpanggil lebih dari satu kali
+  if (req._multipartParsed || req.readableEnded) {
+    return next();
+  }
+
   const contentType = req.headers['content-type'] || '';
   if (!contentType.startsWith('multipart/form-data')) {
     return next();
@@ -107,10 +112,13 @@ function handleFileUpload(req, res, next) {
     return next();
   }
 
+  req._multipartParsed = true;
   const boundary = boundaryMatch[1];
   const chunks = [];
 
-  req.on('data', chunk => chunks.push(chunk));
+  req.on('data', chunk => {
+    chunks.push(chunk);
+  });
   req.on('end', () => {
     try {
       const buffer = Buffer.concat(chunks);

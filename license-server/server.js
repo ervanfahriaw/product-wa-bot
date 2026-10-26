@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const db = require('./db');
+const { sendLicenseEmail } = require('./email');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -205,16 +206,26 @@ app.post('/api/deactivate', async (req, res) => {
 
 /**
  * POST /api/webhook/lynkid
- * Webhook otomatis saat ada pembelian sukses di Lynk.id untuk generate license key baru.
+ * Webhook otomatis saat ada pembelian sukses di Lynk.id untuk generate license key baru
+ * dan otomatis mengirimkan email lisensi ke pembeli menggunakan Resend API.
  */
 app.post('/api/webhook/lynkid', async (req, res) => {
   try {
-    const { event, data } = req.body || {};
+    const body = req.body || {};
+    const data = body.data || {};
+    const messageData = data.message_data || {};
+    const customer = messageData.customer || {};
 
-    // Mendukung payload format umum Lynk.id / checkout
-    const email = (data && data.customer_email) || (req.body && req.body.email) || 'customer@lynk.id';
-    const name = (data && data.customer_name) || (req.body && req.body.name) || 'Pembeli Lynk.id';
-    const productName = (data && data.product_name) || (req.body && req.body.product_name) || '';
+    // 1. Ekstraksi data customer dari Lynk.id (mendukung format message_data maupun format legacy)
+    const email = (customer.email || data.customer_email || body.email || '').trim();
+    const name = (customer.name || data.customer_name || body.name || 'Pelanggan').trim();
+    const phone = (customer.phone || data.customer_phone || body.phone || '').trim();
+    const refId = messageData.refId || data.refId || body.refId || '';
+
+    // 2. Ekstraksi produk
+    const items = messageData.items || [];
+    const firstItemTitle = (items[0] && items[0].title) || '';
+    const productName = firstItemTitle || data.product_name || body.product_name || 'WA Bot AI untuk Toko Online - CS Otomatis, Sekali Beli';
 
     let edition = 'bisnis';
     if (/personal|keuangan|asisten/i.test(productName)) {
@@ -228,23 +239,52 @@ app.post('/api/webhook/lynkid', async (req, res) => {
     const randPart = () => crypto.randomBytes(2).toString('hex').toUpperCase();
     const key = `WABOT-${prefix}-${randPart()}-${randPart()}-${randPart()}`;
 
+    // Nama pembeli dengan nomor telepon untuk kemudahan tracking admin
+    const buyerDisplayName = phone ? `${name} (${phone})` : name;
+
     const license = await db.createLicense({
       licenseKey: key,
       edition,
       maxDevices: 1,
-      buyerEmail: email,
-      buyerName: name,
+      buyerEmail: email || null,
+      buyerName: buyerDisplayName || null,
       status: 'active'
     });
 
+    // 3. Kirim Email Otomatis ke Pembeli via Resend API
+    let emailResult = null;
+    if (email) {
+      emailResult = await sendLicenseEmail({
+        to: email,
+        buyerName: name,
+        licenseKey: key,
+        productName,
+        refId
+      });
+    }
+
+    // 4. Response sesuai format integrasi Lynk.id
     return res.json({
       success: true,
-      message: 'Lisensi baru berhasil diterbitkan via Webhook.',
-      data: license
+      message: 'Lisensi baru berhasil diterbitkan.',
+      licenseKey: key,
+      customer: {
+        name,
+        email,
+        phone,
+        refId
+      },
+      data: license,
+      emailNotification: emailResult ? {
+        sent: emailResult.success,
+        recipient: emailResult.recipient,
+        id: emailResult.id || null,
+        warning: emailResult.warning || null
+      } : { sent: false, reason: 'Email customer tidak ditemukan pada payload webhook' }
     });
   } catch (err) {
     console.error('Error on /api/webhook/lynkid:', err);
-    return res.status(500).json({ success: false, message: 'Internal Server Error' });
+    return res.status(500).json({ success: false, message: 'Internal Server Error: ' + err.message });
   }
 });
 

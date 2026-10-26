@@ -11,13 +11,18 @@ Semua tabel dalam satu file `data/bot.db`.
 ## `products` (Mode Bisnis)
 | kolom | tipe | keterangan |
 |---|---|---|
-| id | INTEGER PK | |
-| name | TEXT | |
-| description | TEXT | |
-| price | INTEGER | |
-| stock | INTEGER | |
-| image_path | TEXT | path lokal gambar produk |
-| updated_at | DATETIME | |
+| id | INTEGER PK | ID produk auto increment |
+| sku | TEXT | kode unik SKU produk (opsional) |
+| name | TEXT | nama produk |
+| category | TEXT | kategori produk (default: 'Umum') |
+| description | TEXT | deskripsi produk |
+| product_knowledge | TEXT | detail spesifikasi, bahan, FAQ khusus produk |
+| price | INTEGER | harga produk dalam rupiah |
+| stock | INTEGER | jumlah stok produk ready |
+| image_path | TEXT | path file lokal atau remote URL gambar produk |
+| media_url | TEXT | URL eksternal (Google Drive / Cloud / Video) berisi kumpulan foto & video lengkap |
+| related_products | TEXT | daftar ID produk terkait untuk upselling / cross-selling |
+| updated_at | DATETIME | waktu pembaruan terakhir |
 
 ## `expenses` (Mode Personal)
 | kolom | tipe | keterangan |

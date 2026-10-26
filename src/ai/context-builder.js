@@ -58,6 +58,9 @@ function buildBusinessContext(message = '') {
     if (p.product_knowledge) line += ` | Info/Bahan: ${p.product_knowledge}`;
     const hasPhoto = Boolean(p.image_path && resolveProductImagePath && resolveProductImagePath(p.image_path));
     line += ` | Foto: ${hasPhoto ? 'Tersedia di sistem' : 'Belum tersedia'}`;
+    if (p.media_url && String(p.media_url).trim()) {
+      line += ` | Galeri/Video: ${String(p.media_url).trim()}`;
+    }
     return line;
   };
 

@@ -107,7 +107,17 @@
                     </span>
                   </td>
                   <td class="px-5 py-3.5 font-medium text-[#18181B]">
-                    <%= product.name %>
+                    <div><%= product.name %></div>
+                    <% if (product.media_url) { %>
+                      <a href="<%= product.media_url %>" target="_blank" rel="noopener noreferrer" 
+                         class="inline-flex items-center space-x-1 mt-1 text-[11px] text-[#7F77DD] hover:underline font-normal">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                        </svg>
+                        <span class="truncate max-w-[180px]">Link Foto/Video</span>
+                      </a>
+                    <% } %>
                   </td>
                   <td class="px-5 py-3.5 whitespace-nowrap text-[#18181B]">
                     Rp<%= Number(product.price).toLocaleString('id-ID') %>
@@ -126,11 +136,11 @@
                     <p class="text-[11px] text-[#A1A1AA] line-clamp-1"><%= product.description || '-' %></p>
                   </td>
                   <td class="px-5 py-3.5 text-right whitespace-nowrap space-x-2">
-                    <button @click="openEditModal(<%= JSON.stringify(product) %>)" 
+                    <button type="button" @click="openEditModalById(<%= product.id %>)" 
                             class="text-xs text-[#71717A] hover:text-[#18181B] font-medium transition-colors">
                       Edit
                     </button>
-                    <button @click="openDeleteModal(<%= product.id %>, '<%= product.name %>')" 
+                    <button type="button" @click="openDeleteModalById(<%= product.id %>)" 
                             class="text-xs text-red-600 hover:text-red-800 font-medium transition-colors">
                       Hapus
                     </button>
@@ -153,113 +163,159 @@
     </div>
   </main>
 
-  <!-- Modal: Tambah / Edit Produk (Minimalist) -->
-  <div x-show="showFormModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-[#E4E4E7]" @click.away="showFormModal = false">
-      <div class="flex justify-between items-center pb-2 border-b border-[#E4E4E7]">
-        <h3 class="text-sm font-semibold text-[#18181B]" x-text="isEdit ? 'Edit Data Produk' : 'Tambah Produk Baru'"></h3>
-        <button @click="showFormModal = false" class="text-[#71717A] hover:text-[#18181B] text-base font-bold">&times;</button>
+  <!-- Modal: Tambah / Edit Produk (Responsive & Non-Shifting) -->
+  <div x-show="showFormModal" x-cloak 
+       class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-2 sm:p-4 md:p-6 flex justify-center items-center"
+       @click.self="showFormModal = false">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-[#E4E4E7] flex flex-col max-h-[92vh] overflow-hidden">
+      <!-- Header Modal (Sticky) -->
+      <div class="px-6 py-4 border-b border-[#E4E4E7] flex justify-between items-center bg-white flex-shrink-0">
+        <div>
+          <h3 class="text-base font-semibold text-[#18181B]" x-text="isEdit ? 'Edit Data Produk' : 'Tambah Produk Baru'"></h3>
+          <p class="text-xs text-[#71717A] mt-0.5">Lengkapi informasi katalog produk untuk database bot WhatsApp.</p>
+        </div>
+        <button type="button" @click="showFormModal = false" class="text-[#71717A] hover:text-[#18181B] p-1.5 rounded-lg hover:bg-[#F4F4F5] transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
       </div>
 
-      <form :action="isEdit ? '/dashboard/products/' + formData.id + '/edit' : '/dashboard/products'" method="POST" enctype="multipart/form-data" class="space-y-3.5">
-        <div class="grid grid-cols-3 gap-3">
-          <div>
-            <label class="block text-xs font-medium text-[#71717A] mb-1">SKU / Kode</label>
-            <input type="text" name="sku" x-model="formData.sku" placeholder="KOP-01"
-                   class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs font-mono text-[#18181B] focus:outline-none focus:border-[#18181B]">
-          </div>
-          <div class="col-span-2">
-            <label class="block text-xs font-medium text-[#71717A] mb-1">Kategori Produk</label>
-            <input type="text" name="category" x-model="formData.category" placeholder="Minuman Kopi"
-                   class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
-          </div>
-        </div>
+      <!-- Form Body (Scrollable inside card) -->
+      <form id="productForm" :action="isEdit ? '/dashboard/products/' + formData.id + '/edit' : '/dashboard/products'" method="POST" enctype="multipart/form-data" @submit="handleFormSubmit($event)" class="flex flex-col flex-1 min-h-0 overflow-hidden">
+        
+        <div class="p-5 sm:p-6 overflow-y-auto flex-1 overscroll-contain space-y-4">
+          <!-- Error Alert Banner -->
+          <template x-if="formError">
+            <div class="p-3.5 rounded-xl bg-red-50 border border-red-200 text-xs font-medium text-red-800 flex items-center space-x-2">
+              <svg class="w-4 h-4 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              <span x-text="formError"></span>
+            </div>
+          </template>
 
-        <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Nama Produk *</label>
-          <input type="text" name="name" required x-model="formData.name" placeholder="Kopi Susu Gula Aren"
-                 class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs font-medium text-[#71717A] mb-1">Harga (Rp) *</label>
-            <input type="number" name="price" required min="0" x-model="formData.price" placeholder="18000"
-                   class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-[#71717A] mb-1">Jumlah Stok *</label>
-            <input type="number" name="stock" required min="0" x-model="formData.stock" placeholder="50"
-                   class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]">
-          </div>
-        </div>
-
-        <!-- Upload Foto Produk -->
-        <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Foto / Gambar Produk</label>
-          <div class="flex items-center space-x-3">
-            <template x-if="imagePreview || formData.image_path">
-              <div class="relative w-12 h-12 rounded-xl border border-[#E4E4E7] overflow-hidden bg-[#F4F4F5] flex-shrink-0">
-                <img :src="imagePreview ? imagePreview : (formData.image_path.startsWith('http') ? formData.image_path : (formData.image_path.startsWith('/uploads/') ? formData.image_path : '/uploads/' + formData.image_path.split('\\').pop().split('/').pop()))" 
-                     class="w-full h-full object-cover" alt="Preview">
-              </div>
-            </template>
-            <div class="flex-1">
-              <input type="file" name="image" accept="image/*"
-                     @change="handleImageChange($event)"
-                     class="w-full text-xs text-[#71717A] file:mr-2.5 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-medium file:bg-[#F4F4F5] file:text-[#18181B] hover:file:bg-[#E4E4E7] cursor-pointer">
-              <input type="hidden" name="image_path" :value="formData.image_path || ''">
+          <!-- SKU & Kategori (2 Kolom Lebar) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-[#18181B] mb-1.5">SKU / Kode Produk</label>
+              <input type="text" name="sku" x-model="formData.sku" placeholder="Contoh: FG-01"
+                     class="w-full px-3.5 py-2.5 border border-[#E4E4E7] rounded-xl text-base sm:text-sm font-mono text-[#18181B] focus:outline-none focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] bg-white transition-all">
+              <p class="text-[11px] text-[#71717A] mt-1">Opsional, kode unik barang.</p>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-[#18181B] mb-1.5">Kategori Produk</label>
+              <input type="text" name="category" x-model="formData.category" placeholder="Contoh: Ikan Guppy"
+                     class="w-full px-3.5 py-2.5 border border-[#E4E4E7] rounded-xl text-base sm:text-sm text-[#18181B] focus:outline-none focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] bg-white transition-all">
+              <p class="text-[11px] text-[#71717A] mt-1">Default: Umum.</p>
             </div>
           </div>
-          <p class="text-[10px] text-[#A1A1AA] mt-1">Format JPG/PNG/WEBP. Bot otomatis mengirim foto ini saat calon pembeli minta gambar produk di WhatsApp.</p>
-        </div>
 
-        <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Product Knowledge / Detail Bahan</label>
-          <textarea name="product_knowledge" rows="2" x-model="formData.product_knowledge"
-                    placeholder="Bahan alami, rasa creamy, masa simpan 3 hari di kulkas..."
-                    class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"></textarea>
-        </div>
-
-        <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Deskripsi Singkat</label>
-          <textarea name="description" rows="2" x-model="formData.description" placeholder="Keterangan ukuran atau varian..."
-                    class="w-full px-3 py-2 border border-[#E4E4E7] rounded-xl text-xs text-[#18181B] focus:outline-none focus:border-[#18181B]"></textarea>
-        </div>
-
-        <div>
-          <label class="block text-xs font-medium text-[#71717A] mb-1">Rekomendasi Produk Terkait (Upselling)</label>
-          <div class="border border-[#E4E4E7] rounded-xl p-3 max-h-32 overflow-y-auto space-y-1.5 bg-[#F7F7F8]">
-            <% products.forEach(function(p) { %>
-              <label class="flex items-center space-x-2 text-xs text-[#18181B] cursor-pointer" x-show="formData.id !== <%= p.id %>">
-                <input type="checkbox" 
-                       value="<%= p.id %>"
-                       :checked="formData.related_products && formData.related_products.split(',').includes('<%= p.id %>')"
-                       @change="
-                         let arr = formData.related_products ? formData.related_products.split(',').filter(Boolean) : [];
-                         if ($el.checked) {
-                           if (!arr.includes('<%= p.id %>')) arr.push('<%= p.id %>');
-                         } else {
-                           arr = arr.filter(id => id !== '<%= p.id %>');
-                         }
-                         formData.related_products = arr.join(',');
-                       "
-                       class="rounded border-[#E4E4E7] text-[#18181B] focus:ring-0">
-                <span><%= p.name %> (<%= p.sku || 'No SKU' %>)</span>
-              </label>
-            <% }); %>
+          <!-- Nama Produk -->
+          <div>
+            <label class="block text-xs font-semibold text-[#18181B] mb-1.5">Nama Produk <span class="text-red-500">*</span></label>
+            <input type="text" name="name" x-model="formData.name" placeholder="Contoh: Guppy Full Gold Champion"
+                   class="w-full px-3.5 py-2.5 border border-[#E4E4E7] rounded-xl text-base sm:text-sm text-[#18181B] focus:outline-none focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] bg-white transition-all"
+                   :class="nameError ? 'border-red-400 bg-red-50/30 ring-1 ring-red-400' : ''">
+            <p class="text-[11px] text-[#71717A] mt-1">Nama lengkap produk yang dikenali dan dipelajari AI bot.</p>
           </div>
-          <input type="hidden" name="related_products" :value="formData.related_products">
+
+          <!-- Harga & Stok -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-[#18181B] mb-1.5">Harga (Rp)</label>
+              <input type="text" name="price" x-model="formData.price" placeholder="Contoh: 857000"
+                     @input="formData.price = $el.value.replace(/[^0-9]/g, '')"
+                     class="w-full px-3.5 py-2.5 border border-[#E4E4E7] rounded-xl text-base sm:text-sm text-[#18181B] focus:outline-none focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] bg-white transition-all">
+              <p class="text-[11px] text-[#71717A] mt-1">Masukkan angka tanpa titik/koma (default: 0).</p>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-[#18181B] mb-1.5">Jumlah Stok</label>
+              <input type="text" name="stock" x-model="formData.stock" placeholder="Contoh: 10"
+                     @input="formData.stock = $el.value.replace(/[^0-9]/g, '')"
+                     class="w-full px-3.5 py-2.5 border border-[#E4E4E7] rounded-xl text-base sm:text-sm text-[#18181B] focus:outline-none focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] bg-white transition-all">
+              <p class="text-[11px] text-[#71717A] mt-1">Unit ready (bot cek stok saat customer tanya).</p>
+            </div>
+          </div>
+
+          <!-- Upload Foto Produk -->
+          <div>
+            <label class="block text-xs font-semibold text-[#18181B] mb-1.5">Foto Utama Produk</label>
+            <div class="flex items-center space-x-3 p-3.5 border border-[#E4E4E7] rounded-xl bg-[#FAFAFA]">
+              <template x-if="imagePreview || formData.image_path">
+                <div class="relative w-14 h-14 rounded-lg border border-[#E4E4E7] overflow-hidden bg-white flex-shrink-0">
+                  <img :src="getImageSrc()" class="w-full h-full object-cover" alt="Preview">
+                </div>
+              </template>
+              <div class="flex-1">
+                <input type="file" name="image" accept="image/*"
+                       @change="handleImageChange($event)"
+                       class="w-full text-xs text-[#71717A] file:mr-2.5 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-medium file:bg-[#18181B] file:text-white hover:file:bg-[#27272A] cursor-pointer">
+                <input type="hidden" name="image_path" :value="formData.image_path || ''">
+                <p class="text-[11px] text-[#71717A] mt-1">Format JPG, PNG, atau WEBP. Foto ini dikirim otomatis ke WA saat pembeli minta gambar produk.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Link Kumpulan Foto & Video (Google Drive / Cloud / dll) -->
+          <div>
+            <label class="block text-xs font-semibold text-[#18181B] mb-1.5">Link Galeri Lengkap (Google Drive / Cloud / Video)</label>
+            <input type="text" name="media_url" x-model="formData.media_url" placeholder="https://drive.google.com/drive/folders/... atau drive.google.com/..."
+                   class="w-full px-3.5 py-2.5 border border-[#E4E4E7] rounded-xl text-base sm:text-sm text-[#18181B] focus:outline-none focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] bg-white transition-all">
+            <p class="text-[11px] text-[#71717A] mt-1">Opsional: Tautan folder kumpulan foto/video. Link ini otomatis disertakan pada caption foto saat customer meminta foto di WhatsApp.</p>
+          </div>
+
+          <!-- Detail Bahan / Knowledge -->
+          <div>
+            <label class="block text-xs font-semibold text-[#18181B] mb-1.5">Product Knowledge / Detail Spesifikasi</label>
+            <textarea name="product_knowledge" rows="2" x-model="formData.product_knowledge"
+                      placeholder="Contoh: Grade A kontes, warna pekat mengkilap, ekor lebar rapi, indukan pilihan..."
+                      class="w-full px-3.5 py-2.5 border border-[#E4E4E7] rounded-xl text-base sm:text-sm text-[#18181B] focus:outline-none focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] bg-white transition-all"></textarea>
+            <p class="text-[11px] text-[#71717A] mt-1">Pengetahuan khusus yang dipelajari AI untuk menjawab pertanyaan detail pelanggan.</p>
+          </div>
+
+          <!-- Deskripsi Singkat -->
+          <div>
+            <label class="block text-xs font-semibold text-[#18181B] mb-1.5">Deskripsi Singkat</label>
+            <textarea name="description" rows="2" x-model="formData.description" placeholder="Keterangan singkat produk..."
+                      class="w-full px-3.5 py-2.5 border border-[#E4E4E7] rounded-xl text-base sm:text-sm text-[#18181B] focus:outline-none focus:border-[#18181B] focus:ring-1 focus:ring-[#18181B] bg-white transition-all"></textarea>
+          </div>
+
+          <!-- Rekomendasi Produk Terkait (Upselling) -->
+          <div>
+            <label class="block text-xs font-semibold text-[#18181B] mb-1.5">Rekomendasi Produk Terkait (Upselling)</label>
+            <div class="border border-[#E4E4E7] rounded-xl p-3 max-h-36 overflow-y-auto space-y-1.5 bg-[#FAFAFA]">
+              <template x-for="p in getAvailableRelatedProducts()" :key="p.id">
+                <label class="flex items-center space-x-2.5 text-xs text-[#18181B] cursor-pointer hover:bg-white p-1 rounded-lg transition-colors">
+                  <input type="checkbox" 
+                         :value="p.id"
+                         :checked="isRelatedChecked(p.id)"
+                         @change="toggleRelated(p.id, $event.target.checked)"
+                         class="rounded border-[#E4E4E7] text-[#18181B] focus:ring-0">
+                  <span class="truncate" x-text="p.name + (p.sku ? ' (' + p.sku + ')' : '')"></span>
+                </label>
+              </template>
+              <template x-if="getAvailableRelatedProducts().length === 0">
+                <p class="text-xs text-[#71717A] text-center py-2">Belum ada produk lain untuk direkomendasikan.</p>
+              </template>
+            </div>
+            <input type="hidden" name="related_products" :value="formData.related_products || ''">
+          </div>
         </div>
 
-        <div class="flex justify-end items-center gap-2 pt-3 border-t border-[#E4E4E7]">
-          <button @click="showFormModal = false" type="button" 
-                  class="px-4 py-1.5 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B]">
+        <!-- Footer Modal (Sticky at Bottom) -->
+        <div class="px-6 py-3.5 border-t border-[#E4E4E7] bg-[#FAFAFA] flex justify-end items-center gap-3 flex-shrink-0">
+          <button type="button" @click="showFormModal = false" :disabled="isSubmitting"
+                  class="px-4 py-2 rounded-full border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-xs font-medium text-[#18181B] transition-colors disabled:opacity-50">
             Batal
           </button>
-          <button type="submit" 
-                  class="px-5 py-1.5 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium">
-            Simpan
+          <button type="submit" :disabled="isSubmitting"
+                  class="px-6 py-2 rounded-full bg-[#18181B] hover:bg-[#27272A] text-white text-xs font-medium transition-colors flex items-center space-x-2 disabled:opacity-50 shadow-sm">
+            <template x-if="isSubmitting">
+              <svg class="animate-spin w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </template>
+            <span x-text="isSubmitting ? 'Menyimpan...' : (isEdit ? 'Simpan Perubahan' : 'Simpan Produk Baru')"></span>
           </button>
         </div>
       </form>
@@ -319,8 +375,10 @@
   </div>
 
   <!-- Modal: Konfirmasi Hapus Produk -->
-  <div x-show="showDeleteModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto bg-black/40 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl max-w-xs w-full p-6 space-y-4 text-center border border-[#E4E4E7]" @click.away="showDeleteModal = false">
+  <div x-show="showDeleteModal" x-cloak 
+       class="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" 
+       @click.self="showDeleteModal = false">
+    <div class="bg-white rounded-2xl shadow-xl max-w-xs w-full p-6 space-y-4 text-center border border-[#E4E4E7]">
       <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="10"></circle>
@@ -347,13 +405,31 @@
 </div>
 
 <script>
+  const rawProductsData = <%- JSON.stringify(products.map(p => ({
+    id: p.id,
+    sku: p.sku || '',
+    name: p.name || '',
+    category: p.category || 'Umum',
+    price: p.price || 0,
+    stock: p.stock || 0,
+    description: p.description || '',
+    product_knowledge: p.product_knowledge || '',
+    image_path: p.image_path || '',
+    media_url: p.media_url || '',
+    related_products: p.related_products || ''
+  }))).replace(/</g, '\\u003c') %>;
+
   function productManager() {
     return {
+      productsList: rawProductsData,
       showFormModal: false,
       showDeleteModal: false,
       showSheetsModal: false,
       isEdit: false,
       isSyncing: false,
+      isSubmitting: false,
+      formError: null,
+      nameError: false,
       syncResult: null,
       deleteId: null,
       deleteName: '',
@@ -361,12 +437,13 @@
         id: null,
         sku: '',
         name: '',
-        category: '',
-        price: '',
-        stock: '',
+        category: 'Umum',
+        price: '0',
+        stock: '10',
         description: '',
         product_knowledge: '',
         image_path: '',
+        media_url: '',
         related_products: ''
       },
 
@@ -377,24 +454,153 @@
         }
       },
 
+      getImageSrc() {
+        if (this.imagePreview) return this.imagePreview;
+        const p = this.formData.image_path || '';
+        if (!p) return '';
+        if (p.startsWith('http://') || p.startsWith('https://')) return p;
+        if (p.startsWith('/uploads/')) return p;
+        const fn = p.split('\\').pop().split('/').pop();
+        return '/uploads/' + fn;
+      },
+
       openCreateModal() {
         this.isEdit = false;
+        this.isSubmitting = false;
+        this.formError = null;
+        this.nameError = false;
         this.imagePreview = null;
-        this.formData = { id: null, sku: '', name: '', category: '', price: '', stock: '', description: '', product_knowledge: '', image_path: '', related_products: '' };
+        this.formData = {
+          id: null,
+          sku: '',
+          name: '',
+          category: 'Umum',
+          price: '0',
+          stock: '10',
+          description: '',
+          product_knowledge: '',
+          image_path: '',
+          media_url: '',
+          related_products: ''
+        };
         this.showFormModal = true;
       },
 
-      openEditModal(prod) {
+      openEditModalById(id) {
+        const prod = this.productsList.find(p => p.id === id);
+        if (!prod) return;
         this.isEdit = true;
+        this.isSubmitting = false;
+        this.formError = null;
+        this.nameError = false;
         this.imagePreview = null;
-        this.formData = { ...prod };
+        this.formData = {
+          id: prod.id,
+          sku: prod.sku || '',
+          name: prod.name || '',
+          category: prod.category || 'Umum',
+          price: String(prod.price || 0),
+          stock: String(prod.stock || 0),
+          description: prod.description || '',
+          product_knowledge: prod.product_knowledge || '',
+          image_path: prod.image_path || '',
+          media_url: prod.media_url || '',
+          related_products: prod.related_products || ''
+        };
         this.showFormModal = true;
       },
 
-      openDeleteModal(id, name) {
+      openDeleteModalById(id) {
+        const prod = this.productsList.find(p => p.id === id);
         this.deleteId = id;
-        this.deleteName = name;
+        this.deleteName = prod ? prod.name : '';
         this.showDeleteModal = true;
+      },
+
+      getAvailableRelatedProducts() {
+        return this.productsList.filter(p => !this.formData.id || p.id !== this.formData.id);
+      },
+
+      isRelatedChecked(id) {
+        if (!this.formData.related_products) return false;
+        const arr = String(this.formData.related_products).split(',').filter(Boolean);
+        return arr.includes(String(id));
+      },
+
+      toggleRelated(id, checked) {
+        let arr = this.formData.related_products ? String(this.formData.related_products).split(',').filter(Boolean) : [];
+        const strId = String(id);
+        if (checked) {
+          if (!arr.includes(strId)) arr.push(strId);
+        } else {
+          arr = arr.filter(item => item !== strId);
+        }
+        this.formData.related_products = arr.join(',');
+      },
+
+      async handleFormSubmit(e) {
+        e.preventDefault();
+        this.formError = null;
+        this.nameError = false;
+
+        // 1. Validasi Nama Produk
+        if (!this.formData.name || !this.formData.name.trim()) {
+          this.formError = 'Nama produk wajib diisi sebelum menyimpan.';
+          this.nameError = true;
+          return;
+        }
+
+        // 2. Normalisasi Harga & Stok (jika kosong, set 0)
+        let cleanPrice = parseInt(String(this.formData.price || '').replace(/[^0-9]/g, ''), 10);
+        if (isNaN(cleanPrice) || cleanPrice < 0) cleanPrice = 0;
+        this.formData.price = String(cleanPrice);
+
+        let cleanStock = parseInt(String(this.formData.stock || '').replace(/[^0-9]/g, ''), 10);
+        if (isNaN(cleanStock) || cleanStock < 0) cleanStock = 0;
+        this.formData.stock = String(cleanStock);
+
+        // 3. Normalisasi Media URL (auto-prepend https:// jika pengguna tidak mengetik protokol)
+        if (this.formData.media_url && this.formData.media_url.trim()) {
+          let trimmedUrl = this.formData.media_url.trim();
+          if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+            this.formData.media_url = 'https://' + trimmedUrl;
+          }
+        }
+
+        this.isSubmitting = true;
+
+        try {
+          const formElement = e.target;
+          const formDataObj = new FormData(formElement);
+          if (this.formData.media_url) {
+            formDataObj.set('media_url', this.formData.media_url);
+          }
+          formDataObj.set('price', this.formData.price);
+          formDataObj.set('stock', this.formData.stock);
+
+          const response = await fetch(formElement.action, {
+            method: 'POST',
+            body: formDataObj,
+            headers: {
+              'Accept': 'application/json'
+            }
+          });
+
+          if (!response.ok) {
+            let errorMsg = 'Terjadi kesalahan saat menyimpan data (status ' + response.status + ')';
+            try {
+              const resData = await response.json();
+              if (resData && resData.message) errorMsg = resData.message;
+            } catch (_) {}
+            throw new Error(errorMsg);
+          }
+
+          window.location.reload();
+        } catch (err) {
+          console.error('[Product Submit Error]', err);
+          this.formError = err.message || 'Gagal menyimpan produk. Silakan coba lagi.';
+          this.isSubmitting = false;
+        }
       },
 
       async syncSheets() {
@@ -413,7 +619,7 @@
           this.isSyncing = false;
         }
       }
-    }
+    };
   }
 </script>
 

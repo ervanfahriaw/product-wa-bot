@@ -25,3 +25,7 @@ android/node_modules.zip
 android/app/src/main/assets/nodejs-project/
 foto.png
 tugass/
+
+masalah.jpeg
+license-server/.vercel/
+license-server/.env*

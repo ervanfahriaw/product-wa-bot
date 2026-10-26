@@ -107,6 +107,7 @@ function mapCsvToProducts(rows) {
   const descIdx = getIndex(['deskripsi', 'description', 'keterangan', 'ket']);
   const knowledgeIdx = getIndex(['knowledge', 'product_knowledge', 'keunggulan', 'manfaat', 'faq', 'detail']);
   const imgIdx = getIndex(['gambar', 'image', 'foto', 'link_gambar', 'url']);
+  const mediaIdx = getIndex(['link_media', 'media_url', 'link_video', 'galeri', 'gdrive', 'folder']);
 
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
@@ -129,7 +130,8 @@ function mapCsvToProducts(rows) {
       stock: cleanStock,
       description: descIdx !== -1 && row[descIdx] ? row[descIdx].trim() : '',
       product_knowledge: knowledgeIdx !== -1 && row[knowledgeIdx] ? row[knowledgeIdx].trim() : '',
-      image_path: imgIdx !== -1 && row[imgIdx] ? row[imgIdx].trim() : null
+      image_path: imgIdx !== -1 && row[imgIdx] ? row[imgIdx].trim() : null,
+      media_url: mediaIdx !== -1 && row[mediaIdx] ? row[mediaIdx].trim() : null
     });
   }
 
